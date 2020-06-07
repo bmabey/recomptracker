@@ -34,6 +34,7 @@ The code of this repository is provided for scientist and clinicians who want to
 - To use this code, python needs to be installed. One possibility to do this is with [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html). Make sure to install also the needed libraries with the correct version number.
 - Then download this repository and in Terminal, cd into the main directory.
 - Prepare an excel file similar to the "example_file.xlsx" containing all measurements for which z-scorees should be computed.
+- Units: all weights in kg, except for VAT_mass in g, indices in kg/m^(x) where x is 2 or the fitted exponent, height in cm, age in years (computed as: "days between birthday and measurement"/365.25, not rounded)
 - __IMPORTANT__: the columns need to have the __same__ names.
 - Compute the z-scores, which will be saved into the same file, by running the following command:
 ```run
