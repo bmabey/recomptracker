@@ -3,7 +3,9 @@ python program to compute z-scores with LEAD LMS reference values for data-files
 
 
 ## Reference
-This code can be used to compute Z-scores of body composition parameters with the reference values for adults published in: 
+This code can be used to compute Z-scores of body composition parameters with the reference values for:
+
+- adults published in: 
 
 __Article Title__: Reference values of body composition parameters and visceral adipose tissue (VAT) by DXA in adults aged 18–81 years—results from the LEAD cohort
 
@@ -13,8 +15,14 @@ __Link__: https://www.nature.com/articles/s41430-020-0596-5
 
 __Citation__: Ofenheimer, A., Breyer-Kohansal, R., Hartl, S. et al. Reference values of body composition parameters and visceral adipose tissue (VAT) by DXA in adults aged 18–81 years—results from the LEAD cohort. Eur J Clin Nutr (2020).
 
-and the reference values for children published in:
-TODO
+- children published in:
+
+__Article Title__: Reference charts for body composition parameters by dual‐energy X‐ray absorptiometry in European children and adolescents aged 6 to 18 years—Results from the Austrian LEAD (Lung, hEart , sociAl , boDy ) cohort
+
+__Link__: http://dx.doi.org/10.1111/ijpo.12695
+
+__Citation__: Ofenheimer, A, Breyer‐Kohansal, R, Hartl, S, et al. Reference charts for body composition parameters by dual‐energy X‐ray absorptiometry in European children and adolescents aged 6 to 18 years—Results from the Austrian LEAD (Lung, hEart , sociAl , boDy ) cohort. Pediatric Obesity. 2020;e12695. https://doi.org/10.1111/ijpo.12695
+
 
 
 ## Requirements
