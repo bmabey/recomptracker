@@ -30,7 +30,7 @@ xlrd==1.2.0
 ```
 
 ## Usage
-The code of this repository is provided for scientist and clinicians who want to compute z-scores with our reference LMS-values for multiple individuals at the same time. For single computations we also provide an app which might be easier to use [here](https://leadstudy.at). 
+The code of this repository is provided for scientist and clinicians who want to compute z-scores with our reference LMS-values for multiple individuals at the same time. For single computations we also provide an app which might be easier to use [here](https://github.com/FlorianKrach/LMS-zscore-app). 
 
 - To use this code, python needs to be installed. One possibility to do this is with [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html). Make sure to install also the needed libraries with the correct version number.
 - Then download this repository and in Terminal, cd into the main directory.
