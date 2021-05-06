@@ -32,12 +32,18 @@ xlrd==1.2.0
 The code of this repository is provided for scientist and clinicians who want to compute z-scores with our reference LMS-values for multiple individuals at the same time. For single computations we also provide an app which might be easier to use [here](https://github.com/FlorianKrach/LMS-zscore-app). 
 
 - To use this code, python needs to be installed. One possibility to do this is with [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html). 
-- Install the needed libraries with the correct version number by running:
+- Then download this repository and in Terminal, cd into the main directory. In particular cd in terminal to the directory where you want to save this code-repo and then run:
+```sh
+git clone https://github.com/FlorianKrach/scientific-LMS-zscore-app.git
+cd scientific-LMS-zscore-app
+```
+
+- Then install the needed libraries with the correct version number by running:
 ```sh
 pip install -r requirements.txt
 ```
 
-- Then download this repository and in Terminal, cd into the main directory.
+
 - Prepare an excel file similar to the "example_file.xlsx" containing all measurements for which z-scores should be computed.
 - Units: all weights in kg, except for VAT_mass in g, indices in kg/m^(x) where x is 2 or the fitted exponent, height in cm, age in years (computed as: "days between birthday and measurement"/365.25, not rounded)
 - __IMPORTANT__: the columns need to have the __same__ names.
