@@ -21,12 +21,6 @@ __Citation__: Ofenheimer, A, Breyer‐Kohansal, R, Hartl, S, et al. Reference ch
 ## Requirements
 This code was written for python 3.7 with the dependencies listed in requirements.txt.
 
-numpy==1.17.2
-pandas==0.25.1
-scipy==1.3.1
-argparse==1.4.0
-xlrd==1.2.0
-
 
 ## Usage
 The code of this repository is provided for scientist and clinicians who want to compute z-scores with our reference LMS-values for multiple individuals at the same time. For single computations we also provide an app which might be easier to use [here](https://github.com/FlorianKrach/LMS-zscore-app). 
