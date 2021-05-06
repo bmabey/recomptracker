@@ -19,20 +19,24 @@ __Citation__: Ofenheimer, A, Breyer‐Kohansal, R, Hartl, S, et al. Reference ch
 
 
 ## Requirements
-This code was written for python 3.7 with the following dependencies:
+This code was written for python 3.7 with the dependencies listed in requirements.txt.
 
-```requirements
 numpy==1.17.2
 pandas==0.25.1
 scipy==1.3.1
 argparse==1.4.0
 xlrd==1.2.0
-```
+
 
 ## Usage
 The code of this repository is provided for scientist and clinicians who want to compute z-scores with our reference LMS-values for multiple individuals at the same time. For single computations we also provide an app which might be easier to use [here](https://github.com/FlorianKrach/LMS-zscore-app). 
 
-- To use this code, python needs to be installed. One possibility to do this is with [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html). Make sure to install also the needed libraries with the correct version number.
+- To use this code, python needs to be installed. One possibility to do this is with [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html). 
+- Install the needed libraries with the correct version number by running:
+```sh
+pip install -r requirements.txt
+```
+
 - Then download this repository and in Terminal, cd into the main directory.
 - Prepare an excel file similar to the "example_file.xlsx" containing all measurements for which z-scores should be computed.
 - Units: all weights in kg, except for VAT_mass in g, indices in kg/m^(x) where x is 2 or the fitted exponent, height in cm, age in years (computed as: "days between birthday and measurement"/365.25, not rounded)
