@@ -94,7 +94,8 @@ def get_LMS(param, gender, filename, path):
         return L_formula, M_formula, S_formula, Lspline, Mspline, Sspline
 
 
-def compute_zscores_file(filename, datapath, age_col, gender_col, height_col):
+def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
+                         exclude_zeros=True):
     df = pd.read_excel(filename, header=0, index_col=None)
 
     assert age_col in df.columns and gender_col in df.columns, \
@@ -138,6 +139,8 @@ def compute_zscores_file(filename, datapath, age_col, gender_col, height_col):
                                 zscores = compute_zscore_splines(
                                     y_vals, t_vals, h_vals, L, M, S,
                                     Lspline, Mspline, Sspline)
+                            if exclude_zeros:
+                                zscores[y_vals <= 0] = None
                         except Exception:
                             # raise
                             zscores = None
@@ -173,6 +176,10 @@ if __name__ == '__main__':
         '--height', type=str,
         help="name of column with height values",
         default="height")
+    parser.add_argument(
+        '--exclude_negative', type=bool,
+        help="if True then does not compute zscores for values <=0",
+        default=True)
 
     args = parser.parse_args()
     filename = args.filename
@@ -180,9 +187,11 @@ if __name__ == '__main__':
     age_col = args.age
     gender_col = args.gender
     height_col = args.height
+    exclude_zeros = args.exclude_negative
     compute_zscores_file(
         filename=filename, datapath=datapath, age_col=age_col,
-        gender_col=gender_col, height_col=height_col)
+        gender_col=gender_col, height_col=height_col,
+        exclude_zeros=exclude_zeros)
 
 
 
