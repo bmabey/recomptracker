@@ -70,9 +70,10 @@ def get_formula(s):
 def get_LMS(param, gender, filename, path):
     file_path = os.path.join(path, filename.format(param, gender))
     try:
-        df_ref = pd.read_csv(file_path)
+        df_ref = pd.read_csv(file_path, index_col=None)
     except Exception:
-        df_ref = pd.read_excel(file_path.replace(".csv", ".xlsx"))
+        df_ref = pd.read_excel(
+            file_path.replace(".csv", ".xlsx"), index_col=None)
 
     # distinguish whether LMS params are given or need to be computed
     cols = df_ref.columns
