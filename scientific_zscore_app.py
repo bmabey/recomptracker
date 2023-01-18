@@ -97,7 +97,7 @@ def get_LMS(param, gender, filename, path):
 
 def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
                          exclude_zeros=True):
-    df = pd.read_excel(filename, header=0, index_col=None)
+    df = pd.read_excel(filename, header=0, index_col=None, dtype=float)
 
     assert age_col in df.columns and gender_col in df.columns, \
         "file does not have the columns: {} and {}".format(age_col, gender_col)
@@ -106,7 +106,7 @@ def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
         height_col_exist = False
 
     for col in df.columns:
-        if col not in [age_col, gender_col, height_col, 'ID', "PT_Nr"]:
+        if col not in [age_col, gender_col, 'ID', "PT_Nr"]:
             print('computing zscores for: {}'.format(col))
             new_col = 'zscore-{}'.format(col)
             for gender in [male, female]:
