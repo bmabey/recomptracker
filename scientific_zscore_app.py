@@ -96,8 +96,11 @@ def get_LMS(param, gender, filename, path):
 
 
 def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
-                         exclude_zeros=True):
-    df = pd.read_excel(filename, header=0, index_col=None, dtype=float)
+                         exclude_zeros=True, write_nones=False):
+    try:
+        df = pd.read_excel(filename, header=0, index_col=None, dtype=float)
+    except Exception:
+        df = pd.read_csv(filename, header=0, index_col=None, sep=",", dtype=float)
 
     assert age_col in df.columns and gender_col in df.columns, \
         "file does not have the columns: {} and {}".format(age_col, gender_col)
@@ -145,11 +148,15 @@ def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
                         except Exception:
                             # raise
                             zscores = None
-                        df.loc[
-                            (df[age_col] >= age_int[0]) &
-                            (df[age_col] < age_int[1]) &
-                            (df[gender_col] == gender), new_col] = zscores
-    df.to_excel(filename, index=False)
+                        if zscores is not None or write_nones:
+                            df.loc[
+                                (df[age_col] >= age_int[0]) &
+                                (df[age_col] < age_int[1]) &
+                                (df[gender_col] == gender), new_col] = zscores
+    try:
+        df.to_excel(filename, index=False)
+    except Exception:
+        df.to_csv(filename, index=False, sep=",")
 
 
 
