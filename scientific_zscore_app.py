@@ -67,13 +67,20 @@ def get_formula(s):
     return f
 
 
-def get_LMS(param, gender, filename, path):
+def get_LMS(param, gender, filename, path, constant_extrapolation=False):
     file_path = os.path.join(path, filename.format(param, gender))
     try:
         df_ref = pd.read_csv(file_path, index_col=None)
     except Exception:
         df_ref = pd.read_excel(
             file_path.replace(".csv", ".xlsx"), index_col=None)
+
+    if constant_extrapolation:
+        df_ref_last = df_ref.iloc[-1].copy()
+        df_ref_last['age'] = max_age
+        df_ref = df_ref.append(
+            df_ref_last, ignore_index=True)
+
 
     # distinguish whether LMS params are given or need to be computed
     cols = df_ref.columns
@@ -96,7 +103,9 @@ def get_LMS(param, gender, filename, path):
 
 
 def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
-                         exclude_zeros=True, write_nones=False):
+                         exclude_zeros=True, write_nones=False, min_age=min_age,
+                         max_age=max_age, child_adult_split=child_adult_split,
+                         constant_extrapolation=False):
     try:
         df = pd.read_excel(filename, header=0, index_col=None, dtype=float)
     except Exception:
@@ -132,10 +141,12 @@ def compute_zscores_file(filename, datapath, age_col, gender_col, height_col,
                                 h_vals = np.zeros_like(t_vals)
                             L, M, S, Lspline, Mspline, Sspline = get_LMS(
                                 param=col, gender=gender, filename=file_name,
-                                path=datapath)
+                                path=datapath,
+                                constant_extrapolation=constant_extrapolation)
                             if Lspline is None and Sspline is None \
                                     and Mspline is None:
-                                zscores = compute_zscore(y_vals, t_vals, L, M, S)
+                                zscores = compute_zscore(
+                                    y_vals, t_vals, L, M, S)
                             else:
                                 if not height_col_exist:
                                     print("WARNING: height column not found, "
@@ -170,7 +181,7 @@ if __name__ == '__main__':
         default="example_file.xlsx")
     parser.add_argument(
         '--datapath', type=str,
-        help="path to data",
+        help="path to LMS data files",
         default="data/")
     parser.add_argument(
         '--age', type=str,
@@ -188,6 +199,28 @@ if __name__ == '__main__':
         '--exclude_negative', type=bool,
         help="if True then does not compute zscores for values <=0",
         default=True)
+    parser.add_argument(
+        '--write_nones', type=bool,
+        help="if True then writes None for zscores where no LMS values "
+             "could be computed",
+        default=False)
+    parser.add_argument(
+        '--min_age', type=float,
+        help="minimum age for zscore computation",
+        default=min_age)
+    parser.add_argument(
+        '--max_age', type=float,
+        help="maximum age for zscore computation",
+        default=max_age)
+    parser.add_argument(
+        '--child_adult_split', type=float,
+        help="split betwen child and adult zscores",
+        default=child_adult_split)
+    parser.add_argument(
+        '--constant_extrapolation', type=bool,
+        help="if True then uses constant extrapolation for LMS values above "
+             "last value until max_age",
+        default=False)
 
     args = parser.parse_args()
     filename = args.filename
@@ -196,10 +229,17 @@ if __name__ == '__main__':
     gender_col = args.gender
     height_col = args.height
     exclude_zeros = args.exclude_negative
+    write_nones = args.write_nones
+    min_age = args.min_age
+    max_age = args.max_age
+    child_adult_split = args.child_adult_split
+    constant_extrapolation = args.constant_extrapolation
     compute_zscores_file(
         filename=filename, datapath=datapath, age_col=age_col,
         gender_col=gender_col, height_col=height_col,
-        exclude_zeros=exclude_zeros)
+        exclude_zeros=exclude_zeros, write_nones=write_nones,
+        min_age=min_age, max_age=max_age, child_adult_split=child_adult_split,
+        constant_extrapolation=constant_extrapolation)
 
 
 

@@ -45,11 +45,15 @@ pip install -r requirements.txt
 - Units: all weights in kg, except for VAT_mass in g, indices in kg/m^(x) where x is 2 or the fitted exponent, height in cm, age in years (computed as: "days between birthday and measurement"/365.25, not rounded)
 - __IMPORTANT__: the columns need to have the __same__ names.
 - Compute the z-scores, which will be saved into the same file, by running the following command:
-```run
+```shell
 python scientific_zscore_app.py --filename="example_file.xlsx"
 ```
 - if the wanted excel file is not in the same directory, also the (relative or absolute) directory needs to be provided with the filename, e.g. if the file is on the desktop of user '--filename="~/Desktop/example_file.xlsx"'.
 - different reference values are provided for children and adults (i.e. for different body composition parameters), therefore some of the z-scores might be empty.
+- to see all options, run:
+```shell
+python scientific_zscore_app.py --help
+```
 
 
 ## Citation
