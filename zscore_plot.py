@@ -23,7 +23,7 @@ HOW TO USE:
     - It confirms the user's goal (hardcoded for this script).
     - It loads the LMS reference data.
     - It calculates all metrics (ALMI, FFMI, Z-scores, T-scores, etc.).
-    - It generates and saves a plot named `almi_plot.png`.
+    - It generates and saves plots named `almi_plot.png` and `ffmi_plot.png`.
     - It exports the table data to `almi_stats_table.csv`.
     - It prints a final summary table to the console.
 
@@ -361,20 +361,21 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
     ax.legend(loc='upper left', title="Percentiles / Data")
     ax.grid(True, linestyle='--', alpha=0.7)
 
-    # Export table data to CSV
-    table_data = df_results[[
-        'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile',
-        'almi_t_score', 'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
-    ]].copy()
-    
-    # Rename columns for CSV clarity
-    table_data.columns = ['Date', 'Age', 'ALMI_kg_m2', 'ALMI_Z_Score', 'ALMI_Percentile',
-                         'ALMI_T_Score', 'FFMI_kg_m2', 'FFMI_Z_Score', 'FFMI_Percentile', 'FFMI_T_Score']
-    
-    # Save raw data to CSV without formatting
-    csv_filename = f"{metric_to_plot.lower()}_stats_table.csv"
-    table_data.to_csv(csv_filename, index=False)
-    print(f"Table data saved as: {csv_filename}")
+    # Export table data to CSV (only for ALMI plot to avoid duplicate files)
+    if is_almi_plot:
+        table_data = df_results[[
+            'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile',
+            'almi_t_score', 'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
+        ]].copy()
+        
+        # Rename columns for CSV clarity
+        table_data.columns = ['Date', 'Age', 'ALMI_kg_m2', 'ALMI_Z_Score', 'ALMI_Percentile',
+                             'ALMI_T_Score', 'FFMI_kg_m2', 'FFMI_Z_Score', 'FFMI_Percentile', 'FFMI_T_Score']
+        
+        # Save raw data to CSV without formatting
+        csv_filename = "almi_stats_table.csv"
+        table_data.to_csv(csv_filename, index=False)
+        print(f"Table data saved as: {csv_filename}")
     
     output_filename = f"{metric_to_plot.lower()}_plot.png"
     plt.savefig(output_filename, bbox_inches='tight')
@@ -473,8 +474,9 @@ if __name__ == '__main__':
             # Step 4: Process data and generate results DataFrame
             df_results = process_scans_and_goal(user_info, scan_history, goal_params, lms_functions)
             
-            # Step 5: Generate Plot
+            # Step 5: Generate Plots
             plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_params)
+            plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_params)
             
             # Step 6: Print Final Table
             print("\n--- Final Comprehensive Data Table ---")
