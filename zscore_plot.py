@@ -497,6 +497,57 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
     ax.scatter(historical_data['age_at_scan'], historical_data[value_col], c='blue', marker='o', s=80, zorder=5, label="User's Scans")
     ax.plot(goal_data['age_at_scan'], goal_data[value_col], marker='*', color='gold', markersize=20, markeredgecolor='black', zorder=6, label=f"Goal ({goal_params['target_percentile']*100:.0f}th %ile)")
 
+    # Add smart date annotations with overlap avoidance
+    def add_smart_date_annotations(ax, data, value_col):
+        positions = []  # Track used positions
+        
+        for i, (idx, row) in enumerate(data.iterrows()):
+            # Format date as MM/DD/YY for compactness
+            date_label = datetime.strptime(row['date_str'], '%m/%d/%Y').strftime('%m/%d/%y')
+            
+            # Calculate smart offset to avoid overlaps
+            base_offset_x = 8
+            base_offset_y = 8
+            
+            # Alternate positioning based on index
+            if i % 2 == 0:
+                offset_x = base_offset_x
+                offset_y = base_offset_y
+                ha = 'left'
+                va = 'bottom'
+            else:
+                offset_x = -base_offset_x
+                offset_y = -base_offset_y  
+                ha = 'right'
+                va = 'top'
+            
+            # Additional logic to check for nearby points and adjust if needed
+            x_pos = row['age_at_scan']
+            y_pos = row[value_col]
+            
+            # Check if too close to other annotations
+            for prev_x, prev_y in positions:
+                if abs(x_pos - prev_x) < 2 and abs(y_pos - prev_y) < 0.3:
+                    # Adjust offset for overlap avoidance
+                    offset_y += 15 if offset_y > 0 else -15
+                    break
+            
+            positions.append((x_pos, y_pos))
+            
+            # Add annotation with smart positioning
+            ax.annotate(date_label,
+                       (x_pos, y_pos),
+                       xytext=(offset_x, offset_y),
+                       textcoords='offset points',
+                       fontsize=8,
+                       alpha=0.8,
+                       ha=ha, va=va,
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='lightblue', alpha=0.7),
+                       arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0.1', alpha=0.5))
+
+    # Apply smart annotations to historical data
+    add_smart_date_annotations(ax, historical_data, value_col)
+
     lbs_to_kg = 1 / 2.20462
     alm_add_str = f"{goal_params['alm_to_add_kg']:.2f} kg ({goal_params['alm_to_add_kg'] / lbs_to_kg:.2f} lbs)"
     tlm_add_str = f"{goal_params['estimated_tlm_gain_kg']:.2f} kg ({goal_params['estimated_tlm_gain_kg'] / lbs_to_kg:.2f} lbs)"
