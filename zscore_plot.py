@@ -7,25 +7,24 @@ PURPOSE:
 This script performs a comprehensive analysis of DEXA scan data. It processes
 a user's historical scan results, compares them against a reference population
 using the LMS method, and visualizes the data with percentile curves, historical
-trends, and user-defined goals. The script is designed to be self-contained,
-with hardcoded DEXA data for demonstration purposes, and includes a full suite
-of unit tests to ensure the correctness of the underlying calculations.
+trends, and user-defined goals. The script features intelligent TLM (Total Lean
+Mass) estimation using personalized ALM/TLM ratios when multiple scans are available,
+or population-based ratios when only a single scan exists.
 
 HOW TO USE:
-1.  Ensure you have the required LMS reference data files in the same directory
-    as this script. The necessary files are:
+1.  Ensure you have the required LMS reference data files in the data/ directory:
     - `adults_LMS_appendicular_LMI_gender0.csv` (for male ALMI)
     - `adults_LMS_LMI_gender0.csv` (for male LMI/FFMI)
-2.  Run the script from your terminal: `python <script_name>.py`
-3.  The script will first execute all unit tests.
-4.  If the tests pass, it will proceed with the analysis:
-    - It extracts the hardcoded DEXA scan data.
-    - It confirms the user's goal (hardcoded for this script).
-    - It loads the LMS reference data.
-    - It calculates all metrics (ALMI, FFMI, Z-scores, T-scores, etc.).
-    - It generates and saves plots named `almi_plot.png` and `ffmi_plot.png`.
-    - It exports the table data to `almi_stats_table.csv`.
-    - It prints a final summary table to the console.
+2.  Run the script: `python zscore_plot.py`
+3.  For comprehensive testing: `python test_zscore_calculations.py`
+4.  The analysis will:
+    - Extract the hardcoded DEXA scan data
+    - Intelligently estimate TLM gain needed using ALM/TLM ratio method
+    - Load the LMS reference data
+    - Calculate all metrics (ALMI, FFMI, Z-scores, T-scores, etc.)
+    - Generate and save plots named `almi_plot.png` and `ffmi_plot.png`
+    - Export the table data to `almi_stats_table.csv`
+    - Print a final summary table to the console
 
 SECTIONS:
 - SECTION 1: CORE CALCULATION LOGIC
@@ -33,21 +32,17 @@ SECTIONS:
   inverse Z-scores (for plotting percentiles), and T-scores.
 - SECTION 2: DATA PROCESSING AND ORCHESTRATION
   Contains functions that manage the overall workflow, including extracting
-  DEXA data, loading the LMS reference files, and processing the full list of
-  scans and goals to produce a complete dataset.
+  DEXA data, intelligent TLM estimation using ALM/TLM ratios, loading LMS
+  reference files, and processing scans and goals to produce a complete dataset.
 - SECTION 3: PLOTTING LOGIC
-  Contains the function responsible for generating the final plot, including
-  the percentile curves, data points, and the embedded summary table.
-- SECTION 4: UNIT TESTS
-  A comprehensive suite of tests using Python's `unittest` framework to verify
-  the correctness of the functions in SECTION 1.
-- SECTION 5: MAIN EXECUTION BLOCK
-  The entry point of the script. It runs the unit tests and, if they succeed,
-  orchestrates the data processing and plot generation.
+  Contains the function responsible for generating the final plots, including
+  the percentile curves, data points, and CSV export functionality.
+- SECTION 4: MAIN EXECUTION BLOCK
+  The entry point of the script that orchestrates the data processing and
+  plot generation. Tests are now located in test_zscore_calculations.py.
 
 """
 
-import unittest
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -207,6 +202,52 @@ def extract_dexa_data():
     ]
     return user_info, scan_history
 
+def get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info):
+    """
+    Calculates ALM/TLM ratio using personal history when available, 
+    otherwise falls back to population ratio at target age.
+    
+    Args:
+        processed_data (list): List of processed scan data
+        goal_params (dict): Dictionary with target age and percentile
+        lms_functions (dict): Dictionary of LMS interpolation functions
+        user_info (dict): Dictionary with user height and other info
+        
+    Returns:
+        float: ALM/TLM ratio to use for TLM estimation
+    """
+    lbs_to_kg = 1 / 2.20462
+    
+    if len(processed_data) >= 2:
+        # Use personal ratio from recent scans
+        recent_scans = processed_data[-min(3, len(processed_data)):]  # Last 3 or fewer scans
+        ratios = []
+        for scan in recent_scans:
+            alm_kg = scan['alm_lbs'] * lbs_to_kg
+            tlm_kg = scan['total_lean_mass_lbs'] * lbs_to_kg
+            ratios.append(alm_kg / tlm_kg)
+        
+        personal_ratio = np.mean(ratios)
+        print(f"Using personal ALM/TLM ratio of {personal_ratio:.3f} from {len(recent_scans)} recent scans")
+        return personal_ratio
+    
+    else:
+        # Use population ratio at TARGET AGE from LMS data
+        target_age = goal_params['target_age']
+        height_m_sq = (user_info['height_in'] * 0.0254) ** 2
+        
+        # Calculate population medians at target age
+        almi_median = lms_functions['almi_M'](target_age)  # ALMI at target age
+        lmi_median = lms_functions['lmi_M'](target_age)    # LMI at target age
+        
+        # Convert to absolute masses
+        alm_median_kg = almi_median * height_m_sq
+        tlm_median_kg = lmi_median * height_m_sq
+        
+        population_ratio = alm_median_kg / tlm_median_kg
+        print(f"Using population ALM/TLM ratio of {population_ratio:.3f} at target age {target_age} (single scan fallback)")
+        return population_ratio
+
 def load_lms_data(metric, gender_code, data_path="./data/"):
     """
     Loads LMS data from a CSV file and creates interpolation functions.
@@ -294,8 +335,14 @@ def process_scans_and_goal(user_info, scan_history, goal_params, lms_functions):
     current_alm_kg = (processed_data[-1]['alm_lbs']) * lbs_to_kg
     goal_params['alm_to_add_kg'] = target_alm_kg - current_alm_kg
     
+    # Intelligently estimate TLM gain using ALM/TLM ratio
+    alm_tlm_ratio = get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info)
+    target_tlm_kg = target_alm_kg / alm_tlm_ratio
     current_tlm_kg = (processed_data[-1]['total_lean_mass_lbs']) * lbs_to_kg
-    target_tlm_kg = current_tlm_kg + goal_params['estimated_tlm_gain_kg']
+    goal_params['estimated_tlm_gain_kg'] = target_tlm_kg - current_tlm_kg
+    
+    print(f"Calculated TLM gain needed: {goal_params['estimated_tlm_gain_kg']:.2f} kg ({goal_params['estimated_tlm_gain_kg']/(1/2.20462):.2f} lbs)")
+    
     target_ffmi = target_tlm_kg / height_m_sq
     goal_ffmi_z, goal_ffmi_p = calculate_z_percentile(target_ffmi, goal_params['target_age'], lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'])
 
@@ -383,115 +430,59 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
     plt.close()
 
 # ---------------------------------------------------------------------------
-# SECTION 4: UNIT TESTS
-# ---------------------------------------------------------------------------
-
-class TestBodyCompCalculations(unittest.TestCase):
-    """
-    A comprehensive test suite for all core calculation functions.
-    This ensures the mathematical logic for age, Z-scores, T-scores,
-    and inverse Z-scores is correct and handles edge cases properly.
-    """
-    
-    def test_calculate_age(self):
-        """Tests the age calculation logic."""
-        self.assertAlmostEqual(calculate_age_precise("01/01/2000", "01/01/2001"), 1.0, places=2)
-        self.assertAlmostEqual(calculate_age_precise("06/15/1980", "12/15/1980"), 0.5, places=2)
-        
-    def test_zscore_logic(self):
-        """Tests the main Z-score calculation for various L values and edge cases."""
-        self.assertAlmostEqual(compute_zscore(10, 0.5, 8, 0.1), (np.sqrt(1.25)-1)/0.05, 5)
-        self.assertAlmostEqual(compute_zscore(7, -0.5, 8, 0.1), ((7/8)**-0.5-1)/-0.05, 5)
-        self.assertAlmostEqual(compute_zscore(10, 0, 8, 0.1), np.log(1.25)/0.1, 5)
-        self.assertEqual(compute_zscore(8, 0.5, 8, 0.1), 0)
-        self.assertTrue(np.isnan(compute_zscore(0, 0.5, 8, 0.1)))
-        self.assertTrue(np.isnan(compute_zscore(-1, 0.5, 8, 0.1)))
-
-    def test_inverse_zscore_logic(self):
-        """Tests that get_value_from_zscore is the mathematical inverse of compute_zscore."""
-        L, M, S, z = 0.5, 10, 0.1, 1.5
-        y = get_value_from_zscore(z, L, M, S)
-        self.assertAlmostEqual(compute_zscore(y, L, M, S), z, 5)
-        
-        L, M, S, z = -0.5, 10, 0.1, -1.5
-        y = get_value_from_zscore(z, L, M, S)
-        self.assertAlmostEqual(compute_zscore(y, L, M, S), z, 5)
-        
-        L, M, S, z = 0, 10, 0.1, 1.0
-        y = get_value_from_zscore(z, L, M, S)
-        self.assertAlmostEqual(compute_zscore(y, L, M, S), z, 5)
-
-    def test_t_score_logic(self):
-        """Tests the T-score calculation against a young adult reference."""
-        self.assertEqual(calculate_t_score(12, 10, 2), 1.0)
-        self.assertEqual(calculate_t_score(8, 10, 2), -1.0)
-        self.assertEqual(calculate_t_score(10, 10, 2), 0.0)
-        self.assertTrue(np.isnan(calculate_t_score(10, 10, 0)))
-
-# ---------------------------------------------------------------------------
-# SECTION 5: MAIN EXECUTION BLOCK
+# SECTION 4: MAIN EXECUTION BLOCK
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    # Step 1: Run Unit Tests first to ensure correctness
-    print("--- Running Unit Tests ---")
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestBodyCompCalculations))
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
+    print("DEXA Body Composition Analysis with Intelligent TLM Estimation")
+    print("=" * 65)
+    print("Note: Run 'python test_zscore_calculations.py' for comprehensive testing\n")
+    
+    # Step 1: Extract Data and Define Goal
+    user_info, scan_history = extract_dexa_data()
+    
+    # In a real application, this would be prompted from the user.
+    # For this self-contained script, the goal is hardcoded.
+    print("Using pre-defined goal:")
+    goal_params = {
+        'target_percentile': 0.90,
+        'target_age': 45.0
+    }
+    print(f"  - Target ALMI Percentile: {goal_params['target_percentile']*100:.0f}th")
+    print(f"  - Target Age: {goal_params['target_age']:.1f}")
+    print("  - Total Lean Mass Gain: Will be calculated intelligently based on ALM/TLM ratio\n")
 
-    if result.wasSuccessful():
-        print("\n--- All tests passed. Proceeding with analysis. ---\n")
-        
-        # Step 2: Extract Data and Define Goal
-        user_info, scan_history = extract_dexa_data()
-        
-        # In a real application, this would be prompted from the user.
-        # For this self-contained script, the goal is hardcoded.
-        print("Using pre-defined goal:")
-        goal_params = {
-            'target_percentile': 0.90,
-            'target_age': 45.0,
-            'estimated_tlm_gain_kg': 2.72 # Corresponds to ~6 lbs
-        }
-        print(f"  - Target ALMI Percentile: {goal_params['target_percentile']*100:.0f}th")
-        print(f"  - Target Age: {goal_params['target_age']:.1f}")
-        print(f"  - Estimated Total Lean Mass Gain: {goal_params['estimated_tlm_gain_kg']:.2f} kg ({goal_params['estimated_tlm_gain_kg']/(1/2.20462):.2f} lbs)\n")
+    # Step 2: Load LMS Data
+    lms_functions = {
+        'almi_L': None, 'almi_M': None, 'almi_S': None,
+        'lmi_L': None, 'lmi_M': None, 'lmi_S': None
+    }
+    lms_functions['almi_L'], lms_functions['almi_M'], lms_functions['almi_S'] = load_lms_data(
+        metric='appendicular_LMI', gender_code=user_info['gender_code'])
+    lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'] = load_lms_data(
+        metric='LMI', gender_code=user_info['gender_code'])
 
-        # Step 3: Load LMS Data
-        lms_functions = {
-            'almi_L': None, 'almi_M': None, 'almi_S': None,
-            'lmi_L': None, 'lmi_M': None, 'lmi_S': None
-        }
-        lms_functions['almi_L'], lms_functions['almi_M'], lms_functions['almi_S'] = load_lms_data(
-            metric='appendicular_LMI', gender_code=user_info['gender_code'])
-        lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'] = load_lms_data(
-            metric='LMI', gender_code=user_info['gender_code'])
-
-        if not all(lms_functions.values()):
-            print("Failed to load all necessary LMS data. Aborting analysis.")
-        else:
-            # Step 4: Process data and generate results DataFrame
-            df_results = process_scans_and_goal(user_info, scan_history, goal_params, lms_functions)
-            
-            # Step 5: Generate Plots
-            plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_params)
-            plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_params)
-            
-            # Step 6: Print Final Table
-            print("\n--- Final Comprehensive Data Table ---")
-            df_display = df_results[[
-                'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile', 'almi_t_score',
-                'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
-            ]].copy()
-            df_display.columns = [
-                'Date', 'Age', 'ALMI', 'ALMI Z', 'ALMI %', 'ALMI T', 'FFMI', 'FFMI Z', 'FFMI %', 'FFMI T'
-            ]
-            for col in df_display.columns:
-                 if df_display[col].dtype == 'float64':
-                     df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
-            print(df_display.to_markdown(index=False))
-
+    if not all(lms_functions.values()):
+        print("Failed to load all necessary LMS data. Aborting analysis.")
     else:
-        print("\n--- Unit tests failed. Please check the calculation logic. Analysis aborted. ---")
+        # Step 3: Process data and generate results DataFrame
+        df_results = process_scans_and_goal(user_info, scan_history, goal_params, lms_functions)
+        
+        # Step 4: Generate Plots
+        plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_params)
+        plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_params)
+        
+        # Step 5: Print Final Table
+        print("\n--- Final Comprehensive Data Table ---")
+        df_display = df_results[[
+            'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile', 'almi_t_score',
+            'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
+        ]].copy()
+        df_display.columns = [
+            'Date', 'Age', 'ALMI', 'ALMI Z', 'ALMI %', 'ALMI T', 'FFMI', 'FFMI Z', 'FFMI %', 'FFMI T'
+        ]
+        for col in df_display.columns:
+             if df_display[col].dtype == 'float64':
+                 df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        print(df_display.to_markdown(index=False))
 
