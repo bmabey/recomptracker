@@ -494,59 +494,23 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
     historical_data = df_results[df_results['date_str'].str.find('Goal') == -1]
     goal_data = df_results[df_results['date_str'].str.find('Goal') != -1].iloc[0]
     
-    ax.scatter(historical_data['age_at_scan'], historical_data[value_col], c='blue', marker='o', s=80, zorder=5, label="User's Scans")
-    ax.plot(goal_data['age_at_scan'], goal_data[value_col], marker='*', color='gold', markersize=20, markeredgecolor='black', zorder=6, label=f"Goal ({goal_params['target_percentile']*100:.0f}th %ile)")
-
-    # Add smart date annotations with overlap avoidance
-    def add_smart_date_annotations(ax, data, value_col):
-        positions = []  # Track used positions
+    # Plot individual scans with numbered markers and detailed legend entries
+    percentile_col = 'almi_percentile' if is_almi_plot else 'ffmi_lmi_percentile'
+    
+    for i, (idx, row) in enumerate(historical_data.iterrows()):
+        scan_num = i + 1
+        date_label = datetime.strptime(row['date_str'], '%m/%d/%Y').strftime('%m/%d/%y')
+        percentile = row[percentile_col]
         
-        for i, (idx, row) in enumerate(data.iterrows()):
-            # Format date as MM/DD/YY for compactness
-            date_label = datetime.strptime(row['date_str'], '%m/%d/%Y').strftime('%m/%d/%y')
-            
-            # Calculate smart offset to avoid overlaps
-            base_offset_x = 8
-            base_offset_y = 8
-            
-            # Alternate positioning based on index
-            if i % 2 == 0:
-                offset_x = base_offset_x
-                offset_y = base_offset_y
-                ha = 'left'
-                va = 'bottom'
-            else:
-                offset_x = -base_offset_x
-                offset_y = -base_offset_y  
-                ha = 'right'
-                va = 'top'
-            
-            # Additional logic to check for nearby points and adjust if needed
-            x_pos = row['age_at_scan']
-            y_pos = row[value_col]
-            
-            # Check if too close to other annotations
-            for prev_x, prev_y in positions:
-                if abs(x_pos - prev_x) < 2 and abs(y_pos - prev_y) < 0.3:
-                    # Adjust offset for overlap avoidance
-                    offset_y += 15 if offset_y > 0 else -15
-                    break
-            
-            positions.append((x_pos, y_pos))
-            
-            # Add annotation with smart positioning
-            ax.annotate(date_label,
-                       (x_pos, y_pos),
-                       xytext=(offset_x, offset_y),
-                       textcoords='offset points',
-                       fontsize=8,
-                       alpha=0.8,
-                       ha=ha, va=va,
-                       bbox=dict(boxstyle='round,pad=0.2', facecolor='lightblue', alpha=0.7),
-                       arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0.1', alpha=0.5))
-
-    # Apply smart annotations to historical data
-    add_smart_date_annotations(ax, historical_data, value_col)
+        # Plot individual point with number marker
+        ax.plot(row['age_at_scan'], row[value_col], 
+               marker=f'${scan_num}$', markersize=12, 
+               color='blue', markeredgecolor='darkblue', markeredgewidth=1,
+               label=f"Scan {scan_num} ({date_label}): {percentile:.1f}%",
+               linestyle='None', zorder=5)
+    
+    # Plot goal marker
+    ax.plot(goal_data['age_at_scan'], goal_data[value_col], marker='*', color='gold', markersize=20, markeredgecolor='black', zorder=6, label=f"Goal ({goal_params['target_percentile']*100:.0f}th %ile)", linestyle='None')
 
     lbs_to_kg = 1 / 2.20462
     alm_add_str = f"{goal_params['alm_to_add_kg']:.2f} kg ({goal_params['alm_to_add_kg'] / lbs_to_kg:.2f} lbs)"
@@ -556,7 +520,34 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
     ax.set_title(title, fontsize=14, pad=20)
     ax.set_xlabel('Age (Years)', fontsize=12)
     ax.set_ylabel(f'{metric_to_plot.upper()} (kg/m²)', fontsize=12)
-    ax.legend(loc='upper left', title="Percentiles / Data")
+    
+    # Organize legend with percentiles first, then scans, then goal
+    handles, labels = ax.get_legend_handles_labels()
+    
+    # Separate different types of legend entries
+    percentile_handles = []
+    percentile_labels = []
+    scan_handles = []
+    scan_labels = []
+    goal_handles = []
+    goal_labels = []
+    
+    for handle, label in zip(handles, labels):
+        if '%' in label and 'Scan' not in label and 'Goal' not in label:
+            percentile_handles.append(handle)
+            percentile_labels.append(label)
+        elif 'Scan' in label:
+            scan_handles.append(handle)
+            scan_labels.append(label)
+        elif 'Goal' in label:
+            goal_handles.append(handle)
+            goal_labels.append(label)
+    
+    # Combine in organized order
+    organized_handles = percentile_handles + scan_handles + goal_handles
+    organized_labels = percentile_labels + scan_labels + goal_labels
+    
+    ax.legend(organized_handles, organized_labels, loc='upper left', title="Percentiles & Scan Data", fontsize=9)
     ax.grid(True, linestyle='--', alpha=0.7)
 
     # Export table data to CSV (only for ALMI plot to avoid duplicate files)
