@@ -504,9 +504,9 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
         
         # Plot individual point with number marker
         ax.plot(row['age_at_scan'], row[value_col], 
-               marker=f'${scan_num}$', markersize=12, 
+               marker=f'${scan_num}$', markersize=10, 
                color='blue', markeredgecolor='darkblue', markeredgewidth=1,
-               label=f"Scan {scan_num} ({date_label}): {percentile:.1f}%",
+               label=f"{date_label} {percentile:.1f}%",
                linestyle='None', zorder=5)
     
     # Plot goal marker
