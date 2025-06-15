@@ -8,6 +8,9 @@ including core calculation functions, TLM estimation logic, and integration test
 import unittest
 import numpy as np
 import pandas as pd
+import json
+import tempfile
+import os
 from scipy.interpolate import interp1d
 from zscore_plot import (
     calculate_age_precise, 
@@ -15,7 +18,10 @@ from zscore_plot import (
     get_value_from_zscore, 
     calculate_t_score,
     get_alm_tlm_ratio,
-    process_scans_and_goal
+    process_scans_and_goal,
+    load_config_json,
+    parse_gender,
+    extract_data_from_config
 )
 
 
@@ -344,6 +350,179 @@ class TestIntegrationTLMEstimation(unittest.TestCase):
         self.assertLess(expected_tlm_gain, 10, "TLM gain should be realistic (< 10 kg)")
         
         print(f"Integration test - Expected TLM gain: {expected_tlm_gain:.2f} kg")
+
+
+class TestJSONConfigHandling(unittest.TestCase):
+    """Test cases for JSON configuration loading and validation."""
+    
+    def setUp(self):
+        """Set up test fixtures for JSON config tests."""
+        self.valid_config = {
+            "user_info": {
+                "birth_date": "04/26/1982",
+                "height_in": 66.0,
+                "gender": "male"
+            },
+            "scan_history": [
+                {
+                    "date": "04/07/2022",
+                    "total_lean_mass_lbs": 106.3,
+                    "arms_lean_lbs": 12.4,
+                    "legs_lean_lbs": 37.3
+                },
+                {
+                    "date": "11/25/2024",
+                    "total_lean_mass_lbs": 129.6,
+                    "arms_lean_lbs": 17.8,
+                    "legs_lean_lbs": 40.5
+                }
+            ],
+            "goal": {
+                "target_percentile": 0.90,
+                "target_age": 45.0,
+                "description": "Reach 90th percentile ALMI by age 45"
+            }
+        }
+    
+    def test_parse_gender_valid_inputs(self):
+        """Test gender parsing with all valid inputs."""
+        # Test male variants
+        self.assertEqual(parse_gender("male"), 0)
+        self.assertEqual(parse_gender("MALE"), 0)
+        self.assertEqual(parse_gender("Male"), 0)
+        self.assertEqual(parse_gender("m"), 0)
+        self.assertEqual(parse_gender("M"), 0)
+        
+        # Test female variants
+        self.assertEqual(parse_gender("female"), 1)
+        self.assertEqual(parse_gender("FEMALE"), 1)
+        self.assertEqual(parse_gender("Female"), 1)
+        self.assertEqual(parse_gender("f"), 1)
+        self.assertEqual(parse_gender("F"), 1)
+    
+    def test_parse_gender_invalid_inputs(self):
+        """Test gender parsing with invalid inputs."""
+        with self.assertRaises(ValueError):
+            parse_gender("invalid")
+        with self.assertRaises(ValueError):
+            parse_gender("man")
+        with self.assertRaises(ValueError):
+            parse_gender("woman")
+        with self.assertRaises(ValueError):
+            parse_gender("")
+    
+    def test_extract_data_from_config(self):
+        """Test extraction of user_info and scan_history from config."""
+        user_info, scan_history = extract_data_from_config(self.valid_config)
+        
+        # Check user_info conversion
+        self.assertEqual(user_info["birth_date_str"], "04/26/1982")
+        self.assertEqual(user_info["height_in"], 66.0)
+        self.assertEqual(user_info["gender_code"], 0)  # male = 0
+        
+        # Check scan_history conversion
+        self.assertEqual(len(scan_history), 2)
+        self.assertEqual(scan_history[0]["date_str"], "04/07/2022")
+        self.assertEqual(scan_history[0]["total_lean_mass_lbs"], 106.3)
+        self.assertEqual(scan_history[1]["date_str"], "11/25/2024")
+    
+    def test_load_config_json_valid_file(self):
+        """Test loading a valid JSON config file."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(self.valid_config, f)
+            temp_path = f.name
+        
+        try:
+            config = load_config_json(temp_path)
+            self.assertEqual(config, self.valid_config)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_load_config_json_missing_file(self):
+        """Test loading a non-existent config file."""
+        with self.assertRaises(FileNotFoundError):
+            load_config_json("nonexistent_file.json")
+    
+    def test_load_config_json_invalid_json(self):
+        """Test loading malformed JSON."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write("{ invalid json ")
+            temp_path = f.name
+        
+        try:
+            with self.assertRaises(json.JSONDecodeError):
+                load_config_json(temp_path)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_config_validation_missing_sections(self):
+        """Test JSON schema validation with missing required sections."""
+        from jsonschema import ValidationError
+        
+        # Test missing user_info
+        invalid_config = self.valid_config.copy()
+        del invalid_config['user_info']
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(invalid_config, f)
+            temp_path = f.name
+        
+        try:
+            with self.assertRaises(ValidationError):
+                load_config_json(temp_path)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_config_validation_invalid_gender(self):
+        """Test JSON schema validation with invalid gender."""
+        from jsonschema import ValidationError
+        
+        invalid_config = self.valid_config.copy()
+        invalid_config['user_info']['gender'] = 'invalid'
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(invalid_config, f)
+            temp_path = f.name
+        
+        try:
+            with self.assertRaises(ValidationError):
+                load_config_json(temp_path)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_config_validation_invalid_percentile(self):
+        """Test JSON schema validation with invalid percentile."""
+        from jsonschema import ValidationError
+        
+        invalid_config = self.valid_config.copy()
+        invalid_config['goal']['target_percentile'] = 1.5  # > 1.0
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(invalid_config, f)
+            temp_path = f.name
+        
+        try:
+            with self.assertRaises(ValidationError):
+                load_config_json(temp_path)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_config_validation_empty_scan_history(self):
+        """Test JSON schema validation with empty scan history."""
+        from jsonschema import ValidationError
+        
+        invalid_config = self.valid_config.copy()
+        invalid_config['scan_history'] = []
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(invalid_config, f)
+            temp_path = f.name
+        
+        try:
+            with self.assertRaises(ValidationError):
+                load_config_json(temp_path)
+        finally:
+            os.unlink(temp_path)
 
 
 if __name__ == '__main__':

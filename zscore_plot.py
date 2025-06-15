@@ -50,6 +50,53 @@ from scipy.interpolate import interp1d
 import scipy.stats as stats
 from datetime import datetime
 import os
+import json
+import argparse
+from jsonschema import validate, ValidationError
+
+# JSON Schema for configuration validation
+CONFIG_SCHEMA = {
+    "type": "object",
+    "required": ["user_info", "scan_history", "goal"],
+    "properties": {
+        "user_info": {
+            "type": "object",
+            "required": ["birth_date", "height_in", "gender"],
+            "properties": {
+                "birth_date": {"type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$"},
+                "height_in": {"type": "number", "minimum": 12, "maximum": 120},
+                "gender": {"type": "string", "pattern": "^(?i)(m|f|male|female)$"}
+            },
+            "additionalProperties": False
+        },
+        "scan_history": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["date", "total_lean_mass_lbs", "arms_lean_lbs", "legs_lean_lbs"],
+                "properties": {
+                    "date": {"type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$"},
+                    "total_lean_mass_lbs": {"type": "number", "minimum": 0},
+                    "arms_lean_lbs": {"type": "number", "minimum": 0},
+                    "legs_lean_lbs": {"type": "number", "minimum": 0}
+                },
+                "additionalProperties": False
+            }
+        },
+        "goal": {
+            "type": "object",
+            "required": ["target_percentile", "target_age"],
+            "properties": {
+                "target_percentile": {"type": "number", "minimum": 0, "maximum": 1},
+                "target_age": {"type": "number", "minimum": 18, "maximum": 120},
+                "description": {"type": "string"}
+            },
+            "additionalProperties": False
+        }
+    },
+    "additionalProperties": False
+}
 
 # ---------------------------------------------------------------------------
 # SECTION 1: CORE CALCULATION LOGIC
@@ -178,28 +225,81 @@ def calculate_z_percentile(value, age, L_func, M_func, S_func):
 # SECTION 2: DATA PROCESSING AND ORCHESTRATION
 # ---------------------------------------------------------------------------
 
-def extract_dexa_data():
+def load_config_json(config_path):
     """
-    Parses DEXA data. In this self-contained script, data is hardcoded
-    based on the user's previously provided PDF to ensure portability.
+    Loads configuration from a JSON file containing user info, scan history, and goals.
+
+    Args:
+        config_path (str): Path to the JSON configuration file.
 
     Returns:
-        tuple[dict, list]: A tuple containing a dictionary of user info
-                           and a list of dictionaries with scan history.
+        dict: Configuration dictionary with user_info, scan_history, and goal sections.
+        
+    Raises:
+        FileNotFoundError: If the config file doesn't exist.
+        json.JSONDecodeError: If the JSON is malformed.
+        ValidationError: If the JSON doesn't match the required schema.
     """
-    print("Extracting hardcoded DEXA scan data...")
+    print(f"Loading configuration from {config_path}...")
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    # Validate against JSON schema
+    validate(config, CONFIG_SCHEMA)
+    
+    print(f"Successfully loaded config with {len(config['scan_history'])} scans")
+    return config
+
+def parse_gender(gender_str):
+    """
+    Converts user-friendly gender string to gender code for LMS data loading.
+    
+    Args:
+        gender_str (str): Gender as string (m, f, male, female - case insensitive)
+        
+    Returns:
+        int: Gender code (0 for male, 1 for female)
+    """
+    gender_lower = gender_str.lower()
+    if gender_lower in ['m', 'male']:
+        return 0
+    elif gender_lower in ['f', 'female']:
+        return 1
+    else:
+        raise ValueError(f"Invalid gender: {gender_str}. Must be one of: m, f, male, female")
+
+def extract_data_from_config(config):
+    """
+    Extracts user_info and scan_history from loaded config in the format expected by existing functions.
+
+    Args:
+        config (dict): Configuration dictionary from load_config_json.
+
+    Returns:
+        tuple[dict, list]: A tuple containing user_info dict and scan_history list.
+    """
+    # Convert config format to expected format for backward compatibility
     user_info = {
-        "birth_date_str": "04/26/1982",
-        "height_in": 66.0,
-        "gender_code": 0  # 0 for male, 1 for female
+        "birth_date_str": config['user_info']['birth_date'],
+        "height_in": config['user_info']['height_in'],
+        "gender_code": parse_gender(config['user_info']['gender'])
     }
-    scan_history = [
-        {'date_str': "04/07/2022", 'total_lean_mass_lbs': 106.3, 'arms_lean_lbs': 12.4, 'legs_lean_lbs': 37.3},
-        {'date_str': "04/01/2023", 'total_lean_mass_lbs': 121.2, 'arms_lean_lbs': 16.5, 'legs_lean_lbs': 40.4},
-        {'date_str': "10/21/2023", 'total_lean_mass_lbs': 121.6, 'arms_lean_lbs': 16.7, 'legs_lean_lbs': 40.7},
-        {'date_str': "04/02/2024", 'total_lean_mass_lbs': 123.9, 'arms_lean_lbs': 17.2, 'legs_lean_lbs': 39.4},
-        {'date_str': "11/25/2024", 'total_lean_mass_lbs': 129.6, 'arms_lean_lbs': 17.8, 'legs_lean_lbs': 40.5}
-    ]
+    
+    # Convert scan format (date -> date_str for backward compatibility)
+    scan_history = []
+    for scan in config['scan_history']:
+        scan_converted = {
+            'date_str': scan['date'],
+            'total_lean_mass_lbs': scan['total_lean_mass_lbs'],
+            'arms_lean_lbs': scan['arms_lean_lbs'],
+            'legs_lean_lbs': scan['legs_lean_lbs']
+        }
+        scan_history.append(scan_converted)
+    
     return user_info, scan_history
 
 def get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info):
@@ -433,38 +533,83 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
 # SECTION 4: MAIN EXECUTION BLOCK
 # ---------------------------------------------------------------------------
 
-if __name__ == '__main__':
+def main():
+    """Main function for DEXA body composition analysis."""
+    parser = argparse.ArgumentParser(
+        description='DEXA Body Composition Analysis with Intelligent TLM Estimation',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  python zscore_plot.py --config example_config.json
+  python zscore_plot.py  # Uses example_config.json by default
+
+JSON config format:
+  {
+    "user_info": {
+      "birth_date": "04/26/1982",
+      "height_in": 66.0,
+      "gender": "male"
+    },
+    "scan_history": [
+      {
+        "date": "04/07/2022",
+        "total_lean_mass_lbs": 106.3,
+        "arms_lean_lbs": 12.4,
+        "legs_lean_lbs": 37.3
+      }
+    ],
+    "goal": {
+      "target_percentile": 0.90,
+      "target_age": 45.0
+    }
+  }
+        """
+    )
+    
+    parser.add_argument(
+        '--config', '-c',
+        default='example_config.json',
+        help='Path to JSON configuration file (default: example_config.json)'
+    )
+    
+    args = parser.parse_args()
+    
     print("DEXA Body Composition Analysis with Intelligent TLM Estimation")
     print("=" * 65)
     print("Note: Run 'python test_zscore_calculations.py' for comprehensive testing\n")
     
-    # Step 1: Extract Data and Define Goal
-    user_info, scan_history = extract_dexa_data()
-    
-    # In a real application, this would be prompted from the user.
-    # For this self-contained script, the goal is hardcoded.
-    print("Using pre-defined goal:")
-    goal_params = {
-        'target_percentile': 0.90,
-        'target_age': 45.0
-    }
-    print(f"  - Target ALMI Percentile: {goal_params['target_percentile']*100:.0f}th")
-    print(f"  - Target Age: {goal_params['target_age']:.1f}")
-    print("  - Total Lean Mass Gain: Will be calculated intelligently based on ALM/TLM ratio\n")
+    try:
+        # Step 1: Load Configuration
+        config = load_config_json(args.config)
+        user_info, scan_history = extract_data_from_config(config)
+        goal_params = config['goal']
+        
+        # Display loaded configuration
+        print(f"User Info:")
+        print(f"  - Birth Date: {config['user_info']['birth_date']}")
+        print(f"  - Height: {config['user_info']['height_in']} inches")
+        print(f"  - Gender: {config['user_info']['gender']}")
+        print(f"\nGoal:")
+        print(f"  - Target ALMI Percentile: {goal_params['target_percentile']*100:.0f}th")
+        print(f"  - Target Age: {goal_params['target_age']:.1f}")
+        if 'description' in goal_params:
+            print(f"  - Description: {goal_params['description']}")
+        print("  - Total Lean Mass Gain: Will be calculated intelligently based on ALM/TLM ratio\n")
 
-    # Step 2: Load LMS Data
-    lms_functions = {
-        'almi_L': None, 'almi_M': None, 'almi_S': None,
-        'lmi_L': None, 'lmi_M': None, 'lmi_S': None
-    }
-    lms_functions['almi_L'], lms_functions['almi_M'], lms_functions['almi_S'] = load_lms_data(
-        metric='appendicular_LMI', gender_code=user_info['gender_code'])
-    lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'] = load_lms_data(
-        metric='LMI', gender_code=user_info['gender_code'])
+        # Step 2: Load LMS Data
+        lms_functions = {
+            'almi_L': None, 'almi_M': None, 'almi_S': None,
+            'lmi_L': None, 'lmi_M': None, 'lmi_S': None
+        }
+        lms_functions['almi_L'], lms_functions['almi_M'], lms_functions['almi_S'] = load_lms_data(
+            metric='appendicular_LMI', gender_code=user_info['gender_code'])
+        lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'] = load_lms_data(
+            metric='LMI', gender_code=user_info['gender_code'])
 
-    if not all(lms_functions.values()):
-        print("Failed to load all necessary LMS data. Aborting analysis.")
-    else:
+        if not all(lms_functions.values()):
+            print("Failed to load all necessary LMS data. Aborting analysis.")
+            return 1
+        
         # Step 3: Process data and generate results DataFrame
         df_results = process_scans_and_goal(user_info, scan_history, goal_params, lms_functions)
         
@@ -485,4 +630,18 @@ if __name__ == '__main__':
              if df_display[col].dtype == 'float64':
                  df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         print(df_display.to_markdown(index=False))
+        
+        return 0
+        
+    except (FileNotFoundError, json.JSONDecodeError, ValidationError, KeyError, ValueError) as e:
+        print(f"Error: {e}")
+        print(f"\nPlease check your configuration file: {args.config}")
+        print("Run with --help to see the expected JSON format.")
+        return 1
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return 1
+
+if __name__ == '__main__':
+    exit(main())
 
