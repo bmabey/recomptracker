@@ -1,0 +1,44 @@
+{
+  "user_info": {
+    "birth_date": "04/26/1982",
+    "height_in": 66.0,
+    "gender": "male"
+  },
+  "scan_history": [
+    {
+      "date": "04/07/2022",
+      "total_lean_mass_lbs": 106.3,
+      "arms_lean_lbs": 12.4,
+      "legs_lean_lbs": 37.3
+    },
+    {
+      "date": "04/01/2023", 
+      "total_lean_mass_lbs": 121.2,
+      "arms_lean_lbs": 16.5,
+      "legs_lean_lbs": 40.4
+    },
+    {
+      "date": "10/21/2023",
+      "total_lean_mass_lbs": 121.6,
+      "arms_lean_lbs": 16.7,
+      "legs_lean_lbs": 40.7
+    },
+    {
+      "date": "04/02/2024",
+      "total_lean_mass_lbs": 123.9,
+      "arms_lean_lbs": 17.2,
+      "legs_lean_lbs": 39.4
+    },
+    {
+      "date": "11/25/2024",
+      "total_lean_mass_lbs": 129.6,
+      "arms_lean_lbs": 17.8,
+      "legs_lean_lbs": 40.5
+    }
+  ],
+  "goal": {
+    "target_percentile": 0.90,
+    "target_age": 45.0,
+    "description": "Reach 90th percentile ALMI by age 45"
+  }
+}
