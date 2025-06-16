@@ -357,7 +357,8 @@ class TestJSONConfigHandling(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures for JSON config tests."""
-        self.valid_config = {
+        # New nested goals format
+        self.valid_config_nested = {
             "user_info": {
                 "birth_date": "04/26/1982",
                 "height_in": 66.0,
@@ -377,11 +378,57 @@ class TestJSONConfigHandling(unittest.TestCase):
                     "legs_lean_lbs": 40.5
                 }
             ],
+            "goals": {
+                "almi": {
+                    "target_percentile": 0.90,
+                    "target_age": 45.0,
+                    "description": "Reach 90th percentile ALMI by age 45"
+                },
+                "ffmi": {
+                    "target_percentile": 0.85,
+                    "target_age": 50.0,
+                    "description": "Reach 85th percentile FFMI by age 50"
+                }
+            }
+        }
+        
+        # Old single goal format (for backward compatibility testing)
+        self.valid_config_legacy = {
+            "user_info": {
+                "birth_date": "04/26/1982",
+                "height_in": 66.0,
+                "gender": "male"
+            },
+            "scan_history": [
+                {
+                    "date": "04/07/2022",
+                    "total_lean_mass_lbs": 106.3,
+                    "arms_lean_lbs": 12.4,
+                    "legs_lean_lbs": 37.3
+                }
+            ],
             "goal": {
                 "target_percentile": 0.90,
                 "target_age": 45.0,
                 "description": "Reach 90th percentile ALMI by age 45"
             }
+        }
+        
+        # Config with no goals
+        self.config_no_goals = {
+            "user_info": {
+                "birth_date": "04/26/1982",
+                "height_in": 66.0,
+                "gender": "male"
+            },
+            "scan_history": [
+                {
+                    "date": "04/07/2022",
+                    "total_lean_mass_lbs": 106.3,
+                    "arms_lean_lbs": 12.4,
+                    "legs_lean_lbs": 37.3
+                }
+            ]
         }
     
     def test_parse_gender_valid_inputs(self):
@@ -411,9 +458,9 @@ class TestJSONConfigHandling(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_gender("")
     
-    def test_extract_data_from_config(self):
-        """Test extraction of user_info and scan_history from config."""
-        user_info, scan_history = extract_data_from_config(self.valid_config)
+    def test_extract_data_from_config_nested_goals(self):
+        """Test extraction with new nested goals format."""
+        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(self.valid_config_nested)
         
         # Check user_info conversion
         self.assertEqual(user_info["birth_date_str"], "04/26/1982")
@@ -425,16 +472,108 @@ class TestJSONConfigHandling(unittest.TestCase):
         self.assertEqual(scan_history[0]["date_str"], "04/07/2022")
         self.assertEqual(scan_history[0]["total_lean_mass_lbs"], 106.3)
         self.assertEqual(scan_history[1]["date_str"], "11/25/2024")
+        
+        # Check goals extraction
+        self.assertIsNotNone(almi_goal)
+        self.assertIsNotNone(ffmi_goal)
+        self.assertEqual(almi_goal["target_percentile"], 0.90)
+        self.assertEqual(almi_goal["target_age"], 45.0)
+        self.assertEqual(ffmi_goal["target_percentile"], 0.85)
+        self.assertEqual(ffmi_goal["target_age"], 50.0)
     
-    def test_load_config_json_valid_file(self):
-        """Test loading a valid JSON config file."""
+    def test_extract_data_from_config_legacy_goal(self):
+        """Test extraction with legacy single goal format."""
+        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(self.valid_config_legacy)
+        
+        # Check that legacy goal becomes ALMI goal
+        self.assertIsNotNone(almi_goal)
+        self.assertIsNone(ffmi_goal)
+        self.assertEqual(almi_goal["target_percentile"], 0.90)
+        self.assertEqual(almi_goal["target_age"], 45.0)
+    
+    def test_extract_data_from_config_no_goals(self):
+        """Test extraction with no goals specified."""
+        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(self.config_no_goals)
+        
+        # Check that no goals are extracted
+        self.assertIsNone(almi_goal)
+        self.assertIsNone(ffmi_goal)
+        
+        # But user info and scan history should still work
+        self.assertEqual(user_info["birth_date_str"], "04/26/1982")
+        self.assertEqual(len(scan_history), 1)
+    
+    def test_extract_data_from_config_partial_goals(self):
+        """Test extraction with only one goal specified."""
+        # Config with only ALMI goal
+        config_almi_only = {
+            "user_info": self.config_no_goals["user_info"],
+            "scan_history": self.config_no_goals["scan_history"],
+            "goals": {
+                "almi": {
+                    "target_percentile": 0.75,
+                    "target_age": 40.0
+                }
+            }
+        }
+        
+        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(config_almi_only)
+        
+        self.assertIsNotNone(almi_goal)
+        self.assertIsNone(ffmi_goal)
+        self.assertEqual(almi_goal["target_percentile"], 0.75)
+        
+        # Config with only FFMI goal
+        config_ffmi_only = {
+            "user_info": self.config_no_goals["user_info"],
+            "scan_history": self.config_no_goals["scan_history"],
+            "goals": {
+                "ffmi": {
+                    "target_percentile": 0.80,
+                    "target_age": 55.0
+                }
+            }
+        }
+        
+        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(config_ffmi_only)
+        
+        self.assertIsNone(almi_goal)
+        self.assertIsNotNone(ffmi_goal)
+        self.assertEqual(ffmi_goal["target_percentile"], 0.80)
+    
+    def test_load_config_json_valid_file_nested(self):
+        """Test loading a valid JSON config file with nested goals."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(self.valid_config, f)
+            json.dump(self.valid_config_nested, f)
             temp_path = f.name
         
         try:
             config = load_config_json(temp_path)
-            self.assertEqual(config, self.valid_config)
+            self.assertEqual(config, self.valid_config_nested)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_load_config_json_valid_file_legacy(self):
+        """Test loading a valid JSON config file with legacy goal format."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(self.valid_config_legacy, f)
+            temp_path = f.name
+        
+        try:
+            config = load_config_json(temp_path)
+            self.assertEqual(config, self.valid_config_legacy)
+        finally:
+            os.unlink(temp_path)
+    
+    def test_load_config_json_no_goals(self):
+        """Test loading a config file with no goals."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(self.config_no_goals, f)
+            temp_path = f.name
+        
+        try:
+            config = load_config_json(temp_path)
+            self.assertEqual(config, self.config_no_goals)
         finally:
             os.unlink(temp_path)
     
@@ -460,7 +599,7 @@ class TestJSONConfigHandling(unittest.TestCase):
         from jsonschema import ValidationError
         
         # Test missing user_info
-        invalid_config = self.valid_config.copy()
+        invalid_config = self.valid_config_nested.copy()
         del invalid_config['user_info']
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -477,7 +616,7 @@ class TestJSONConfigHandling(unittest.TestCase):
         """Test JSON schema validation with invalid gender."""
         from jsonschema import ValidationError
         
-        invalid_config = self.valid_config.copy()
+        invalid_config = self.valid_config_nested.copy()
         invalid_config['user_info']['gender'] = 'invalid'
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -494,8 +633,8 @@ class TestJSONConfigHandling(unittest.TestCase):
         """Test JSON schema validation with invalid percentile."""
         from jsonschema import ValidationError
         
-        invalid_config = self.valid_config.copy()
-        invalid_config['goal']['target_percentile'] = 1.5  # > 1.0
+        invalid_config = self.valid_config_nested.copy()
+        invalid_config['goals']['almi']['target_percentile'] = 1.5  # > 1.0
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(invalid_config, f)
@@ -511,7 +650,7 @@ class TestJSONConfigHandling(unittest.TestCase):
         """Test JSON schema validation with empty scan history."""
         from jsonschema import ValidationError
         
-        invalid_config = self.valid_config.copy()
+        invalid_config = self.valid_config_nested.copy()
         invalid_config['scan_history'] = []
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -523,6 +662,174 @@ class TestJSONConfigHandling(unittest.TestCase):
                 load_config_json(temp_path)
         finally:
             os.unlink(temp_path)
+
+
+class TestGoalProcessingIntegration(unittest.TestCase):
+    """Integration tests for goal processing with the full pipeline."""
+    
+    def setUp(self):
+        """Set up integration test fixtures."""
+        # Create minimal mock LMS functions for integration testing
+        ages = np.linspace(18, 80, 50)
+        almi_values = 9.0 - 0.01 * (ages - 30)  # Slight decline with age
+        lmi_values = 19.0 - 0.02 * (ages - 30)  # Slight decline with age
+        l_values = np.ones_like(ages) * 0.1     # Mock skewness
+        s_values = np.ones_like(ages) * 0.1     # Mock coefficient of variation
+        
+        self.lms_functions = {
+            'almi_L': interp1d(ages, l_values, kind='cubic', fill_value="extrapolate"),
+            'almi_M': interp1d(ages, almi_values, kind='cubic', fill_value="extrapolate"),
+            'almi_S': interp1d(ages, s_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_L': interp1d(ages, l_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_M': interp1d(ages, lmi_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_S': interp1d(ages, s_values, kind='cubic', fill_value="extrapolate")
+        }
+        
+        self.user_info = {
+            "birth_date_str": "04/26/1982", 
+            "height_in": 66.0,
+            "gender_code": 0
+        }
+        
+        self.scan_history = [
+            {'date_str': "04/07/2022", 'total_lean_mass_lbs': 106.3, 'arms_lean_lbs': 12.4, 'legs_lean_lbs': 37.3},
+            {'date_str': "11/25/2024", 'total_lean_mass_lbs': 129.6, 'arms_lean_lbs': 17.8, 'legs_lean_lbs': 40.5}
+        ]
+    
+    def test_process_with_both_goals(self):
+        """Test processing with both ALMI and FFMI goals."""
+        almi_goal = {"target_percentile": 0.90, "target_age": 45.0}
+        ffmi_goal = {"target_percentile": 0.85, "target_age": 50.0}
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, ffmi_goal, self.lms_functions
+        )
+        
+        # Should have 2 scan rows + 2 goal rows
+        self.assertEqual(len(df_results), 4)
+        
+        # Check goal calculations
+        self.assertIn('almi', goal_calculations)
+        self.assertIn('ffmi', goal_calculations)
+        
+        # Check ALMI goal calculations
+        almi_calc = goal_calculations['almi']
+        self.assertEqual(almi_calc['target_percentile'], 0.90)
+        self.assertEqual(almi_calc['target_age'], 45.0)
+        self.assertIn('alm_to_add_kg', almi_calc)
+        self.assertIn('estimated_tlm_gain_kg', almi_calc)
+        
+        # Check FFMI goal calculations
+        ffmi_calc = goal_calculations['ffmi']
+        self.assertEqual(ffmi_calc['target_percentile'], 0.85)
+        self.assertEqual(ffmi_calc['target_age'], 50.0)
+        self.assertIn('tlm_to_add_kg', ffmi_calc)
+        
+        # Check goal rows in DataFrame
+        goal_rows = df_results[df_results['date_str'].str.contains('Goal')]
+        self.assertEqual(len(goal_rows), 2)
+        
+        almi_goal_row = df_results[df_results['date_str'].str.contains('ALMI Goal')].iloc[0]
+        ffmi_goal_row = df_results[df_results['date_str'].str.contains('FFMI Goal')].iloc[0]
+        
+        self.assertEqual(almi_goal_row['age_at_scan'], 45.0)
+        self.assertEqual(ffmi_goal_row['age_at_scan'], 50.0)
+    
+    def test_process_with_almi_goal_only(self):
+        """Test processing with only ALMI goal."""
+        almi_goal = {"target_percentile": 0.75, "target_age": 40.0}
+        ffmi_goal = None
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, ffmi_goal, self.lms_functions
+        )
+        
+        # Should have 2 scan rows + 1 goal row
+        self.assertEqual(len(df_results), 3)
+        
+        # Check goal calculations
+        self.assertIn('almi', goal_calculations)
+        self.assertNotIn('ffmi', goal_calculations)
+        
+        # Check only ALMI goal row exists
+        goal_rows = df_results[df_results['date_str'].str.contains('Goal')]
+        self.assertEqual(len(goal_rows), 1)
+        
+        almi_goal_row = goal_rows.iloc[0]
+        self.assertIn('ALMI Goal', almi_goal_row['date_str'])
+        self.assertEqual(almi_goal_row['age_at_scan'], 40.0)
+    
+    def test_process_with_ffmi_goal_only(self):
+        """Test processing with only FFMI goal."""
+        almi_goal = None
+        ffmi_goal = {"target_percentile": 0.80, "target_age": 55.0}
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, ffmi_goal, self.lms_functions
+        )
+        
+        # Should have 2 scan rows + 1 goal row
+        self.assertEqual(len(df_results), 3)
+        
+        # Check goal calculations
+        self.assertNotIn('almi', goal_calculations)
+        self.assertIn('ffmi', goal_calculations)
+        
+        # Check only FFMI goal row exists
+        goal_rows = df_results[df_results['date_str'].str.contains('Goal')]
+        self.assertEqual(len(goal_rows), 1)
+        
+        ffmi_goal_row = goal_rows.iloc[0]
+        self.assertIn('FFMI Goal', ffmi_goal_row['date_str'])
+        self.assertEqual(ffmi_goal_row['age_at_scan'], 55.0)
+    
+    def test_process_with_no_goals(self):
+        """Test processing with no goals."""
+        almi_goal = None
+        ffmi_goal = None
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, ffmi_goal, self.lms_functions
+        )
+        
+        # Should have only 2 scan rows
+        self.assertEqual(len(df_results), 2)
+        
+        # Check no goal calculations
+        self.assertEqual(len(goal_calculations), 0)
+        
+        # Check no goal rows exist
+        goal_rows = df_results[df_results['date_str'].str.contains('Goal')]
+        self.assertEqual(len(goal_rows), 0)
+        
+        # All rows should be historical scans
+        for _, row in df_results.iterrows():
+            self.assertNotIn('Goal', row['date_str'])
+    
+    def test_goal_calculations_consistency(self):
+        """Test that goal calculations are mathematically consistent."""
+        almi_goal = {"target_percentile": 0.90, "target_age": 45.0}
+        ffmi_goal = {"target_percentile": 0.85, "target_age": 50.0}
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, ffmi_goal, self.lms_functions
+        )
+        
+        # ALMI goal calculations should be positive for reasonable targets
+        almi_calc = goal_calculations['almi']
+        self.assertIsInstance(almi_calc['alm_to_add_kg'], (int, float))
+        self.assertIsInstance(almi_calc['estimated_tlm_gain_kg'], (int, float))
+        
+        # FFMI goal calculations should be reasonable
+        ffmi_calc = goal_calculations['ffmi']
+        self.assertIsInstance(ffmi_calc['tlm_to_add_kg'], (int, float))
+        
+        # Check that DataFrame goal rows match calculations
+        almi_goal_row = df_results[df_results['date_str'].str.contains('ALMI Goal')].iloc[0]
+        ffmi_goal_row = df_results[df_results['date_str'].str.contains('FFMI Goal')].iloc[0]
+        
+        self.assertAlmostEqual(almi_goal_row['almi_percentile'], 90.0, places=1)
+        self.assertAlmostEqual(ffmi_goal_row['ffmi_lmi_percentile'], 85.0, places=1)
 
 
 if __name__ == '__main__':
