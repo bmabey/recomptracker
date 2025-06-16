@@ -41,6 +41,11 @@
       "target_percentile": 0.90,
       "target_age": 45.0,
       "description": "Reach 90th percentile ALMI by age 45"
+    },
+    "ffmi": {
+      "target_percentile": 0.85,
+      "target_age": 50.0,
+      "description": "Reach 85th percentile FFMI by age 50"
     }
   }
 }

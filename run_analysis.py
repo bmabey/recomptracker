@@ -197,7 +197,6 @@ Example:
 Notes:
 - Goals section is entirely optional - analysis can run with scan history only
 - ALMI and FFMI goals can be specified independently (either or both)
-- Legacy single "goal" format still supported for backward compatibility
     """
     print(help_text)
 
