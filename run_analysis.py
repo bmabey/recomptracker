@@ -148,10 +148,15 @@ scan_history:
   - arms_lean_lbs: Arms lean mass in pounds (≥0) 
   - legs_lean_lbs: Legs lean mass in pounds (≥0)
 
-goal:
-  - target_percentile: Target percentile as decimal (0.0 = 0%, 1.0 = 100%)
-  - target_age: Target age for reaching the goal (18-120)
-  - description: Optional description of the goal
+goals (optional):
+  - almi: Optional ALMI goal specification
+    - target_percentile: Target percentile as decimal (0.0-1.0)
+    - target_age: Target age for reaching the goal (18-120)
+    - description: Optional description
+  - ffmi: Optional FFMI goal specification
+    - target_percentile: Target percentile as decimal (0.0-1.0)
+    - target_age: Target age for reaching the goal (18-120)
+    - description: Optional description
 
 Example:
 --------
@@ -175,12 +180,24 @@ Example:
       "legs_lean_lbs": 40.5
     }
   ],
-  "goal": {
-    "target_percentile": 0.90,
-    "target_age": 45.0,
-    "description": "Reach 90th percentile ALMI by age 45"
+  "goals": {
+    "almi": {
+      "target_percentile": 0.90,
+      "target_age": 45.0,
+      "description": "Reach 90th percentile ALMI by age 45"
+    },
+    "ffmi": {
+      "target_percentile": 0.85,
+      "target_age": 50.0,
+      "description": "Reach 85th percentile FFMI by age 50"
+    }
   }
 }
+
+Notes:
+- Goals section is entirely optional - analysis can run with scan history only
+- ALMI and FFMI goals can be specified independently (either or both)
+- Legacy single "goal" format still supported for backward compatibility
     """
     print(help_text)
 

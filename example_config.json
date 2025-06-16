@@ -36,9 +36,11 @@
       "legs_lean_lbs": 40.5
     }
   ],
-  "goal": {
-    "target_percentile": 0.90,
-    "target_age": 45.0,
-    "description": "Reach 90th percentile ALMI by age 45"
+  "goals": {
+    "almi": {
+      "target_percentile": 0.90,
+      "target_age": 45.0,
+      "description": "Reach 90th percentile ALMI by age 45"
+    }
   }
 }

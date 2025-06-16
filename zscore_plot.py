@@ -57,7 +57,7 @@ from jsonschema import validate, ValidationError
 # JSON Schema for configuration validation
 CONFIG_SCHEMA = {
     "type": "object",
-    "required": ["user_info", "scan_history", "goal"],
+    "required": ["user_info", "scan_history"],
     "properties": {
         "user_info": {
             "type": "object",
@@ -84,6 +84,33 @@ CONFIG_SCHEMA = {
                 "additionalProperties": False
             }
         },
+        "goals": {
+            "type": "object",
+            "properties": {
+                "almi": {
+                    "type": "object",
+                    "required": ["target_percentile", "target_age"],
+                    "properties": {
+                        "target_percentile": {"type": "number", "minimum": 0, "maximum": 1},
+                        "target_age": {"type": "number", "minimum": 18, "maximum": 120},
+                        "description": {"type": "string"}
+                    },
+                    "additionalProperties": False
+                },
+                "ffmi": {
+                    "type": "object",
+                    "required": ["target_percentile", "target_age"],
+                    "properties": {
+                        "target_percentile": {"type": "number", "minimum": 0, "maximum": 1},
+                        "target_age": {"type": "number", "minimum": 18, "maximum": 120},
+                        "description": {"type": "string"}
+                    },
+                    "additionalProperties": False
+                }
+            },
+            "additionalProperties": False
+        },
+        # Backward compatibility - support old single goal format
         "goal": {
             "type": "object",
             "required": ["target_percentile", "target_age"],
@@ -274,13 +301,14 @@ def parse_gender(gender_str):
 
 def extract_data_from_config(config):
     """
-    Extracts user_info and scan_history from loaded config in the format expected by existing functions.
+    Extracts user_info, scan_history, and goals from loaded config.
 
     Args:
         config (dict): Configuration dictionary from load_config_json.
 
     Returns:
-        tuple[dict, list]: A tuple containing user_info dict and scan_history list.
+        tuple[dict, list, dict, dict]: A tuple containing user_info dict, scan_history list, 
+                                     almi_goal dict (or None), and ffmi_goal dict (or None).
     """
     # Convert config format to expected format for backward compatibility
     user_info = {
@@ -300,7 +328,22 @@ def extract_data_from_config(config):
         }
         scan_history.append(scan_converted)
     
-    return user_info, scan_history
+    # Handle goals - support both new nested format and old single goal format
+    almi_goal = None
+    ffmi_goal = None
+    
+    if 'goals' in config:
+        # New nested goals format
+        if 'almi' in config['goals']:
+            almi_goal = config['goals']['almi']
+        if 'ffmi' in config['goals']:
+            ffmi_goal = config['goals']['ffmi']
+    elif 'goal' in config:
+        # Backward compatibility - old single goal format (assume it's for ALMI)
+        almi_goal = config['goal']
+        print("Warning: Using deprecated single 'goal' format. Consider updating to nested 'goals' format.")
+    
+    return user_info, scan_history, almi_goal, ffmi_goal
 
 def get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info):
     """
@@ -382,24 +425,33 @@ def load_lms_data(metric, gender_code, data_path="./data/"):
         print(f"Error reading or processing LMS file {file_path}: {e}")
         return None, None, None
 
-def process_scans_and_goal(user_info, scan_history, goal_params, lms_functions):
+def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_functions):
     """
-    Calculates all metrics for historical scans and the user's goal.
+    Calculates all metrics for historical scans and optional user goals.
 
     This function orchestrates the main data processing pipeline, taking raw
     scan data and enriching it with calculated metrics like ALMI, FFMI, Z-scores,
-    T-scores, and percentiles. It also calculates the values for the user's goal.
+    T-scores, and percentiles. It optionally calculates goal values for ALMI and/or FFMI.
 
     Args:
         user_info (dict): Dictionary with user's birth date, height, etc.
         scan_history (list): List of dictionaries, each with raw data for a scan.
-        goal_params (dict): Dictionary defining the user's goal.
+        almi_goal (dict or None): Dictionary defining the user's ALMI goal, or None if no goal.
+        ffmi_goal (dict or None): Dictionary defining the user's FFMI goal, or None if no goal.
         lms_functions (dict): Dictionary containing the loaded LMS interpolation functions.
 
     Returns:
-        pd.DataFrame: A comprehensive DataFrame with all historical and goal data.
+        tuple[pd.DataFrame, dict]: A comprehensive DataFrame with all historical and goal data,
+                                 and a dict with goal calculation results.
     """
-    print("Processing scan history and goal...")
+    has_almi_goal = almi_goal is not None
+    has_ffmi_goal = ffmi_goal is not None
+    
+    if has_almi_goal or has_ffmi_goal:
+        print("Processing scan history and goals...")
+    else:
+        print("Processing scan history (no goals specified)...")
+    
     height_m = user_info['height_in'] * 0.0254
     height_m_sq = height_m ** 2
     lbs_to_kg = 1 / 2.20462
@@ -413,6 +465,7 @@ def process_scans_and_goal(user_info, scan_history, goal_params, lms_functions):
     lmi_s_30 = lms_functions['lmi_S'](ref_age_30)
     lmi_sd_30 = lmi_m_30 * lmi_s_30
 
+    # Process all historical scans
     processed_data = []
     for scan in scan_history:
         point = scan.copy()
@@ -428,51 +481,114 @@ def process_scans_and_goal(user_info, scan_history, goal_params, lms_functions):
         point['ffmi_lmi_t_score'] = calculate_t_score(point['ffmi_kg_m2'], lmi_m_30, lmi_sd_30)
         processed_data.append(point)
 
-    target_z = stats.norm.ppf(goal_params['target_percentile'])
-    l_goal, m_goal, s_goal = lms_functions['almi_L'](goal_params['target_age']), lms_functions['almi_M'](goal_params['target_age']), lms_functions['almi_S'](goal_params['target_age'])
-    target_almi = get_value_from_zscore(target_z, l_goal, m_goal, s_goal)
-    target_alm_kg = target_almi * height_m_sq
-    current_alm_kg = (processed_data[-1]['alm_lbs']) * lbs_to_kg
-    goal_params['alm_to_add_kg'] = target_alm_kg - current_alm_kg
+    # Store the last scan data for goal calculations (before adding goal rows)
+    last_scan = processed_data[-1]
     
-    # Intelligently estimate TLM gain using ALM/TLM ratio
-    alm_tlm_ratio = get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info)
-    target_tlm_kg = target_alm_kg / alm_tlm_ratio
-    current_tlm_kg = (processed_data[-1]['total_lean_mass_lbs']) * lbs_to_kg
-    goal_params['estimated_tlm_gain_kg'] = target_tlm_kg - current_tlm_kg
+    # Initialize goal calculations results
+    goal_calculations = {}
     
-    print(f"Calculated TLM gain needed: {goal_params['estimated_tlm_gain_kg']:.2f} kg ({goal_params['estimated_tlm_gain_kg']/(1/2.20462):.2f} lbs)")
+    # Process ALMI goal if specified
+    if has_almi_goal:
+        print(f"Processing ALMI goal: {almi_goal['target_percentile']*100:.0f}th percentile at age {almi_goal['target_age']}")
+        
+        target_z = stats.norm.ppf(almi_goal['target_percentile'])
+        l_goal, m_goal, s_goal = lms_functions['almi_L'](almi_goal['target_age']), lms_functions['almi_M'](almi_goal['target_age']), lms_functions['almi_S'](almi_goal['target_age'])
+        target_almi = get_value_from_zscore(target_z, l_goal, m_goal, s_goal)
+        target_alm_kg = target_almi * height_m_sq
+        current_alm_kg = last_scan['alm_lbs'] * lbs_to_kg
+        alm_to_add_kg = target_alm_kg - current_alm_kg
+        
+        # Intelligently estimate TLM gain using ALM/TLM ratio
+        alm_tlm_ratio = get_alm_tlm_ratio(processed_data, almi_goal, lms_functions, user_info)
+        target_tlm_kg = target_alm_kg / alm_tlm_ratio
+        current_tlm_kg = last_scan['total_lean_mass_lbs'] * lbs_to_kg
+        estimated_tlm_gain_kg = target_tlm_kg - current_tlm_kg
+        
+        print(f"ALMI goal calculations: ALM to add: {alm_to_add_kg:.2f} kg, Est. TLM gain: {estimated_tlm_gain_kg:.2f} kg")
+        
+        goal_calculations['almi'] = {
+            'target_almi': target_almi,
+            'target_z': target_z,
+            'target_age': almi_goal['target_age'],
+            'target_percentile': almi_goal['target_percentile'],
+            'alm_to_add_kg': alm_to_add_kg,
+            'estimated_tlm_gain_kg': estimated_tlm_gain_kg,
+            'target_ffmi_from_almi': target_tlm_kg / height_m_sq  # FFMI implied by ALMI goal
+        }
+        
+        # Add ALMI goal row to data
+        almi_goal_row = {
+            'date_str': f"ALMI Goal (Age {almi_goal['target_age']})", 
+            'age_at_scan': almi_goal['target_age'],
+            'almi_kg_m2': target_almi, 
+            'almi_z_score': target_z,
+            'almi_percentile': almi_goal['target_percentile'] * 100,
+            'almi_t_score': calculate_t_score(target_almi, almi_m_30, almi_sd_30),
+            'ffmi_kg_m2': target_tlm_kg / height_m_sq,
+            'ffmi_lmi_z_score': np.nan,  # Will be calculated below
+            'ffmi_lmi_percentile': np.nan,
+            'ffmi_lmi_t_score': calculate_t_score(target_tlm_kg / height_m_sq, lmi_m_30, lmi_sd_30)
+        }
+        # Calculate implied FFMI percentile
+        implied_ffmi_z, implied_ffmi_p = calculate_z_percentile(target_tlm_kg / height_m_sq, almi_goal['target_age'], lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'])
+        almi_goal_row['ffmi_lmi_z_score'] = implied_ffmi_z
+        almi_goal_row['ffmi_lmi_percentile'] = implied_ffmi_p
+        
+        processed_data.append(almi_goal_row)
     
-    target_ffmi = target_tlm_kg / height_m_sq
-    goal_ffmi_z, goal_ffmi_p = calculate_z_percentile(target_ffmi, goal_params['target_age'], lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'])
-
-    goal_row = {
-        'date_str': f"Goal (Age {goal_params['target_age']})", 'age_at_scan': goal_params['target_age'],
-        'almi_kg_m2': target_almi, 'almi_z_score': target_z,
-        'almi_percentile': goal_params['target_percentile'] * 100,
-        'almi_t_score': calculate_t_score(target_almi, almi_m_30, almi_sd_30),
-        'ffmi_kg_m2': target_ffmi, 'ffmi_lmi_z_score': goal_ffmi_z,
-        'ffmi_lmi_percentile': goal_ffmi_p,
-        'ffmi_lmi_t_score': calculate_t_score(target_ffmi, lmi_m_30, lmi_sd_30)
-    }
-    processed_data.append(goal_row)
+    # Process FFMI goal if specified
+    if has_ffmi_goal:
+        print(f"Processing FFMI goal: {ffmi_goal['target_percentile']*100:.0f}th percentile at age {ffmi_goal['target_age']}")
+        
+        target_z = stats.norm.ppf(ffmi_goal['target_percentile'])
+        l_goal, m_goal, s_goal = lms_functions['lmi_L'](ffmi_goal['target_age']), lms_functions['lmi_M'](ffmi_goal['target_age']), lms_functions['lmi_S'](ffmi_goal['target_age'])
+        target_ffmi = get_value_from_zscore(target_z, l_goal, m_goal, s_goal)
+        target_tlm_kg = target_ffmi * height_m_sq
+        current_tlm_kg = last_scan['total_lean_mass_lbs'] * lbs_to_kg
+        tlm_to_add_kg = target_tlm_kg - current_tlm_kg
+        
+        print(f"FFMI goal calculations: TLM to add: {tlm_to_add_kg:.2f} kg")
+        
+        goal_calculations['ffmi'] = {
+            'target_ffmi': target_ffmi,
+            'target_z': target_z,
+            'target_age': ffmi_goal['target_age'],
+            'target_percentile': ffmi_goal['target_percentile'],
+            'tlm_to_add_kg': tlm_to_add_kg
+        }
+        
+        # Add FFMI goal row to data
+        ffmi_goal_row = {
+            'date_str': f"FFMI Goal (Age {ffmi_goal['target_age']})", 
+            'age_at_scan': ffmi_goal['target_age'],
+            'almi_kg_m2': np.nan,  # Will be calculated below
+            'almi_z_score': np.nan,
+            'almi_percentile': np.nan,
+            'almi_t_score': np.nan,
+            'ffmi_kg_m2': target_ffmi,
+            'ffmi_lmi_z_score': target_z,
+            'ffmi_lmi_percentile': ffmi_goal['target_percentile'] * 100,
+            'ffmi_lmi_t_score': calculate_t_score(target_ffmi, lmi_m_30, lmi_sd_30)
+        }
+        
+        processed_data.append(ffmi_goal_row)
     
-    return pd.DataFrame(processed_data)
+    return pd.DataFrame(processed_data), goal_calculations
 
 # ---------------------------------------------------------------------------
 # SECTION 3: PLOTTING LOGIC
 # ---------------------------------------------------------------------------
 
-def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_params):
+def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_calculations):
     """
     Generates and saves a plot for a given metric (ALMI or FFMI/LMI)
-    with historical data and goal. Also exports the data table to a CSV file.
+    with historical data and optional goal. Also exports the data table to a CSV file.
 
     Args:
         df_results (pd.DataFrame): The comprehensive DataFrame with all calculated data.
         metric_to_plot (str): The primary metric to plot ('ALMI' or 'FFMI').
         lms_functions (dict): Dictionary of loaded LMS interpolation functions.
-        goal_params (dict): Dictionary defining the user's goal parameters.
+        goal_calculations (dict): Dictionary with goal calculation results (can be empty).
     """
     print(f"Generating plot for {metric_to_plot.upper()}...")
     is_almi_plot = 'almi' in metric_to_plot.lower()
@@ -481,6 +597,10 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
     L_func = lms_functions['almi_L'] if is_almi_plot else lms_functions['lmi_L']
     M_func = lms_functions['almi_M'] if is_almi_plot else lms_functions['lmi_M']
     S_func = lms_functions['almi_S'] if is_almi_plot else lms_functions['lmi_S']
+    
+    # Check for relevant goal
+    goal_key = 'almi' if is_almi_plot else 'ffmi'
+    has_goal = goal_key in goal_calculations
     
     fig, ax = plt.subplots(figsize=(12, 8))
     
@@ -491,8 +611,10 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
         values = np.vectorize(get_value_from_zscore)(z_val, l, m, s)
         ax.plot(ages_plot, values, label=name, alpha=0.7, linewidth=1.5)
         
+    # Filter data to exclude goal rows not relevant to this plot
     historical_data = df_results[df_results['date_str'].str.find('Goal') == -1]
-    goal_data = df_results[df_results['date_str'].str.find('Goal') != -1].iloc[0]
+    goal_pattern = f"{metric_to_plot.upper()} Goal" if has_goal else "NO_GOAL_MATCH"
+    goal_data = df_results[df_results['date_str'].str.find(goal_pattern) != -1]
     
     # Plot individual scans with numbered markers and detailed legend entries
     percentile_col = 'almi_percentile' if is_almi_plot else 'ffmi_lmi_percentile'
@@ -509,14 +631,32 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_param
                label=f"{date_label} {percentile:.1f}%",
                linestyle='None', zorder=5)
     
-    # Plot goal marker
-    ax.plot(goal_data['age_at_scan'], goal_data[value_col], marker='*', color='gold', markersize=20, markeredgecolor='black', zorder=6, label=f"Goal ({goal_params['target_percentile']*100:.0f}th %ile)", linestyle='None')
+    # Plot goal marker only if goal exists for this metric
+    if has_goal and not goal_data.empty:
+        goal_row = goal_data.iloc[0]
+        goal_info = goal_calculations[goal_key]
+        ax.plot(goal_row['age_at_scan'], goal_row[value_col], 
+               marker='*', color='gold', markersize=20, markeredgecolor='black', 
+               zorder=6, label=f"Goal ({goal_info['target_percentile']*100:.0f}th %ile)", linestyle='None')
 
+    # Create title with conditional goal information
     lbs_to_kg = 1 / 2.20462
-    alm_add_str = f"{goal_params['alm_to_add_kg']:.2f} kg ({goal_params['alm_to_add_kg'] / lbs_to_kg:.2f} lbs)"
-    tlm_add_str = f"{goal_params['estimated_tlm_gain_kg']:.2f} kg ({goal_params['estimated_tlm_gain_kg'] / lbs_to_kg:.2f} lbs)"
-    title = (f"{metric_to_plot.upper()} Percentile Curves for Adult Males with Scan History & Goal\n(Data Source: LEAD Cohort)\n"
-             f"To reach 90th %ile ALMI at age 45: Add ~{alm_add_str} ALM. Estimated Total Lean Mass gain needed: ~{tlm_add_str}.")
+    base_title = f"{metric_to_plot.upper()} Percentile Curves for Adult Males with Scan History"
+    
+    if has_goal:
+        goal_info = goal_calculations[goal_key]
+        if is_almi_plot:
+            alm_add_str = f"{goal_info['alm_to_add_kg']:.2f} kg ({goal_info['alm_to_add_kg'] / lbs_to_kg:.2f} lbs)"
+            tlm_add_str = f"{goal_info['estimated_tlm_gain_kg']:.2f} kg ({goal_info['estimated_tlm_gain_kg'] / lbs_to_kg:.2f} lbs)"
+            goal_details = f"To reach {goal_info['target_percentile']*100:.0f}th %ile ALMI at age {goal_info['target_age']}: Add ~{alm_add_str} ALM. Est. TLM gain: ~{tlm_add_str}."
+        else:
+            tlm_add_str = f"{goal_info['tlm_to_add_kg']:.2f} kg ({goal_info['tlm_to_add_kg'] / lbs_to_kg:.2f} lbs)"
+            goal_details = f"To reach {goal_info['target_percentile']*100:.0f}th %ile FFMI at age {goal_info['target_age']}: Add ~{tlm_add_str} TLM."
+        
+        title = f"{base_title} & Goal\n(Data Source: LEAD Cohort)\n{goal_details}"
+    else:
+        title = f"{base_title}\n(Data Source: LEAD Cohort)"
+    
     ax.set_title(title, fontsize=14, pad=20)
     ax.set_xlabel('Age (Years)', fontsize=12)
     ax.set_ylabel(f'{metric_to_plot.upper()} (kg/m²)', fontsize=12)
@@ -600,11 +740,24 @@ JSON config format:
         "legs_lean_lbs": 37.3
       }
     ],
-    "goal": {
-      "target_percentile": 0.90,
-      "target_age": 45.0
+    "goals": {
+      "almi": {
+        "target_percentile": 0.90,
+        "target_age": 45.0,
+        "description": "optional"
+      },
+      "ffmi": {
+        "target_percentile": 0.85,
+        "target_age": 50.0,
+        "description": "optional"
+      }
     }
   }
+
+Notes:
+  - Goals section is optional (scan history analysis only if omitted)
+  - Either almi or ffmi goals can be specified independently
+  - Legacy single "goal" format still supported for backward compatibility
         """
     )
     
@@ -623,20 +776,26 @@ JSON config format:
     try:
         # Step 1: Load Configuration
         config = load_config_json(args.config)
-        user_info, scan_history = extract_data_from_config(config)
-        goal_params = config['goal']
+        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(config)
         
         # Display loaded configuration
         print(f"User Info:")
         print(f"  - Birth Date: {config['user_info']['birth_date']}")
         print(f"  - Height: {config['user_info']['height_in']} inches")
         print(f"  - Gender: {config['user_info']['gender']}")
-        print(f"\nGoal:")
-        print(f"  - Target ALMI Percentile: {goal_params['target_percentile']*100:.0f}th")
-        print(f"  - Target Age: {goal_params['target_age']:.1f}")
-        if 'description' in goal_params:
-            print(f"  - Description: {goal_params['description']}")
-        print("  - Total Lean Mass Gain: Will be calculated intelligently based on ALM/TLM ratio\n")
+        
+        print(f"\nGoals:")
+        if almi_goal:
+            print(f"  - ALMI Goal: {almi_goal['target_percentile']*100:.0f}th percentile at age {almi_goal['target_age']:.1f}")
+            if 'description' in almi_goal:
+                print(f"    Description: {almi_goal['description']}")
+        if ffmi_goal:
+            print(f"  - FFMI Goal: {ffmi_goal['target_percentile']*100:.0f}th percentile at age {ffmi_goal['target_age']:.1f}")
+            if 'description' in ffmi_goal:
+                print(f"    Description: {ffmi_goal['description']}")
+        if not almi_goal and not ffmi_goal:
+            print("  - No goals specified (scan history analysis only)")
+        print()
 
         # Step 2: Load LMS Data
         lms_functions = {
@@ -653,11 +812,11 @@ JSON config format:
             return 1
         
         # Step 3: Process data and generate results DataFrame
-        df_results = process_scans_and_goal(user_info, scan_history, goal_params, lms_functions)
+        df_results, goal_calculations = process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_functions)
         
         # Step 4: Generate Plots
-        plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_params)
-        plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_params)
+        plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_calculations)
+        plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_calculations)
         
         # Step 5: Print Final Table
         print("\n--- Final Comprehensive Data Table ---")
