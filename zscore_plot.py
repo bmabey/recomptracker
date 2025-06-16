@@ -109,17 +109,6 @@ CONFIG_SCHEMA = {
                 }
             },
             "additionalProperties": False
-        },
-        # Backward compatibility - support old single goal format
-        "goal": {
-            "type": "object",
-            "required": ["target_percentile", "target_age"],
-            "properties": {
-                "target_percentile": {"type": "number", "minimum": 0, "maximum": 1},
-                "target_age": {"type": "number", "minimum": 18, "maximum": 120},
-                "description": {"type": "string"}
-            },
-            "additionalProperties": False
         }
     },
     "additionalProperties": False
@@ -328,20 +317,15 @@ def extract_data_from_config(config):
         }
         scan_history.append(scan_converted)
     
-    # Handle goals - support both new nested format and old single goal format
+    # Handle goals - extract from nested goals format
     almi_goal = None
     ffmi_goal = None
     
     if 'goals' in config:
-        # New nested goals format
         if 'almi' in config['goals']:
             almi_goal = config['goals']['almi']
         if 'ffmi' in config['goals']:
             ffmi_goal = config['goals']['ffmi']
-    elif 'goal' in config:
-        # Backward compatibility - old single goal format (assume it's for ALMI)
-        almi_goal = config['goal']
-        print("Warning: Using deprecated single 'goal' format. Consider updating to nested 'goals' format.")
     
     return user_info, scan_history, almi_goal, ffmi_goal
 
@@ -757,7 +741,6 @@ JSON config format:
 Notes:
   - Goals section is optional (scan history analysis only if omitted)
   - Either almi or ffmi goals can be specified independently
-  - Legacy single "goal" format still supported for backward compatibility
         """
     )
     

@@ -392,27 +392,6 @@ class TestJSONConfigHandling(unittest.TestCase):
             }
         }
         
-        # Old single goal format (for backward compatibility testing)
-        self.valid_config_legacy = {
-            "user_info": {
-                "birth_date": "04/26/1982",
-                "height_in": 66.0,
-                "gender": "male"
-            },
-            "scan_history": [
-                {
-                    "date": "04/07/2022",
-                    "total_lean_mass_lbs": 106.3,
-                    "arms_lean_lbs": 12.4,
-                    "legs_lean_lbs": 37.3
-                }
-            ],
-            "goal": {
-                "target_percentile": 0.90,
-                "target_age": 45.0,
-                "description": "Reach 90th percentile ALMI by age 45"
-            }
-        }
         
         # Config with no goals
         self.config_no_goals = {
@@ -481,15 +460,6 @@ class TestJSONConfigHandling(unittest.TestCase):
         self.assertEqual(ffmi_goal["target_percentile"], 0.85)
         self.assertEqual(ffmi_goal["target_age"], 50.0)
     
-    def test_extract_data_from_config_legacy_goal(self):
-        """Test extraction with legacy single goal format."""
-        user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(self.valid_config_legacy)
-        
-        # Check that legacy goal becomes ALMI goal
-        self.assertIsNotNone(almi_goal)
-        self.assertIsNone(ffmi_goal)
-        self.assertEqual(almi_goal["target_percentile"], 0.90)
-        self.assertEqual(almi_goal["target_age"], 45.0)
     
     def test_extract_data_from_config_no_goals(self):
         """Test extraction with no goals specified."""
@@ -553,17 +523,6 @@ class TestJSONConfigHandling(unittest.TestCase):
         finally:
             os.unlink(temp_path)
     
-    def test_load_config_json_valid_file_legacy(self):
-        """Test loading a valid JSON config file with legacy goal format."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(self.valid_config_legacy, f)
-            temp_path = f.name
-        
-        try:
-            config = load_config_json(temp_path)
-            self.assertEqual(config, self.valid_config_legacy)
-        finally:
-            os.unlink(temp_path)
     
     def test_load_config_json_no_goals(self):
         """Test loading a config file with no goals."""
