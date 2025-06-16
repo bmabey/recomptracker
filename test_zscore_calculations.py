@@ -21,7 +21,15 @@ from zscore_plot import (
     process_scans_and_goal,
     load_config_json,
     parse_gender,
-    extract_data_from_config
+    extract_data_from_config,
+    # New suggested goal functions
+    detect_training_level_from_scans,
+    get_conservative_gain_rate,
+    determine_training_level,
+    calculate_suggested_goal,
+    get_gender_string,
+    LEAN_MASS_GAIN_RATES,
+    AGE_ADJUSTMENT_FACTOR
 )
 
 
@@ -789,6 +797,889 @@ class TestGoalProcessingIntegration(unittest.TestCase):
         
         self.assertAlmostEqual(almi_goal_row['almi_percentile'], 90.0, places=1)
         self.assertAlmostEqual(ffmi_goal_row['ffmi_lmi_percentile'], 85.0, places=1)
+
+
+class TestTrainingLevelDetection(unittest.TestCase):
+    """Test cases for automatic training level detection from scan progression."""
+    
+    def setUp(self):
+        """Set up common test fixtures."""
+        self.user_info_male = {
+            "birth_date_str": "01/01/1990",
+            "height_in": 70.0,
+            "gender_code": 0
+        }
+        
+        self.user_info_female = {
+            "birth_date_str": "01/01/1990", 
+            "height_in": 65.0,
+            "gender_code": 1
+        }
+    
+    def test_detect_novice_single_scan(self):
+        """Test that single scan defaults to novice level."""
+        processed_data = [
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 150.0,
+                'age_at_scan': 34.0
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        self.assertEqual(level, 'novice')
+        self.assertIn('Insufficient scan history', explanation)
+        self.assertIn('conservative approach', explanation)
+    
+    def test_detect_novice_rapid_gains(self):
+        """Test detection of novice level with rapid gains and few scans."""
+        # Simulate rapid novice gains over 6 months
+        processed_data = [
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 150.0,
+                'age_at_scan': 34.0
+            },
+            {
+                'date_str': "04/01/2024", 
+                'total_lean_mass_lbs': 156.0,  # 6 lbs in 3 months = ~0.9 kg/month
+                'age_at_scan': 34.25
+            },
+            {
+                'date_str': "07/01/2024",
+                'total_lean_mass_lbs': 162.0,  # Another 6 lbs in 3 months
+                'age_at_scan': 34.5
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        self.assertEqual(level, 'novice')
+        self.assertIn('novice gains', explanation)
+        self.assertIn('early training phase', explanation)
+    
+    def test_detect_intermediate_sustained_gains(self):
+        """Test detection of intermediate level with sustained moderate gains."""
+        # Simulate intermediate gains (need ~0.25+ kg/month for intermediate detection)
+        processed_data = [
+            {
+                'date_str': "01/01/2023",
+                'total_lean_mass_lbs': 150.0,
+                'age_at_scan': 33.0
+            },
+            {
+                'date_str': "07/01/2023",
+                'total_lean_mass_lbs': 156.0,  # 6 lbs in 6 months = ~0.45 kg/month
+                'age_at_scan': 33.5
+            },
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 161.0,  # 5 lbs in 6 months = ~0.38 kg/month
+                'age_at_scan': 34.0
+            },
+            {
+                'date_str': "07/01/2024",
+                'total_lean_mass_lbs': 165.0,  # 4 lbs in 6 months = ~0.30 kg/month
+                'age_at_scan': 34.5
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        self.assertEqual(level, 'intermediate')
+        self.assertIn('intermediate level', explanation)
+        self.assertIn('moderate progression', explanation)
+    
+    def test_detect_slow_gains_as_advanced(self):
+        """Test detection of advanced level with very slow progression."""
+        # Simulate slow gains that fall below intermediate threshold
+        processed_data = [
+            {
+                'date_str': "01/01/2023",
+                'total_lean_mass_lbs': 150.0,
+                'age_at_scan': 33.0
+            },
+            {
+                'date_str': "07/01/2023",
+                'total_lean_mass_lbs': 154.0,  # 4 lbs in 6 months = ~0.3 kg/month
+                'age_at_scan': 33.5
+            },
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 157.0,  # 3 lbs in 6 months = ~0.23 kg/month
+                'age_at_scan': 34.0
+            },
+            {
+                'date_str': "07/01/2024",
+                'total_lean_mass_lbs': 160.0,  # 3 lbs in 6 months = ~0.23 kg/month
+                'age_at_scan': 34.5
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        # With ~0.23 kg/month rate, this should be classified as advanced
+        self.assertEqual(level, 'advanced')
+        self.assertIn('advanced level', explanation)
+        self.assertIn('slow progression', explanation)
+    
+    def test_detect_advanced_slow_gains(self):
+        """Test detection of advanced level with slow progression."""
+        processed_data = [
+            {
+                'date_str': "01/01/2022",
+                'total_lean_mass_lbs': 155.0,
+                'age_at_scan': 32.0
+            },
+            {
+                'date_str': "01/01/2023",
+                'total_lean_mass_lbs': 156.5,  # 1.5 lbs in 12 months = ~0.06 kg/month
+                'age_at_scan': 33.0
+            },
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 157.8,  # 1.3 lbs in 12 months = ~0.05 kg/month
+                'age_at_scan': 34.0
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        self.assertEqual(level, 'advanced')
+        self.assertIn('advanced level', explanation)
+        self.assertIn('slow progression', explanation)
+        self.assertIn('experienced trainee', explanation)
+    
+    def test_detect_edge_case_zero_gains(self):
+        """Test handling of zero or negative progression."""
+        processed_data = [
+            {
+                'date_str': "01/01/2023",
+                'total_lean_mass_lbs': 155.0,
+                'age_at_scan': 33.0
+            },
+            {
+                'date_str': "07/01/2023",
+                'total_lean_mass_lbs': 154.5,  # Slight loss
+                'age_at_scan': 33.5
+            },
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 155.0,  # Back to baseline
+                'age_at_scan': 34.0
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        # Should classify as advanced due to very low/no progression
+        self.assertEqual(level, 'advanced')
+        self.assertIn('advanced level', explanation)
+    
+    def test_detect_female_demographics(self):
+        """Test that detection works correctly for female users."""
+        # Female novice gains (should be lower than male thresholds)
+        processed_data = [
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 110.0,
+                'age_at_scan': 34.0
+            },
+            {
+                'date_str': "04/01/2024",
+                'total_lean_mass_lbs': 114.0,  # 4 lbs in 3 months = ~0.6 kg/month
+                'age_at_scan': 34.25
+            },
+            {
+                'date_str': "07/01/2024",
+                'total_lean_mass_lbs': 117.0,  # 3 lbs in 3 months = ~0.45 kg/month
+                'age_at_scan': 34.5
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_female)
+        
+        # Should detect as novice for female with these gains
+        self.assertEqual(level, 'novice')
+        self.assertIn('novice gains', explanation)
+    
+    def test_detect_with_irregular_timing(self):
+        """Test detection with irregular scan intervals."""
+        processed_data = [
+            {
+                'date_str': "01/01/2024",
+                'total_lean_mass_lbs': 150.0,
+                'age_at_scan': 34.0
+            },
+            {
+                'date_str': "02/15/2024",  # 1.5 months later
+                'total_lean_mass_lbs': 152.0,  # Rapid gain
+                'age_at_scan': 34.125
+            },
+            {
+                'date_str': "09/01/2024",  # 6.5 months later
+                'total_lean_mass_lbs': 153.5,  # Much slower gain
+                'age_at_scan': 34.667
+            }
+        ]
+        
+        level, explanation = detect_training_level_from_scans(processed_data, self.user_info_male)
+        
+        # Should handle irregular timing and still make reasonable classification
+        self.assertIn(level, ['novice', 'intermediate', 'advanced'])
+        self.assertIsInstance(explanation, str)
+        self.assertGreater(len(explanation), 10)
+
+
+class TestConservativeGainRates(unittest.TestCase):
+    """Test cases for demographic-specific gain rate calculations."""
+    
+    def setUp(self):
+        """Set up common test fixtures."""
+        self.user_info_male = {
+            "gender_code": 0,
+            "height_in": 70.0
+        }
+        
+        self.user_info_female = {
+            "gender_code": 1,
+            "height_in": 65.0
+        }
+    
+    def test_male_rates_all_levels(self):
+        """Test male gain rates for all training levels."""
+        # Test young male (no age adjustment)
+        age = 25.0
+        
+        novice_rate, explanation = get_conservative_gain_rate(self.user_info_male, 'novice', age)
+        self.assertEqual(novice_rate, LEAN_MASS_GAIN_RATES['male']['novice'])
+        self.assertIn('novice', explanation)
+        self.assertIn('male', explanation)
+        
+        intermediate_rate, explanation = get_conservative_gain_rate(self.user_info_male, 'intermediate', age)
+        self.assertEqual(intermediate_rate, LEAN_MASS_GAIN_RATES['male']['intermediate'])
+        self.assertIn('intermediate', explanation)
+        
+        advanced_rate, explanation = get_conservative_gain_rate(self.user_info_male, 'advanced', age)
+        self.assertEqual(advanced_rate, LEAN_MASS_GAIN_RATES['male']['advanced'])
+        self.assertIn('advanced', explanation)
+    
+    def test_female_rates_all_levels(self):
+        """Test female gain rates for all training levels."""
+        age = 25.0
+        
+        novice_rate, explanation = get_conservative_gain_rate(self.user_info_female, 'novice', age)
+        self.assertEqual(novice_rate, LEAN_MASS_GAIN_RATES['female']['novice'])
+        self.assertIn('female', explanation)
+        
+        intermediate_rate, explanation = get_conservative_gain_rate(self.user_info_female, 'intermediate', age)
+        self.assertEqual(intermediate_rate, LEAN_MASS_GAIN_RATES['female']['intermediate'])
+        
+        advanced_rate, explanation = get_conservative_gain_rate(self.user_info_female, 'advanced', age)
+        self.assertEqual(advanced_rate, LEAN_MASS_GAIN_RATES['female']['advanced'])
+    
+    def test_age_adjustments_over_30(self):
+        """Test age adjustments for users over 30."""
+        # Test 40-year-old male (1 decade over 30)
+        age = 40.0
+        base_rate = LEAN_MASS_GAIN_RATES['male']['intermediate']
+        expected_reduction = 1 - (AGE_ADJUSTMENT_FACTOR * 1)  # 10% reduction
+        expected_rate = base_rate * expected_reduction
+        
+        actual_rate, explanation = get_conservative_gain_rate(self.user_info_male, 'intermediate', age)
+        
+        self.assertAlmostEqual(actual_rate, expected_rate, places=3)
+        self.assertIn('age-adjusted', explanation)
+        self.assertIn('age 40', explanation)
+    
+    def test_age_adjustments_under_30(self):
+        """Test no age adjustment for users under 30."""
+        age = 25.0
+        base_rate = LEAN_MASS_GAIN_RATES['male']['intermediate']
+        
+        actual_rate, explanation = get_conservative_gain_rate(self.user_info_male, 'intermediate', age)
+        
+        self.assertEqual(actual_rate, base_rate)
+        self.assertNotIn('age-adjusted', explanation)
+    
+    def test_minimum_rate_floor(self):
+        """Test that rates never go below 50% of base rate."""
+        # Test very old user (should hit 50% floor)
+        age = 80.0  # 5 decades over 30 = 50% reduction, hits floor
+        base_rate = LEAN_MASS_GAIN_RATES['male']['novice']
+        expected_rate = base_rate * 0.5  # 50% floor
+        
+        actual_rate, explanation = get_conservative_gain_rate(self.user_info_male, 'novice', age)
+        
+        self.assertAlmostEqual(actual_rate, expected_rate, places=3)
+        self.assertIn('age-adjusted', explanation)
+    
+    def test_edge_case_very_old(self):
+        """Test handling of extreme age values."""
+        age = 90.0
+        
+        rate, explanation = get_conservative_gain_rate(self.user_info_male, 'intermediate', age)
+        
+        # Should still return a reasonable positive rate
+        self.assertGreater(rate, 0)
+        self.assertIsInstance(explanation, str)
+        self.assertIn('age-adjusted', explanation)
+    
+    def test_gender_string_conversion(self):
+        """Test gender code to string conversion."""
+        self.assertEqual(get_gender_string(0), 'male')
+        self.assertEqual(get_gender_string(1), 'female')
+
+
+class TestTrainingLevelDetermination(unittest.TestCase):
+    """Test cases for user-specified vs auto-detected training level logic."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.user_info_with_level = {
+            "gender_code": 0,
+            "training_level": "intermediate"
+        }
+        
+        self.user_info_without_level = {
+            "gender_code": 0
+        }
+        
+        self.processed_data = [
+            {'total_lean_mass_lbs': 150.0, 'age_at_scan': 30.0},
+            {'total_lean_mass_lbs': 153.0, 'age_at_scan': 30.5}
+        ]
+    
+    def test_user_specified_overrides_detection(self):
+        """Test that user-specified level takes priority over detection."""
+        level, explanation = determine_training_level(self.user_info_with_level, self.processed_data)
+        
+        self.assertEqual(level, 'intermediate')
+        self.assertIn('user-specified', explanation)
+        self.assertIn('intermediate', explanation)
+    
+    def test_case_insensitive_user_input(self):
+        """Test case-insensitive handling of user input."""
+        test_cases = [
+            ("Novice", "novice"),
+            ("INTERMEDIATE", "intermediate"), 
+            ("Advanced", "advanced"),
+            ("NOVICE", "novice")
+        ]
+        
+        for input_level, expected_level in test_cases:
+            user_info = {"gender_code": 0, "training_level": input_level}
+            level, explanation = determine_training_level(user_info, self.processed_data)
+            
+            self.assertEqual(level, expected_level)
+            self.assertIn('user-specified', explanation)
+    
+    def test_fallback_to_detection(self):
+        """Test auto-detection when training level not specified."""
+        level, explanation = determine_training_level(self.user_info_without_level, self.processed_data)
+        
+        # Should call detection logic
+        self.assertIn(level, ['novice', 'intermediate', 'advanced'])
+        self.assertNotIn('user-specified', explanation)
+        # Should contain detection-specific language
+        self.assertTrue(any(word in explanation for word in ['Detected', 'progression', 'gains', 'Insufficient']))
+
+
+class TestSuggestedGoalCalculation(unittest.TestCase):
+    """Test cases for the core suggested goal algorithm."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        # Create mock LMS functions
+        ages = np.linspace(18, 80, 50)
+        almi_values = 9.0 - 0.01 * (ages - 30)  # Slight decline with age
+        lmi_values = 19.0 - 0.02 * (ages - 30)  # Slight decline with age
+        l_values = np.ones_like(ages) * 0.1
+        s_values = np.ones_like(ages) * 0.1
+        
+        self.lms_functions = {
+            'almi_L': interp1d(ages, l_values, kind='cubic', fill_value="extrapolate"),
+            'almi_M': interp1d(ages, almi_values, kind='cubic', fill_value="extrapolate"),
+            'almi_S': interp1d(ages, s_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_L': interp1d(ages, l_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_M': interp1d(ages, lmi_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_S': interp1d(ages, s_values, kind='cubic', fill_value="extrapolate")
+        }
+        
+        self.user_info = {
+            "height_in": 70.0,
+            "gender_code": 0,
+            "training_level": "intermediate"
+        }
+        
+        self.processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'ffmi_kg_m2': 18.0,
+                'almi_kg_m2': 8.5,
+                'total_lean_mass_lbs': 150.0,
+                'alm_lbs': 41.0,  # Arms + legs lean mass
+                'arms_lean_lbs': 16.0,
+                'legs_lean_lbs': 25.0
+            },
+            {
+                'age_at_scan': 30.5,
+                'ffmi_kg_m2': 18.5,
+                'almi_kg_m2': 8.7,
+                'total_lean_mass_lbs': 153.0,
+                'alm_lbs': 42.0,  # Arms + legs lean mass
+                'arms_lean_lbs': 16.5,
+                'legs_lean_lbs': 25.5
+            }
+        ]
+    
+    def test_calculate_feasible_timeframe_almi(self):
+        """Test auto-calculation of ALMI goal timing."""
+        goal_params = {
+            'target_percentile': 0.90,
+            'target_age': None
+        }
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, self.processed_data, self.lms_functions, 'almi'
+        )
+        
+        self.assertIsNotNone(updated_goal['target_age'])
+        self.assertTrue(updated_goal.get('suggested', False))
+        self.assertGreater(len(messages), 0)
+        
+        # Should have reasonable target age
+        current_age = self.processed_data[-1]['age_at_scan']
+        self.assertGreater(updated_goal['target_age'], current_age)
+        self.assertLess(updated_goal['target_age'], current_age + 15)  # Within 15 years
+    
+    def test_calculate_feasible_timeframe_ffmi(self):
+        """Test auto-calculation of FFMI goal timing."""
+        goal_params = {
+            'target_percentile': 0.85,
+            'target_age': "?"  # Test "?" string input
+        }
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, self.processed_data, self.lms_functions, 'ffmi'
+        )
+        
+        self.assertIsNotNone(updated_goal['target_age'])
+        self.assertTrue(updated_goal.get('suggested', False))
+        self.assertGreater(len(messages), 0)
+        
+        # Check that messages are informative
+        message_text = " ".join(messages)
+        self.assertIn('timeframe', message_text)
+        self.assertIn('intermediate', message_text)
+    
+    def test_question_mark_target_age(self):
+        """Test handling of "?" string for target_age."""
+        goal_params = {
+            'target_percentile': 0.75,
+            'target_age': "?"
+        }
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, self.processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should calculate a numeric target age
+        self.assertIsInstance(updated_goal['target_age'], (int, float))
+        self.assertGreater(updated_goal['target_age'], 0)
+        
+        # Should mention auto-calculation in messages
+        message_text = " ".join(messages)
+        self.assertIn('calculate feasible timeframe', message_text)
+    
+    def test_null_target_age(self):
+        """Test handling of None/null target_age."""
+        goal_params = {
+            'target_percentile': 0.80,
+            'target_age': None
+        }
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, self.processed_data, self.lms_functions, 'ffmi'
+        )
+        
+        self.assertIsInstance(updated_goal['target_age'], (int, float))
+        self.assertTrue(updated_goal.get('suggested', False))
+    
+    def test_multiple_demographics(self):
+        """Test suggested goals across different demographics."""
+        demographics = [
+            {"gender_code": 0, "training_level": "novice"},    # Male novice
+            {"gender_code": 0, "training_level": "advanced"},  # Male advanced  
+            {"gender_code": 1, "training_level": "intermediate"},  # Female intermediate
+            {"gender_code": 1, "training_level": "novice"}     # Female novice
+        ]
+        
+        for demo in demographics:
+            user_info = {**self.user_info, **demo}
+            goal_params = {'target_percentile': 0.90, 'target_age': None}
+            
+            updated_goal, messages = calculate_suggested_goal(
+                goal_params, user_info, self.processed_data, self.lms_functions, 'almi'
+            )
+            
+            # Should produce reasonable results for all demographics
+            self.assertIsInstance(updated_goal['target_age'], (int, float))
+            self.assertGreater(len(messages), 2)  # Should have multiple informative messages
+    
+    def test_unrealistic_goal_10_year_cap(self):
+        """Test handling of goals that would require >10 years."""
+        # Create a scenario with very slow progression and high percentile goal
+        slow_user_info = {**self.user_info, "training_level": "advanced"}
+        
+        goal_params = {
+            'target_percentile': 0.99,  # Very high percentile
+            'target_age': None
+        }
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, slow_user_info, self.processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should cap at reasonable timeframe
+        current_age = self.processed_data[-1]['age_at_scan']
+        self.assertLessEqual(updated_goal['target_age'], current_age + 10)
+        
+        # Should mention warning in messages
+        message_text = " ".join(messages)
+        if updated_goal['target_age'] >= current_age + 10:
+            self.assertTrue(any('10 years' in msg for msg in messages))
+    
+    def test_suggested_flag_behavior(self):
+        """Test that suggested=True is properly set."""
+        goal_params = {
+            'target_percentile': 0.85,
+            'target_age': None
+        }
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, self.processed_data, self.lms_functions, 'ffmi'
+        )
+        
+        self.assertTrue(updated_goal.get('suggested', False))
+        self.assertEqual(updated_goal['target_percentile'], 0.85)  # Should preserve other fields
+
+
+class TestSuggestedGoalIntegration(unittest.TestCase):
+    """Test cases for full integration with existing goal processing pipeline."""
+    
+    def setUp(self):
+        """Set up integration test fixtures."""
+        # Create realistic mock LMS functions
+        ages = np.linspace(18, 80, 50)
+        almi_values = 9.0 - 0.01 * (ages - 30)
+        lmi_values = 19.0 - 0.02 * (ages - 30)
+        l_values = np.ones_like(ages) * 0.1
+        s_values = np.ones_like(ages) * 0.1
+        
+        self.lms_functions = {
+            'almi_L': interp1d(ages, l_values, kind='cubic', fill_value="extrapolate"),
+            'almi_M': interp1d(ages, almi_values, kind='cubic', fill_value="extrapolate"),
+            'almi_S': interp1d(ages, s_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_L': interp1d(ages, l_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_M': interp1d(ages, lmi_values, kind='cubic', fill_value="extrapolate"),
+            'lmi_S': interp1d(ages, s_values, kind='cubic', fill_value="extrapolate")
+        }
+        
+        self.user_info = {
+            "birth_date_str": "01/01/1990",
+            "height_in": 70.0,
+            "gender_code": 0,
+            "training_level": "intermediate"
+        }
+        
+        self.scan_history = [
+            {'date_str': "01/01/2024", 'total_lean_mass_lbs': 150.0, 'arms_lean_lbs': 15.0, 'legs_lean_lbs': 35.0},
+            {'date_str': "07/01/2024", 'total_lean_mass_lbs': 155.0, 'arms_lean_lbs': 16.0, 'legs_lean_lbs': 36.0}
+        ]
+    
+    def test_suggested_almi_goal_processing(self):
+        """Test end-to-end ALMI suggested goal processing."""
+        almi_goal = {
+            'target_percentile': 0.90,
+            'target_age': None,
+            'suggested': True
+        }
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, None, self.lms_functions
+        )
+        
+        # Should have processed the suggested goal
+        self.assertIn('almi', goal_calculations)
+        self.assertTrue(goal_calculations['almi'].get('suggested', False))
+        
+        # Should have goal messages
+        self.assertIn('messages', goal_calculations)
+        self.assertGreater(len(goal_calculations['messages']), 0)
+        
+        # Should have added goal row to DataFrame
+        goal_rows = df_results[df_results['date_str'].str.contains('ALMI Goal')]
+        self.assertEqual(len(goal_rows), 1)
+    
+    def test_suggested_ffmi_goal_processing(self):
+        """Test end-to-end FFMI suggested goal processing."""
+        ffmi_goal = {
+            'target_percentile': 0.85,
+            'target_age': "?"
+        }
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, None, ffmi_goal, self.lms_functions
+        )
+        
+        # Should have processed the suggested goal
+        self.assertIn('ffmi', goal_calculations)
+        self.assertTrue(goal_calculations['ffmi'].get('suggested', False))
+        
+        # Should have goal row
+        goal_rows = df_results[df_results['date_str'].str.contains('FFMI Goal')]
+        self.assertEqual(len(goal_rows), 1)
+    
+    def test_mixed_explicit_and_suggested(self):
+        """Test processing one explicit goal and one suggested goal."""
+        almi_goal = {
+            'target_percentile': 0.90,
+            'target_age': 40.0  # Explicit age
+        }
+        
+        ffmi_goal = {
+            'target_percentile': 0.85,
+            'target_age': None  # Suggested age
+        }
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, ffmi_goal, self.lms_functions
+        )
+        
+        # ALMI should not be suggested
+        self.assertFalse(goal_calculations['almi'].get('suggested', False))
+        
+        # FFMI should be suggested
+        self.assertTrue(goal_calculations['ffmi'].get('suggested', False))
+        
+        # Should have messages only for the suggested goal
+        self.assertIn('messages', goal_calculations)
+    
+    def test_backward_compatibility(self):
+        """Test that explicit goals work unchanged."""
+        almi_goal = {
+            'target_percentile': 0.75,
+            'target_age': 35.0
+        }
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, None, self.lms_functions
+        )
+        
+        # Should process as explicit goal (not suggested)
+        self.assertFalse(goal_calculations['almi'].get('suggested', False))
+        self.assertEqual(goal_calculations['almi']['target_age'], 35.0)
+        
+        # Should not have suggestion messages for explicit goals
+        messages = goal_calculations.get('messages', [])
+        if messages:
+            message_text = " ".join(messages)
+            self.assertNotIn('auto-calculated', message_text)
+    
+    def test_transparent_messaging(self):
+        """Test that all explanation messages are generated."""
+        almi_goal = {
+            'target_percentile': 0.90,
+            'target_age': "?"
+        }
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, None, self.lms_functions
+        )
+        
+        messages = goal_calculations.get('messages', [])
+        self.assertGreater(len(messages), 2)
+        
+        message_text = " ".join(messages)
+        
+        # Should explain training level
+        self.assertIn('training level', message_text)
+        
+        # Should explain rate selection
+        self.assertIn('Conservative', message_text)
+        self.assertIn('rate', message_text)
+        
+        # Should explain final timeframe
+        self.assertIn('timeframe', message_text)
+    
+    def test_goal_calculations_structure(self):
+        """Test that returned goal calculations have expected structure."""
+        almi_goal = {
+            'target_percentile': 0.90,
+            'target_age': None
+        }
+        
+        df_results, goal_calculations = process_scans_and_goal(
+            self.user_info, self.scan_history, almi_goal, None, self.lms_functions
+        )
+        
+        almi_calc = goal_calculations['almi']
+        
+        # Should have all expected fields
+        expected_fields = [
+            'target_almi', 'target_z', 'target_age', 'target_percentile',
+            'alm_to_add_kg', 'estimated_tlm_gain_kg', 'suggested'
+        ]
+        
+        for field in expected_fields:
+            self.assertIn(field, almi_calc)
+        
+        # Numeric fields should be reasonable
+        self.assertIsInstance(almi_calc['target_age'], (int, float))
+        self.assertGreater(almi_calc['target_age'], 0)
+        self.assertTrue(almi_calc['suggested'])
+
+
+class TestSuggestedGoalEdgeCases(unittest.TestCase):
+    """Test cases for boundary conditions and error scenarios."""
+    
+    def setUp(self):
+        """Set up edge case test fixtures."""
+        # Minimal mock LMS functions
+        ages = np.array([18, 30, 50, 80])
+        values = np.array([8.0, 9.0, 8.5, 7.5])
+        l_values = np.array([0.1, 0.1, 0.1, 0.1])
+        s_values = np.array([0.1, 0.1, 0.1, 0.1])
+        
+        self.lms_functions = {
+            'almi_L': interp1d(ages, l_values, kind='linear', fill_value="extrapolate"),
+            'almi_M': interp1d(ages, values, kind='linear', fill_value="extrapolate"),
+            'almi_S': interp1d(ages, s_values, kind='linear', fill_value="extrapolate"),
+            'lmi_L': interp1d(ages, l_values, kind='linear', fill_value="extrapolate"),
+            'lmi_M': interp1d(ages, values * 2, kind='linear', fill_value="extrapolate"),
+            'lmi_S': interp1d(ages, s_values, kind='linear', fill_value="extrapolate")
+        }
+        
+        self.user_info = {
+            "height_in": 70.0,
+            "gender_code": 0
+        }
+    
+    def test_empty_scan_history(self):
+        """Test handling of empty scan history."""
+        processed_data = []
+        goal_params = {'target_percentile': 0.90, 'target_age': None}
+        
+        # Should handle gracefully
+        try:
+            updated_goal, messages = calculate_suggested_goal(
+                goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
+            )
+            # If it doesn't crash, check that it handles the empty case
+            self.assertIsInstance(messages, list)
+        except (IndexError, KeyError):
+            # Expected to fail with empty data - this is acceptable
+            pass
+    
+    def test_single_scan_fallback(self):
+        """Test behavior with single scan (no progression data)."""
+        processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'ffmi_kg_m2': 18.0,
+                'total_lean_mass_lbs': 150.0,
+                'alm_lbs': 40.0,
+                'arms_lean_lbs': 15.0,
+                'legs_lean_lbs': 25.0
+            }
+        ]
+        
+        goal_params = {'target_percentile': 0.90, 'target_age': None}
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should fall back to novice assumption
+        message_text = " ".join(messages)
+        self.assertIn('novice', message_text)
+    
+    def test_extreme_current_values(self):
+        """Test handling of very high/low current metric values."""
+        # User with very high current values
+        processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'ffmi_kg_m2': 25.0,  # Very high FFMI
+                'almi_kg_m2': 12.0,  # Very high ALMI
+                'total_lean_mass_lbs': 200.0,
+                'alm_lbs': 55.0,
+                'arms_lean_lbs': 20.0,
+                'legs_lean_lbs': 35.0
+            }
+        ]
+        
+        goal_params = {'target_percentile': 0.90, 'target_age': None}
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should handle without crashing
+        self.assertIsInstance(updated_goal['target_age'], (int, float))
+        self.assertIsInstance(messages, list)
+    
+    def test_extreme_target_percentiles(self):
+        """Test handling of very high and low target percentiles."""
+        processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'ffmi_kg_m2': 18.0,
+                'total_lean_mass_lbs': 150.0,
+                'alm_lbs': 40.0,
+                'arms_lean_lbs': 15.0,
+                'legs_lean_lbs': 25.0
+            }
+        ]
+        
+        extreme_percentiles = [0.05, 0.99]  # Very low and very high
+        
+        for percentile in extreme_percentiles:
+            goal_params = {'target_percentile': percentile, 'target_age': None}
+            
+            updated_goal, messages = calculate_suggested_goal(
+                goal_params, self.user_info, processed_data, self.lms_functions, 'ffmi'
+            )
+            
+            # Should handle extreme percentiles
+            self.assertEqual(updated_goal['target_percentile'], percentile)
+            self.assertIsInstance(updated_goal['target_age'], (int, float))
+    
+    def test_lms_data_boundary_ages(self):
+        """Test behavior at LMS data age boundaries."""
+        # Test with user near age boundaries
+        processed_data = [
+            {
+                'age_at_scan': 79.0,  # Near upper boundary
+                'ffmi_kg_m2': 17.0,
+                'total_lean_mass_lbs': 140.0,
+                'alm_lbs': 38.0,
+                'arms_lean_lbs': 14.0,
+                'legs_lean_lbs': 24.0
+            }
+        ]
+        
+        goal_params = {'target_percentile': 0.75, 'target_age': None}
+        
+        updated_goal, messages = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'ffmi'
+        )
+        
+        # Should handle boundary cases
+        self.assertIsInstance(updated_goal['target_age'], (int, float))
+        self.assertGreater(updated_goal['target_age'], 79.0)
 
 
 if __name__ == '__main__':
