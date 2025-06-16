@@ -65,7 +65,8 @@ CONFIG_SCHEMA = {
             "properties": {
                 "birth_date": {"type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$"},
                 "height_in": {"type": "number", "minimum": 12, "maximum": 120},
-                "gender": {"type": "string", "pattern": "^(?i)(m|f|male|female)$"}
+                "gender": {"type": "string", "pattern": "^(?i)(m|f|male|female)$"},
+                "training_level": {"type": "string", "pattern": "^(?i)(novice|intermediate|advanced)$"}
             },
             "additionalProperties": False
         },
@@ -89,20 +90,34 @@ CONFIG_SCHEMA = {
             "properties": {
                 "almi": {
                     "type": "object",
-                    "required": ["target_percentile", "target_age"],
+                    "required": ["target_percentile"],
                     "properties": {
                         "target_percentile": {"type": "number", "minimum": 0, "maximum": 1},
-                        "target_age": {"type": "number", "minimum": 18, "maximum": 120},
+                        "target_age": {
+                            "oneOf": [
+                                {"type": "number", "minimum": 18, "maximum": 120},
+                                {"type": "string", "pattern": "^\\?$"},
+                                {"type": "null"}
+                            ]
+                        },
+                        "suggested": {"type": "boolean"},
                         "description": {"type": "string"}
                     },
                     "additionalProperties": False
                 },
                 "ffmi": {
                     "type": "object",
-                    "required": ["target_percentile", "target_age"],
+                    "required": ["target_percentile"],
                     "properties": {
                         "target_percentile": {"type": "number", "minimum": 0, "maximum": 1},
-                        "target_age": {"type": "number", "minimum": 18, "maximum": 120},
+                        "target_age": {
+                            "oneOf": [
+                                {"type": "number", "minimum": 18, "maximum": 120},
+                                {"type": "string", "pattern": "^\\?$"},
+                                {"type": "null"}
+                            ]
+                        },
+                        "suggested": {"type": "boolean"},
                         "description": {"type": "string"}
                     },
                     "additionalProperties": False
@@ -113,6 +128,9 @@ CONFIG_SCHEMA = {
     },
     "additionalProperties": False
 }
+
+
+
 
 # ---------------------------------------------------------------------------
 # SECTION 1: CORE CALCULATION LOGIC
@@ -238,6 +256,231 @@ def calculate_z_percentile(value, age, L_func, M_func, S_func):
 
 
 # ---------------------------------------------------------------------------
+# SECTION 1.5: SUGGESTED GOAL LOGIC AND LEAN MASS GAIN RATES
+# ---------------------------------------------------------------------------
+
+# Conservative lean mass gain rates (kg/month) by training level and demographics
+LEAN_MASS_GAIN_RATES = {
+    'male': {
+        'novice': 0.75,      # 0.5-1.0 kg/month for first 6-12 months
+        'intermediate': 0.35, # 0.25-0.5 kg/month
+        'advanced': 0.15     # 0.1-0.25 kg/month
+    },
+    'female': {
+        'novice': 0.50,      # ~70% of male rates (hormonal differences)
+        'intermediate': 0.25,
+        'advanced': 0.10
+    }
+}
+
+# Age adjustment factors (reduce gains per decade over 30)
+AGE_ADJUSTMENT_FACTOR = 0.10  # 10% reduction per decade
+
+def get_gender_string(gender_code):
+    """Convert gender code to string for rate lookup."""
+    return 'male' if gender_code == 0 else 'female'
+
+def detect_training_level_from_scans(processed_data, user_info):
+    """
+    Analyzes scan progression to detect training level when not specified.
+    
+    Args:
+        processed_data (list): List of processed scan data with calculated metrics
+        user_info (dict): User information including demographics
+        
+    Returns:
+        tuple[str, str]: (detected_level, explanation_message)
+    """
+    if len(processed_data) < 2:
+        return 'novice', "Insufficient scan history - assuming novice level (conservative approach)"
+    
+    # Calculate lean mass progression rates between scans
+    lbs_to_kg = 1 / 2.20462
+    progression_rates = []
+    
+    for i in range(1, len(processed_data)):
+        prev_scan = processed_data[i-1]
+        curr_scan = processed_data[i]
+        
+        # Calculate months between scans
+        prev_age = prev_scan['age_at_scan']
+        curr_age = curr_scan['age_at_scan']
+        months_diff = (curr_age - prev_age) * 12
+        
+        if months_diff > 0:
+            # Calculate lean mass gain rate (kg/month)
+            prev_tlm = prev_scan['total_lean_mass_lbs'] * lbs_to_kg
+            curr_tlm = curr_scan['total_lean_mass_lbs'] * lbs_to_kg
+            tlm_gain = curr_tlm - prev_tlm
+            rate_per_month = tlm_gain / months_diff
+            progression_rates.append(rate_per_month)
+    
+    if not progression_rates:
+        return 'novice', "Unable to calculate progression rates - assuming novice level"
+    
+    # Use recent progression rates (last 2-3 data points)
+    recent_rates = progression_rates[-min(2, len(progression_rates)):]
+    avg_recent_rate = np.mean(recent_rates)
+    max_recent_rate = np.max(recent_rates)
+    
+    gender_str = get_gender_string(user_info['gender_code'])
+    
+    # Detection thresholds based on expected rates
+    novice_threshold = LEAN_MASS_GAIN_RATES[gender_str]['novice'] * 0.7  # 70% of expected novice rate
+    intermediate_threshold = LEAN_MASS_GAIN_RATES[gender_str]['intermediate'] * 0.7
+    
+    # Classify based on recent progression
+    if max_recent_rate >= novice_threshold:
+        if len(processed_data) <= 3:  # Early in training history
+            explanation = f"Detected novice gains: recent rate {avg_recent_rate:.2f} kg/month suggests early training phase"
+            return 'novice', explanation
+        else:
+            explanation = f"Detected intermediate level: sustained rate {avg_recent_rate:.2f} kg/month with training history"
+            return 'intermediate', explanation
+    elif avg_recent_rate >= intermediate_threshold:
+        explanation = f"Detected intermediate level: moderate progression {avg_recent_rate:.2f} kg/month"
+        return 'intermediate', explanation
+    else:
+        explanation = f"Detected advanced level: slow progression {avg_recent_rate:.2f} kg/month indicates experienced trainee"
+        return 'advanced', explanation
+
+def get_conservative_gain_rate(user_info, training_level, current_age):
+    """
+    Calculate conservative lean mass gain rate based on demographics and training level.
+    
+    Args:
+        user_info (dict): User demographics
+        training_level (str): Training level (novice/intermediate/advanced)
+        current_age (float): Current age for age adjustments
+        
+    Returns:
+        tuple[float, str]: (rate_kg_per_month, explanation)
+    """
+    gender_str = get_gender_string(user_info['gender_code'])
+    base_rate = LEAN_MASS_GAIN_RATES[gender_str][training_level]
+    
+    # Apply age adjustment for users over 30
+    age_adjusted_rate = base_rate
+    if current_age > 30:
+        decades_over_30 = (current_age - 30) / 10
+        age_reduction = 1 - (AGE_ADJUSTMENT_FACTOR * decades_over_30)
+        age_adjusted_rate = base_rate * max(0.5, age_reduction)  # Minimum 50% of base rate
+    
+    explanation = f"Conservative {training_level} rate for {gender_str}: {base_rate:.2f} kg/month"
+    if current_age > 30:
+        explanation += f", age-adjusted to {age_adjusted_rate:.2f} kg/month (age {current_age:.0f})"
+    
+    return age_adjusted_rate, explanation
+
+def determine_training_level(user_info, processed_data):
+    """
+    Determine training level using user specification or scan analysis.
+    
+    Args:
+        user_info (dict): User information including optional training_level
+        processed_data (list): Processed scan data for analysis
+        
+    Returns:
+        tuple[str, str]: (training_level, explanation_message)
+    """
+    specified_level = user_info.get('training_level')
+    if specified_level:
+        level_lower = specified_level.lower()
+        return level_lower, f"Using user-specified training level: {level_lower}"
+    else:
+        return detect_training_level_from_scans(processed_data, user_info)
+
+def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functions, metric='almi'):
+    """
+    Calculate suggested goal with automatic timeframe determination based on conservative gain rates.
+    
+    Args:
+        goal_params (dict): Goal parameters including target_percentile and optional target_age
+        user_info (dict): User demographics and info
+        processed_data (list): Historical scan data for analysis
+        lms_functions (dict): LMS interpolation functions
+        metric (str): 'almi' or 'ffmi' for the metric type
+        
+    Returns:
+        tuple[dict, list]: (updated_goal_params, messages_list)
+    """
+    messages = []
+    target_percentile = goal_params['target_percentile']
+    target_age = goal_params.get('target_age')
+    
+    # Handle string "?" or null target_age
+    if target_age == "?" or target_age is None:
+        target_age = None
+        messages.append(f"Target age not specified - will calculate feasible timeframe for {target_percentile*100:.0f}th percentile {metric.upper()}")
+    
+    # Determine training level
+    training_level, level_explanation = determine_training_level(user_info, processed_data)
+    messages.append(level_explanation)
+    
+    # Get current status
+    last_scan = processed_data[-1]
+    current_age = last_scan['age_at_scan']
+    height_m_sq = (user_info['height_in'] * 0.0254) ** 2
+    current_tlm_kg = last_scan['ffmi_kg_m2'] * height_m_sq
+    
+    # Get conservative gain rate
+    monthly_gain_rate, rate_explanation = get_conservative_gain_rate(user_info, training_level, current_age)
+    messages.append(rate_explanation)
+    
+    if target_age is None:
+        # Find the age where we can realistically achieve the goal
+        test_ages = np.arange(current_age + 0.5, min(current_age + 10, 80), 0.5)  # Test up to 10 years ahead
+        feasible_age = None
+        
+        for test_age in test_ages:
+            months_to_goal = (test_age - current_age) * 12
+            potential_tlm_gain = monthly_gain_rate * months_to_goal
+            projected_tlm_kg = current_tlm_kg + potential_tlm_gain
+            
+            # Calculate what percentile this would represent
+            if metric == 'almi':
+                # For ALMI goals, estimate required TLM using ALM/TLM ratio
+                alm_tlm_ratio = get_alm_tlm_ratio(processed_data, {'target_age': test_age}, lms_functions, user_info)
+                projected_alm_kg = projected_tlm_kg * alm_tlm_ratio
+                projected_almi = projected_alm_kg / height_m_sq
+                
+                # Get target ALMI at this age
+                target_z = stats.norm.ppf(target_percentile)
+                l_val, m_val, s_val = lms_functions['almi_L'](test_age), lms_functions['almi_M'](test_age), lms_functions['almi_S'](test_age)
+                target_almi = get_value_from_zscore(target_z, l_val, m_val, s_val)
+                
+                if projected_almi >= target_almi:
+                    feasible_age = test_age
+                    break
+            else:  # ffmi
+                projected_ffmi = projected_tlm_kg / height_m_sq
+                
+                # Get target FFMI at this age
+                target_z = stats.norm.ppf(target_percentile)
+                l_val, m_val, s_val = lms_functions['lmi_L'](test_age), lms_functions['lmi_M'](test_age), lms_functions['lmi_S'](test_age)
+                target_ffmi = get_value_from_zscore(target_z, l_val, m_val, s_val)
+                
+                if projected_ffmi >= target_ffmi:
+                    feasible_age = test_age
+                    break
+        
+        if feasible_age is None:
+            # If no feasible age found within 10 years, use 10 years as maximum
+            feasible_age = current_age + 10
+            messages.append(f"⚠️  Goal may require >10 years with conservative rates - setting target age to {feasible_age:.1f}")
+        
+        target_age = feasible_age
+        years_to_goal = target_age - current_age
+        messages.append(f"✓ Calculated feasible timeframe: {years_to_goal:.1f} years (age {target_age:.1f}) based on {training_level} progression rates")
+    
+    # Update goal_params with calculated target_age
+    updated_goal_params = goal_params.copy()
+    updated_goal_params['target_age'] = target_age
+    updated_goal_params['suggested'] = True
+    
+    return updated_goal_params, messages
+
+# ---------------------------------------------------------------------------
 # SECTION 2: DATA PROCESSING AND ORCHESTRATION
 # ---------------------------------------------------------------------------
 
@@ -303,7 +546,8 @@ def extract_data_from_config(config):
     user_info = {
         "birth_date_str": config['user_info']['birth_date'],
         "height_in": config['user_info']['height_in'],
-        "gender_code": parse_gender(config['user_info']['gender'])
+        "gender_code": parse_gender(config['user_info']['gender']),
+        "training_level": config['user_info'].get('training_level')  # Optional field
     }
     
     # Convert scan format (date -> date_str for backward compatibility)
@@ -409,6 +653,8 @@ def load_lms_data(metric, gender_code, data_path="./data/"):
         print(f"Error reading or processing LMS file {file_path}: {e}")
         return None, None, None
 
+
+
 def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_functions):
     """
     Calculates all metrics for historical scans and optional user goals.
@@ -471,9 +717,27 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
     # Initialize goal calculations results
     goal_calculations = {}
     
+    # Initialize list to collect all goal messages
+    all_goal_messages = []
+    
     # Process ALMI goal if specified
     if has_almi_goal:
-        print(f"Processing ALMI goal: {almi_goal['target_percentile']*100:.0f}th percentile at age {almi_goal['target_age']}")
+        # Handle suggested goals vs explicit goals
+        if almi_goal.get('suggested') or almi_goal.get('target_age') in [None, "?"]:
+            print(f"Processing suggested ALMI goal: {almi_goal['target_percentile']*100:.0f}th percentile")
+            
+            # Calculate suggested goal with automatic timeframe
+            updated_almi_goal, almi_messages = calculate_suggested_goal(
+                almi_goal, user_info, processed_data, lms_functions, 'almi'
+            )
+            almi_goal = updated_almi_goal  # Use updated goal with calculated target_age
+            all_goal_messages.extend(almi_messages)
+            
+            # Print suggested goal messages
+            for msg in almi_messages:
+                print(f"  {msg}")
+        else:
+            print(f"Processing ALMI goal: {almi_goal['target_percentile']*100:.0f}th percentile at age {almi_goal['target_age']}")
         
         target_z = stats.norm.ppf(almi_goal['target_percentile'])
         l_goal, m_goal, s_goal = lms_functions['almi_L'](almi_goal['target_age']), lms_functions['almi_M'](almi_goal['target_age']), lms_functions['almi_S'](almi_goal['target_age'])
@@ -497,7 +761,8 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'target_percentile': almi_goal['target_percentile'],
             'alm_to_add_kg': alm_to_add_kg,
             'estimated_tlm_gain_kg': estimated_tlm_gain_kg,
-            'target_ffmi_from_almi': target_tlm_kg / height_m_sq  # FFMI implied by ALMI goal
+            'target_ffmi_from_almi': target_tlm_kg / height_m_sq,  # FFMI implied by ALMI goal
+            'suggested': almi_goal.get('suggested', False)
         }
         
         # Add ALMI goal row to data
@@ -522,7 +787,22 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
     
     # Process FFMI goal if specified
     if has_ffmi_goal:
-        print(f"Processing FFMI goal: {ffmi_goal['target_percentile']*100:.0f}th percentile at age {ffmi_goal['target_age']}")
+        # Handle suggested goals vs explicit goals
+        if ffmi_goal.get('suggested') or ffmi_goal.get('target_age') in [None, "?"]:
+            print(f"Processing suggested FFMI goal: {ffmi_goal['target_percentile']*100:.0f}th percentile")
+            
+            # Calculate suggested goal with automatic timeframe
+            updated_ffmi_goal, ffmi_messages = calculate_suggested_goal(
+                ffmi_goal, user_info, processed_data, lms_functions, 'ffmi'
+            )
+            ffmi_goal = updated_ffmi_goal  # Use updated goal with calculated target_age
+            all_goal_messages.extend(ffmi_messages)
+            
+            # Print suggested goal messages
+            for msg in ffmi_messages:
+                print(f"  {msg}")
+        else:
+            print(f"Processing FFMI goal: {ffmi_goal['target_percentile']*100:.0f}th percentile at age {ffmi_goal['target_age']}")
         
         target_z = stats.norm.ppf(ffmi_goal['target_percentile'])
         l_goal, m_goal, s_goal = lms_functions['lmi_L'](ffmi_goal['target_age']), lms_functions['lmi_M'](ffmi_goal['target_age']), lms_functions['lmi_S'](ffmi_goal['target_age'])
@@ -538,7 +818,8 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'target_z': target_z,
             'target_age': ffmi_goal['target_age'],
             'target_percentile': ffmi_goal['target_percentile'],
-            'tlm_to_add_kg': tlm_to_add_kg
+            'tlm_to_add_kg': tlm_to_add_kg,
+            'suggested': ffmi_goal.get('suggested', False)
         }
         
         # Add FFMI goal row to data
@@ -556,6 +837,10 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         }
         
         processed_data.append(ffmi_goal_row)
+    
+    # Add messages to goal_calculations
+    if all_goal_messages:
+        goal_calculations['messages'] = all_goal_messages
     
     return pd.DataFrame(processed_data), goal_calculations
 
@@ -714,7 +999,8 @@ JSON config format:
     "user_info": {
       "birth_date": "04/26/1982",
       "height_in": 66.0,
-      "gender": "male"
+      "gender": "male",
+      "training_level": "intermediate"  // optional: novice/intermediate/advanced
     },
     "scan_history": [
       {
@@ -727,12 +1013,13 @@ JSON config format:
     "goals": {
       "almi": {
         "target_percentile": 0.90,
-        "target_age": 45.0,
+        "target_age": 45.0,        // or "?" for auto-calculated timeframe
+        "suggested": true,         // optional: enables suggested goal logic
         "description": "optional"
       },
       "ffmi": {
         "target_percentile": 0.85,
-        "target_age": 50.0,
+        "target_age": "?",         // auto-calculate based on progression rates
         "description": "optional"
       }
     }
@@ -741,6 +1028,9 @@ JSON config format:
 Notes:
   - Goals section is optional (scan history analysis only if omitted)
   - Either almi or ffmi goals can be specified independently
+  - training_level: If not specified, automatically detected from scan progression
+  - target_age: Use "?" or null for automatic timeframe calculation
+  - Suggested goals use conservative progression rates based on demographics and training level
         """
     )
     
@@ -748,6 +1038,19 @@ Notes:
         '--config', '-c',
         default='example_config.json',
         help='Path to JSON configuration file (default: example_config.json)'
+    )
+    
+    parser.add_argument(
+        '--suggest-goals', '-s',
+        action='store_true',
+        help='Generate suggested goals for reaching 90th percentile with realistic timeframes'
+    )
+    
+    parser.add_argument(
+        '--target-percentile', '-p',
+        type=float,
+        default=0.90,
+        help='Target percentile for suggested goals (default: 0.90 for 90th percentile)'
     )
     
     args = parser.parse_args()
@@ -766,14 +1069,18 @@ Notes:
         print(f"  - Birth Date: {config['user_info']['birth_date']}")
         print(f"  - Height: {config['user_info']['height_in']} inches")
         print(f"  - Gender: {config['user_info']['gender']}")
+        if user_info.get('training_level'):
+            print(f"  - Training Level: {user_info['training_level']}")
         
         print(f"\nGoals:")
         if almi_goal:
-            print(f"  - ALMI Goal: {almi_goal['target_percentile']*100:.0f}th percentile at age {almi_goal['target_age']:.1f}")
+            target_age_str = str(almi_goal['target_age']) if almi_goal.get('target_age') not in [None, "?"] else "auto-calculated"
+            print(f"  - ALMI Goal: {almi_goal['target_percentile']*100:.0f}th percentile at age {target_age_str}")
             if 'description' in almi_goal:
                 print(f"    Description: {almi_goal['description']}")
         if ffmi_goal:
-            print(f"  - FFMI Goal: {ffmi_goal['target_percentile']*100:.0f}th percentile at age {ffmi_goal['target_age']:.1f}")
+            target_age_str = str(ffmi_goal['target_age']) if ffmi_goal.get('target_age') not in [None, "?"] else "auto-calculated"
+            print(f"  - FFMI Goal: {ffmi_goal['target_percentile']*100:.0f}th percentile at age {target_age_str}")
             if 'description' in ffmi_goal:
                 print(f"    Description: {ffmi_goal['description']}")
         if not almi_goal and not ffmi_goal:
