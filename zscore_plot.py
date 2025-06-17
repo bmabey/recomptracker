@@ -752,7 +752,11 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         current_tlm_kg = last_scan['total_lean_mass_lbs'] * lbs_to_kg
         estimated_tlm_gain_kg = target_tlm_kg - current_tlm_kg
         
-        print(f"ALMI goal calculations: ALM to add: {alm_to_add_kg:.2f} kg, Est. TLM gain: {estimated_tlm_gain_kg:.2f} kg")
+        # Convert to pounds for display (matching input units)
+        kg_to_lbs = 2.20462
+        alm_to_add_lbs = alm_to_add_kg * kg_to_lbs
+        estimated_tlm_gain_lbs = estimated_tlm_gain_kg * kg_to_lbs
+        print(f"ALMI goal calculations: ALM to add: {alm_to_add_lbs:.1f} lbs ({alm_to_add_kg:.2f} kg), Est. TLM gain: {estimated_tlm_gain_lbs:.1f} lbs ({estimated_tlm_gain_kg:.2f} kg)")
         
         goal_calculations['almi'] = {
             'target_almi': target_almi,
@@ -811,7 +815,10 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         current_tlm_kg = last_scan['total_lean_mass_lbs'] * lbs_to_kg
         tlm_to_add_kg = target_tlm_kg - current_tlm_kg
         
-        print(f"FFMI goal calculations: TLM to add: {tlm_to_add_kg:.2f} kg")
+        # Convert to pounds for display (matching input units)
+        kg_to_lbs = 2.20462
+        tlm_to_add_lbs = tlm_to_add_kg * kg_to_lbs
+        print(f"FFMI goal calculations: TLM to add: {tlm_to_add_lbs:.1f} lbs ({tlm_to_add_kg:.2f} kg)")
         
         goal_calculations['ffmi'] = {
             'target_ffmi': target_ffmi,
