@@ -723,6 +723,52 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             
         processed_data.append(point)
 
+    # Calculate changes since last scan and since first scan
+    for i, point in enumerate(processed_data):
+        if i == 0:
+            # First scan - no previous scan for "since last" calculations
+            point['weight_change_last'] = np.nan
+            point['lean_change_last'] = np.nan
+            point['fat_change_last'] = np.nan
+            point['bf_change_last'] = np.nan
+            point['almi_z_change_last'] = np.nan
+            point['ffmi_z_change_last'] = np.nan
+            point['almi_pct_change_last'] = np.nan
+            point['ffmi_pct_change_last'] = np.nan
+            
+            # First scan - baseline for "since first" calculations
+            point['weight_change_first'] = 0.0
+            point['lean_change_first'] = 0.0
+            point['fat_change_first'] = 0.0
+            point['bf_change_first'] = 0.0
+            point['almi_z_change_first'] = 0.0
+            point['ffmi_z_change_first'] = 0.0
+            point['almi_pct_change_first'] = 0.0
+            point['ffmi_pct_change_first'] = 0.0
+        else:
+            prev_point = processed_data[i-1]
+            first_point = processed_data[0]
+            
+            # Changes since last scan
+            point['weight_change_last'] = point['total_weight_lbs'] - prev_point['total_weight_lbs']
+            point['lean_change_last'] = point['total_lean_mass_lbs'] - prev_point['total_lean_mass_lbs']
+            point['fat_change_last'] = point['fat_mass_lbs'] - prev_point['fat_mass_lbs']
+            point['bf_change_last'] = point['body_fat_percentage'] - prev_point['body_fat_percentage']
+            point['almi_z_change_last'] = point['almi_z_score'] - prev_point['almi_z_score']
+            point['ffmi_z_change_last'] = point['ffmi_lmi_z_score'] - prev_point['ffmi_lmi_z_score']
+            point['almi_pct_change_last'] = point['almi_percentile'] - prev_point['almi_percentile']
+            point['ffmi_pct_change_last'] = point['ffmi_lmi_percentile'] - prev_point['ffmi_lmi_percentile']
+            
+            # Changes since first scan
+            point['weight_change_first'] = point['total_weight_lbs'] - first_point['total_weight_lbs']
+            point['lean_change_first'] = point['total_lean_mass_lbs'] - first_point['total_lean_mass_lbs']
+            point['fat_change_first'] = point['fat_mass_lbs'] - first_point['fat_mass_lbs']
+            point['bf_change_first'] = point['body_fat_percentage'] - first_point['body_fat_percentage']
+            point['almi_z_change_first'] = point['almi_z_score'] - first_point['almi_z_score']
+            point['ffmi_z_change_first'] = point['ffmi_lmi_z_score'] - first_point['ffmi_lmi_z_score']
+            point['almi_pct_change_first'] = point['almi_percentile'] - first_point['almi_percentile']
+            point['ffmi_pct_change_first'] = point['ffmi_lmi_percentile'] - first_point['ffmi_lmi_percentile']
+
     # Store the last scan data for goal calculations (before adding goal rows)
     last_scan = processed_data[-1]
     
@@ -1050,29 +1096,29 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_calcu
 
     # Export table data to CSV (only for ALMI plot to avoid duplicate files)
     if is_almi_plot:
-        # Select columns, including body_fat_percentage and total_weight_lbs if they exist
+        # Select columns for comprehensive body composition analysis
         base_columns = [
-            'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile',
-            'almi_t_score', 'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
+            'date_str', 'age_at_scan', 
+            'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
+            'almi_kg_m2', 'almi_z_score', 'almi_percentile', 'almi_t_score',
+            'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score',
+            'weight_change_last', 'lean_change_last', 'fat_change_last', 'bf_change_last',
+            'weight_change_first', 'lean_change_first', 'fat_change_first', 'bf_change_first',
+            'almi_z_change_last', 'ffmi_z_change_last', 'almi_pct_change_last', 'ffmi_pct_change_last'
         ]
-        
-        # Add total_weight_lbs if present in any row
-        if 'total_weight_lbs' in df_results.columns:
-            base_columns.append('total_weight_lbs')
-            
-        # Add body_fat_percentage if present in any row
-        if 'body_fat_percentage' in df_results.columns:
-            base_columns.append('body_fat_percentage')
             
         table_data = df_results[base_columns].copy()
         
         # Rename columns for CSV clarity
-        column_names = ['Date', 'Age', 'ALMI_kg_m2', 'ALMI_Z_Score', 'ALMI_Percentile',
-                       'ALMI_T_Score', 'FFMI_kg_m2', 'FFMI_Z_Score', 'FFMI_Percentile', 'FFMI_T_Score']
-        if 'total_weight_lbs' in df_results.columns:
-            column_names.append('Total_Weight_lbs')
-        if 'body_fat_percentage' in df_results.columns:
-            column_names.append('Body_Fat_Percentage')
+        column_names = [
+            'Date', 'Age', 
+            'Total_Weight_lbs', 'Total_Lean_Mass_lbs', 'Fat_Mass_lbs', 'Body_Fat_Percentage',
+            'ALMI_kg_m2', 'ALMI_Z_Score', 'ALMI_Percentile', 'ALMI_T_Score',
+            'FFMI_kg_m2', 'FFMI_Z_Score', 'FFMI_Percentile', 'FFMI_T_Score',
+            'Weight_Change_Last', 'Lean_Change_Last', 'Fat_Change_Last', 'BF_Change_Last',
+            'Weight_Change_First', 'Lean_Change_First', 'Fat_Change_First', 'BF_Change_First',
+            'ALMI_Z_Change_Last', 'FFMI_Z_Change_Last', 'ALMI_Pct_Change_Last', 'FFMI_Pct_Change_Last'
+        ]
             
         table_data.columns = column_names
         
@@ -1223,23 +1269,37 @@ Notes:
         print("\n--- Final Comprehensive Data Table ---")
         # Select columns for display
         display_columns = [
-            'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile', 'almi_t_score',
-            'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
+            'date_str', 'age_at_scan', 
+            'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
+            'almi_kg_m2', 'ffmi_kg_m2',
+            'weight_change_last', 'lean_change_last', 'fat_change_last', 'bf_change_last',
+            'weight_change_first', 'lean_change_first', 'fat_change_first', 'bf_change_first',
+            'almi_z_change_last', 'ffmi_z_change_last', 'almi_pct_change_last', 'ffmi_pct_change_last'
         ]
         display_names = [
-            'Date', 'Age', 'ALMI', 'ALMI Z', 'ALMI %', 'ALMI T', 'FFMI', 'FFMI Z', 'FFMI %', 'FFMI T'
+            'Date', 'Age', 
+            'Weight', 'Lean', 'Fat', 'BF%',
+            'ALMI', 'FFMI',
+            'ΔW_L', 'ΔL_L', 'ΔF_L', 'ΔBF_L',
+            'ΔW_F', 'ΔL_F', 'ΔF_F', 'ΔBF_F',
+            'ΔALMI_Z_L', 'ΔFFMI_Z_L', 'ΔALMI_%_L', 'ΔFFMI_%_L'
         ]
-        
-        # Add body fat percentage if available
-        if 'body_fat_percentage' in df_results.columns:
-            display_columns.append('body_fat_percentage')
-            display_names.append('BF%')
             
         df_display = df_results[display_columns].copy()
         df_display.columns = display_names
+        
+        # Format numeric columns with appropriate precision
         for col in df_display.columns:
-             if df_display[col].dtype == 'float64':
-                 df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+            if df_display[col].dtype == 'float64':
+                if 'Δ' in col and ('Z' in col or '%' in col):
+                    # Z-scores and percentile changes - more precision
+                    df_display[col] = df_display[col].apply(lambda x: f"{x:+.2f}" if pd.notna(x) else "N/A")
+                elif 'Δ' in col:
+                    # Other changes - show with +/- sign
+                    df_display[col] = df_display[col].apply(lambda x: f"{x:+.1f}" if pd.notna(x) else "N/A")
+                else:
+                    # Regular values
+                    df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         print(df_display.to_markdown(index=False))
         
         return 0
