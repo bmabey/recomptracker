@@ -856,9 +856,11 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         }
         
         # Add ALMI goal row to data
+        target_tlm_lbs = target_tlm_kg * kg_to_lbs
         almi_goal_row = {
             'date_str': f"ALMI Goal (Age {almi_goal['target_age']})", 
             'age_at_scan': almi_goal['target_age'],
+            'total_lean_mass_lbs': target_tlm_lbs,
             'almi_kg_m2': target_almi, 
             'almi_z_score': target_z,
             'almi_percentile': almi_goal['target_percentile'] * 100,
@@ -869,9 +871,13 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'ffmi_lmi_t_score': calculate_t_score(target_tlm_kg / height_m_sq, lmi_m_30, lmi_sd_30),
             'body_fat_percentage': target_bf_percentage
         }
-        # Add target weight if available
+        # Add target weight and fat mass if available
         if target_weight_kg is not None:
             almi_goal_row['total_weight_lbs'] = target_weight_kg * kg_to_lbs
+            # Calculate target fat mass
+            target_fat_mass_kg = target_weight_kg - target_tlm_kg
+            target_fat_mass_lbs = target_fat_mass_kg * kg_to_lbs
+            almi_goal_row['fat_mass_lbs'] = target_fat_mass_lbs
         # Calculate implied FFMI percentile
         implied_ffmi_z, implied_ffmi_p = calculate_z_percentile(target_tlm_kg / height_m_sq, almi_goal['target_age'], lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'])
         almi_goal_row['ffmi_lmi_z_score'] = implied_ffmi_z
@@ -948,9 +954,11 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         }
         
         # Add FFMI goal row to data
+        target_tlm_lbs = target_tlm_kg * kg_to_lbs
         ffmi_goal_row = {
             'date_str': f"FFMI Goal (Age {ffmi_goal['target_age']})", 
             'age_at_scan': ffmi_goal['target_age'],
+            'total_lean_mass_lbs': target_tlm_lbs,
             'almi_kg_m2': np.nan,  # Will be calculated below
             'almi_z_score': np.nan,
             'almi_percentile': np.nan,
@@ -961,9 +969,13 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'ffmi_lmi_t_score': calculate_t_score(target_ffmi, lmi_m_30, lmi_sd_30),
             'body_fat_percentage': target_bf_percentage
         }
-        # Add target weight if available
+        # Add target weight and fat mass if available
         if target_weight_kg is not None:
             ffmi_goal_row['total_weight_lbs'] = target_weight_kg * kg_to_lbs
+            # Calculate target fat mass
+            target_fat_mass_kg = target_weight_kg - target_tlm_kg
+            target_fat_mass_lbs = target_fat_mass_kg * kg_to_lbs
+            ffmi_goal_row['fat_mass_lbs'] = target_fat_mass_lbs
         
         processed_data.append(ffmi_goal_row)
     
