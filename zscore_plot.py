@@ -883,6 +883,55 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         almi_goal_row['ffmi_lmi_z_score'] = implied_ffmi_z
         almi_goal_row['ffmi_lmi_percentile'] = implied_ffmi_p
         
+        # Calculate goal deltas from last scan (what needs to change to reach goal)
+        first_scan = processed_data[0]
+        
+        # Deltas from last scan
+        if 'total_weight_lbs' in almi_goal_row and 'total_weight_lbs' in last_scan:
+            almi_goal_row['weight_change_last'] = almi_goal_row['total_weight_lbs'] - last_scan['total_weight_lbs']
+        else:
+            almi_goal_row['weight_change_last'] = np.nan
+            
+        almi_goal_row['lean_change_last'] = almi_goal_row['total_lean_mass_lbs'] - last_scan['total_lean_mass_lbs']
+        
+        if 'fat_mass_lbs' in almi_goal_row and 'fat_mass_lbs' in last_scan:
+            almi_goal_row['fat_change_last'] = almi_goal_row['fat_mass_lbs'] - last_scan['fat_mass_lbs']
+        else:
+            almi_goal_row['fat_change_last'] = np.nan
+            
+        if 'body_fat_percentage' in almi_goal_row and 'body_fat_percentage' in last_scan:
+            almi_goal_row['bf_change_last'] = almi_goal_row['body_fat_percentage'] - last_scan['body_fat_percentage']
+        else:
+            almi_goal_row['bf_change_last'] = np.nan
+            
+        almi_goal_row['almi_z_change_last'] = almi_goal_row['almi_z_score'] - last_scan['almi_z_score']
+        almi_goal_row['ffmi_z_change_last'] = almi_goal_row['ffmi_lmi_z_score'] - last_scan['ffmi_lmi_z_score']
+        almi_goal_row['almi_pct_change_last'] = almi_goal_row['almi_percentile'] - last_scan['almi_percentile']
+        almi_goal_row['ffmi_pct_change_last'] = almi_goal_row['ffmi_lmi_percentile'] - last_scan['ffmi_lmi_percentile']
+        
+        # Deltas from first scan (total change needed from baseline)
+        if 'total_weight_lbs' in almi_goal_row and 'total_weight_lbs' in first_scan:
+            almi_goal_row['weight_change_first'] = almi_goal_row['total_weight_lbs'] - first_scan['total_weight_lbs']
+        else:
+            almi_goal_row['weight_change_first'] = np.nan
+            
+        almi_goal_row['lean_change_first'] = almi_goal_row['total_lean_mass_lbs'] - first_scan['total_lean_mass_lbs']
+        
+        if 'fat_mass_lbs' in almi_goal_row and 'fat_mass_lbs' in first_scan:
+            almi_goal_row['fat_change_first'] = almi_goal_row['fat_mass_lbs'] - first_scan['fat_mass_lbs']
+        else:
+            almi_goal_row['fat_change_first'] = np.nan
+            
+        if 'body_fat_percentage' in almi_goal_row and 'body_fat_percentage' in first_scan:
+            almi_goal_row['bf_change_first'] = almi_goal_row['body_fat_percentage'] - first_scan['body_fat_percentage']
+        else:
+            almi_goal_row['bf_change_first'] = np.nan
+            
+        almi_goal_row['almi_z_change_first'] = almi_goal_row['almi_z_score'] - first_scan['almi_z_score']
+        almi_goal_row['ffmi_z_change_first'] = almi_goal_row['ffmi_lmi_z_score'] - first_scan['ffmi_lmi_z_score']
+        almi_goal_row['almi_pct_change_first'] = almi_goal_row['almi_percentile'] - first_scan['almi_percentile']
+        almi_goal_row['ffmi_pct_change_first'] = almi_goal_row['ffmi_lmi_percentile'] - first_scan['ffmi_lmi_percentile']
+        
         processed_data.append(almi_goal_row)
     
     # Process FFMI goal if specified
@@ -976,6 +1025,55 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             target_fat_mass_kg = target_weight_kg - target_tlm_kg
             target_fat_mass_lbs = target_fat_mass_kg * kg_to_lbs
             ffmi_goal_row['fat_mass_lbs'] = target_fat_mass_lbs
+        
+        # Calculate goal deltas from last scan (what needs to change to reach goal)
+        first_scan = processed_data[0]
+        
+        # Deltas from last scan
+        if 'total_weight_lbs' in ffmi_goal_row and 'total_weight_lbs' in last_scan:
+            ffmi_goal_row['weight_change_last'] = ffmi_goal_row['total_weight_lbs'] - last_scan['total_weight_lbs']
+        else:
+            ffmi_goal_row['weight_change_last'] = np.nan
+            
+        ffmi_goal_row['lean_change_last'] = ffmi_goal_row['total_lean_mass_lbs'] - last_scan['total_lean_mass_lbs']
+        
+        if 'fat_mass_lbs' in ffmi_goal_row and 'fat_mass_lbs' in last_scan:
+            ffmi_goal_row['fat_change_last'] = ffmi_goal_row['fat_mass_lbs'] - last_scan['fat_mass_lbs']
+        else:
+            ffmi_goal_row['fat_change_last'] = np.nan
+            
+        if 'body_fat_percentage' in ffmi_goal_row and 'body_fat_percentage' in last_scan:
+            ffmi_goal_row['bf_change_last'] = ffmi_goal_row['body_fat_percentage'] - last_scan['body_fat_percentage']
+        else:
+            ffmi_goal_row['bf_change_last'] = np.nan
+            
+        ffmi_goal_row['almi_z_change_last'] = np.nan  # FFMI goal doesn't have ALMI target
+        ffmi_goal_row['ffmi_z_change_last'] = ffmi_goal_row['ffmi_lmi_z_score'] - last_scan['ffmi_lmi_z_score']
+        ffmi_goal_row['almi_pct_change_last'] = np.nan  # FFMI goal doesn't have ALMI target
+        ffmi_goal_row['ffmi_pct_change_last'] = ffmi_goal_row['ffmi_lmi_percentile'] - last_scan['ffmi_lmi_percentile']
+        
+        # Deltas from first scan (total change needed from baseline)
+        if 'total_weight_lbs' in ffmi_goal_row and 'total_weight_lbs' in first_scan:
+            ffmi_goal_row['weight_change_first'] = ffmi_goal_row['total_weight_lbs'] - first_scan['total_weight_lbs']
+        else:
+            ffmi_goal_row['weight_change_first'] = np.nan
+            
+        ffmi_goal_row['lean_change_first'] = ffmi_goal_row['total_lean_mass_lbs'] - first_scan['total_lean_mass_lbs']
+        
+        if 'fat_mass_lbs' in ffmi_goal_row and 'fat_mass_lbs' in first_scan:
+            ffmi_goal_row['fat_change_first'] = ffmi_goal_row['fat_mass_lbs'] - first_scan['fat_mass_lbs']
+        else:
+            ffmi_goal_row['fat_change_first'] = np.nan
+            
+        if 'body_fat_percentage' in ffmi_goal_row and 'body_fat_percentage' in first_scan:
+            ffmi_goal_row['bf_change_first'] = ffmi_goal_row['body_fat_percentage'] - first_scan['body_fat_percentage']
+        else:
+            ffmi_goal_row['bf_change_first'] = np.nan
+            
+        ffmi_goal_row['almi_z_change_first'] = np.nan  # FFMI goal doesn't have ALMI target
+        ffmi_goal_row['ffmi_z_change_first'] = ffmi_goal_row['ffmi_lmi_z_score'] - first_scan['ffmi_lmi_z_score']
+        ffmi_goal_row['almi_pct_change_first'] = np.nan  # FFMI goal doesn't have ALMI target
+        ffmi_goal_row['ffmi_pct_change_first'] = ffmi_goal_row['ffmi_lmi_percentile'] - first_scan['ffmi_lmi_percentile']
         
         processed_data.append(ffmi_goal_row)
     
