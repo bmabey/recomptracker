@@ -75,10 +75,13 @@ CONFIG_SCHEMA = {
             "minItems": 1,
             "items": {
                 "type": "object",
-                "required": ["date", "total_lean_mass_lbs", "arms_lean_lbs", "legs_lean_lbs"],
+                "required": ["date", "total_weight_lbs", "total_lean_mass_lbs", "fat_mass_lbs", "body_fat_percentage", "arms_lean_lbs", "legs_lean_lbs"],
                 "properties": {
                     "date": {"type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$"},
+                    "total_weight_lbs": {"type": "number", "minimum": 0},
                     "total_lean_mass_lbs": {"type": "number", "minimum": 0},
+                    "fat_mass_lbs": {"type": "number", "minimum": 0},
+                    "body_fat_percentage": {"type": "number", "minimum": 0, "maximum": 100},
                     "arms_lean_lbs": {"type": "number", "minimum": 0},
                     "legs_lean_lbs": {"type": "number", "minimum": 0}
                 },
@@ -101,7 +104,8 @@ CONFIG_SCHEMA = {
                             ]
                         },
                         "suggested": {"type": "boolean"},
-                        "description": {"type": "string"}
+                        "description": {"type": "string"},
+                        "target_body_fat_percentage": {"type": "number", "minimum": 0, "maximum": 100}
                     },
                     "additionalProperties": False
                 },
@@ -118,7 +122,8 @@ CONFIG_SCHEMA = {
                             ]
                         },
                         "suggested": {"type": "boolean"},
-                        "description": {"type": "string"}
+                        "description": {"type": "string"},
+                        "target_body_fat_percentage": {"type": "number", "minimum": 0, "maximum": 100}
                     },
                     "additionalProperties": False
                 }
@@ -555,7 +560,10 @@ def extract_data_from_config(config):
     for scan in config['scan_history']:
         scan_converted = {
             'date_str': scan['date'],
+            'total_weight_lbs': scan['total_weight_lbs'],
             'total_lean_mass_lbs': scan['total_lean_mass_lbs'],
+            'fat_mass_lbs': scan['fat_mass_lbs'],
+            'body_fat_percentage': scan['body_fat_percentage'],
             'arms_lean_lbs': scan['arms_lean_lbs'],
             'legs_lean_lbs': scan['legs_lean_lbs']
         }
@@ -709,6 +717,10 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         
         point['almi_t_score'] = calculate_t_score(point['almi_kg_m2'], almi_m_30, almi_sd_30)
         point['ffmi_lmi_t_score'] = calculate_t_score(point['ffmi_kg_m2'], lmi_m_30, lmi_sd_30)
+        
+        # Use the provided body fat percentage from DEXA scan (no calculation needed)
+        # The body fat percentage is now a required field from the actual DEXA scan data
+            
         processed_data.append(point)
 
     # Store the last scan data for goal calculations (before adding goal rows)
@@ -752,11 +764,36 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         current_tlm_kg = last_scan['total_lean_mass_lbs'] * lbs_to_kg
         estimated_tlm_gain_kg = target_tlm_kg - current_tlm_kg
         
+        # Handle target body fat percentage
+        if 'target_body_fat_percentage' in almi_goal:
+            target_bf_percentage = almi_goal['target_body_fat_percentage']
+        else:
+            # Use most recent scan's BF% if available, otherwise assume no change
+            target_bf_percentage = last_scan.get('body_fat_percentage', None)
+        
+        # Calculate target weight if we have BF%
+        if target_bf_percentage is not None and 'total_weight_lbs' in last_scan:
+            target_weight_kg = target_tlm_kg / (1 - target_bf_percentage / 100)
+            current_weight_kg = last_scan['total_weight_lbs'] * lbs_to_kg
+            weight_change_kg = target_weight_kg - current_weight_kg
+        else:
+            target_weight_kg = None
+            weight_change_kg = None
+        
         # Convert to pounds for display (matching input units)
         kg_to_lbs = 2.20462
         alm_to_add_lbs = alm_to_add_kg * kg_to_lbs
         estimated_tlm_gain_lbs = estimated_tlm_gain_kg * kg_to_lbs
-        print(f"ALMI goal calculations: ALM to add: {alm_to_add_lbs:.1f} lbs ({alm_to_add_kg:.2f} kg), Est. TLM gain: {estimated_tlm_gain_lbs:.1f} lbs ({estimated_tlm_gain_kg:.2f} kg)")
+        
+        # Build output message
+        output_msg = f"ALMI goal calculations: ALM to add: {alm_to_add_lbs:.1f} lbs ({alm_to_add_kg:.2f} kg), Est. TLM gain: {estimated_tlm_gain_lbs:.1f} lbs ({estimated_tlm_gain_kg:.2f} kg)"
+        if target_bf_percentage is not None:
+            output_msg += f", Target BF: {target_bf_percentage:.1f}%"
+            if weight_change_kg is not None:
+                weight_change_lbs = weight_change_kg * kg_to_lbs
+                sign = "+" if weight_change_lbs >= 0 else ""
+                output_msg += f", Total weight change: {sign}{weight_change_lbs:.1f} lbs"
+        print(output_msg)
         
         goal_calculations['almi'] = {
             'target_almi': target_almi,
@@ -766,7 +803,10 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'alm_to_add_kg': alm_to_add_kg,
             'estimated_tlm_gain_kg': estimated_tlm_gain_kg,
             'target_ffmi_from_almi': target_tlm_kg / height_m_sq,  # FFMI implied by ALMI goal
-            'suggested': almi_goal.get('suggested', False)
+            'suggested': almi_goal.get('suggested', False),
+            'target_body_fat_percentage': target_bf_percentage,
+            'target_weight_kg': target_weight_kg,
+            'weight_change_kg': weight_change_kg
         }
         
         # Add ALMI goal row to data
@@ -780,8 +820,12 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'ffmi_kg_m2': target_tlm_kg / height_m_sq,
             'ffmi_lmi_z_score': np.nan,  # Will be calculated below
             'ffmi_lmi_percentile': np.nan,
-            'ffmi_lmi_t_score': calculate_t_score(target_tlm_kg / height_m_sq, lmi_m_30, lmi_sd_30)
+            'ffmi_lmi_t_score': calculate_t_score(target_tlm_kg / height_m_sq, lmi_m_30, lmi_sd_30),
+            'body_fat_percentage': target_bf_percentage
         }
+        # Add target weight if available
+        if target_weight_kg is not None:
+            almi_goal_row['total_weight_lbs'] = target_weight_kg * kg_to_lbs
         # Calculate implied FFMI percentile
         implied_ffmi_z, implied_ffmi_p = calculate_z_percentile(target_tlm_kg / height_m_sq, almi_goal['target_age'], lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'])
         almi_goal_row['ffmi_lmi_z_score'] = implied_ffmi_z
@@ -815,10 +859,35 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         current_tlm_kg = last_scan['total_lean_mass_lbs'] * lbs_to_kg
         tlm_to_add_kg = target_tlm_kg - current_tlm_kg
         
+        # Handle target body fat percentage
+        if 'target_body_fat_percentage' in ffmi_goal:
+            target_bf_percentage = ffmi_goal['target_body_fat_percentage']
+        else:
+            # Use most recent scan's BF% if available, otherwise assume no change
+            target_bf_percentage = last_scan.get('body_fat_percentage', None)
+        
+        # Calculate target weight if we have BF%
+        if target_bf_percentage is not None and 'total_weight_lbs' in last_scan:
+            target_weight_kg = target_tlm_kg / (1 - target_bf_percentage / 100)
+            current_weight_kg = last_scan['total_weight_lbs'] * lbs_to_kg
+            weight_change_kg = target_weight_kg - current_weight_kg
+        else:
+            target_weight_kg = None
+            weight_change_kg = None
+        
         # Convert to pounds for display (matching input units)
         kg_to_lbs = 2.20462
         tlm_to_add_lbs = tlm_to_add_kg * kg_to_lbs
-        print(f"FFMI goal calculations: TLM to add: {tlm_to_add_lbs:.1f} lbs ({tlm_to_add_kg:.2f} kg)")
+        
+        # Build output message
+        output_msg = f"FFMI goal calculations: TLM to add: {tlm_to_add_lbs:.1f} lbs ({tlm_to_add_kg:.2f} kg)"
+        if target_bf_percentage is not None:
+            output_msg += f", Target BF: {target_bf_percentage:.1f}%"
+            if weight_change_kg is not None:
+                weight_change_lbs = weight_change_kg * kg_to_lbs
+                sign = "+" if weight_change_lbs >= 0 else ""
+                output_msg += f", Total weight change: {sign}{weight_change_lbs:.1f} lbs"
+        print(output_msg)
         
         goal_calculations['ffmi'] = {
             'target_ffmi': target_ffmi,
@@ -826,7 +895,10 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'target_age': ffmi_goal['target_age'],
             'target_percentile': ffmi_goal['target_percentile'],
             'tlm_to_add_kg': tlm_to_add_kg,
-            'suggested': ffmi_goal.get('suggested', False)
+            'suggested': ffmi_goal.get('suggested', False),
+            'target_body_fat_percentage': target_bf_percentage,
+            'target_weight_kg': target_weight_kg,
+            'weight_change_kg': weight_change_kg
         }
         
         # Add FFMI goal row to data
@@ -840,8 +912,12 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'ffmi_kg_m2': target_ffmi,
             'ffmi_lmi_z_score': target_z,
             'ffmi_lmi_percentile': ffmi_goal['target_percentile'] * 100,
-            'ffmi_lmi_t_score': calculate_t_score(target_ffmi, lmi_m_30, lmi_sd_30)
+            'ffmi_lmi_t_score': calculate_t_score(target_ffmi, lmi_m_30, lmi_sd_30),
+            'body_fat_percentage': target_bf_percentage
         }
+        # Add target weight if available
+        if target_weight_kg is not None:
+            ffmi_goal_row['total_weight_lbs'] = target_weight_kg * kg_to_lbs
         
         processed_data.append(ffmi_goal_row)
     
@@ -900,11 +976,17 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_calcu
         date_label = datetime.strptime(row['date_str'], '%m/%d/%Y').strftime('%m/%d/%y')
         percentile = row[percentile_col]
         
+        # Create label with BF% if available
+        if pd.notna(row.get('body_fat_percentage', np.nan)):
+            label = f"{date_label} {percentile:.1f}% (BF: {row['body_fat_percentage']:.1f}%)"
+        else:
+            label = f"{date_label} {percentile:.1f}%"
+        
         # Plot individual point with number marker
         ax.plot(row['age_at_scan'], row[value_col], 
                marker=f'${scan_num}$', markersize=10, 
                color='blue', markeredgecolor='darkblue', markeredgewidth=1,
-               label=f"{date_label} {percentile:.1f}%",
+               label=label,
                linestyle='None', zorder=5)
     
     # Plot goal marker only if goal exists for this metric
@@ -968,14 +1050,31 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_calcu
 
     # Export table data to CSV (only for ALMI plot to avoid duplicate files)
     if is_almi_plot:
-        table_data = df_results[[
+        # Select columns, including body_fat_percentage and total_weight_lbs if they exist
+        base_columns = [
             'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile',
             'almi_t_score', 'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
-        ]].copy()
+        ]
+        
+        # Add total_weight_lbs if present in any row
+        if 'total_weight_lbs' in df_results.columns:
+            base_columns.append('total_weight_lbs')
+            
+        # Add body_fat_percentage if present in any row
+        if 'body_fat_percentage' in df_results.columns:
+            base_columns.append('body_fat_percentage')
+            
+        table_data = df_results[base_columns].copy()
         
         # Rename columns for CSV clarity
-        table_data.columns = ['Date', 'Age', 'ALMI_kg_m2', 'ALMI_Z_Score', 'ALMI_Percentile',
-                             'ALMI_T_Score', 'FFMI_kg_m2', 'FFMI_Z_Score', 'FFMI_Percentile', 'FFMI_T_Score']
+        column_names = ['Date', 'Age', 'ALMI_kg_m2', 'ALMI_Z_Score', 'ALMI_Percentile',
+                       'ALMI_T_Score', 'FFMI_kg_m2', 'FFMI_Z_Score', 'FFMI_Percentile', 'FFMI_T_Score']
+        if 'total_weight_lbs' in df_results.columns:
+            column_names.append('Total_Weight_lbs')
+        if 'body_fat_percentage' in df_results.columns:
+            column_names.append('Body_Fat_Percentage')
+            
+        table_data.columns = column_names
         
         # Save raw data to CSV without formatting
         csv_filename = "almi_stats_table.csv"
@@ -1012,7 +1111,10 @@ JSON config format:
     "scan_history": [
       {
         "date": "04/07/2022",
+        "total_weight_lbs": 143.2,
         "total_lean_mass_lbs": 106.3,
+        "fat_mass_lbs": 31.4,
+        "body_fat_percentage": 22.8,
         "arms_lean_lbs": 12.4,
         "legs_lean_lbs": 37.3
       }
@@ -1021,12 +1123,14 @@ JSON config format:
       "almi": {
         "target_percentile": 0.90,
         "target_age": 45.0,        // or "?" for auto-calculated timeframe
+        "target_body_fat_percentage": 20.0,  // optional: defaults to last scan's BF%
         "suggested": true,         // optional: enables suggested goal logic
         "description": "optional"
       },
       "ffmi": {
         "target_percentile": 0.85,
         "target_age": "?",         // auto-calculate based on progression rates
+        "target_body_fat_percentage": 18.0,  // optional: defaults to last scan's BF%
         "description": "optional"
       }
     }
@@ -1117,13 +1221,22 @@ Notes:
         
         # Step 5: Print Final Table
         print("\n--- Final Comprehensive Data Table ---")
-        df_display = df_results[[
+        # Select columns for display
+        display_columns = [
             'date_str', 'age_at_scan', 'almi_kg_m2', 'almi_z_score', 'almi_percentile', 'almi_t_score',
             'ffmi_kg_m2', 'ffmi_lmi_z_score', 'ffmi_lmi_percentile', 'ffmi_lmi_t_score'
-        ]].copy()
-        df_display.columns = [
+        ]
+        display_names = [
             'Date', 'Age', 'ALMI', 'ALMI Z', 'ALMI %', 'ALMI T', 'FFMI', 'FFMI Z', 'FFMI %', 'FFMI T'
         ]
+        
+        # Add body fat percentage if available
+        if 'body_fat_percentage' in df_results.columns:
+            display_columns.append('body_fat_percentage')
+            display_names.append('BF%')
+            
+        df_display = df_results[display_columns].copy()
+        df_display.columns = display_names
         for col in df_display.columns:
              if df_display[col].dtype == 'float64':
                  df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")

@@ -303,8 +303,24 @@ class TestIntegrationTLMEstimation(unittest.TestCase):
         }
         
         self.scan_history = [
-            {'date_str': "04/07/2022", 'total_lean_mass_lbs': 106.3, 'arms_lean_lbs': 12.4, 'legs_lean_lbs': 37.3},
-            {'date_str': "11/25/2024", 'total_lean_mass_lbs': 129.6, 'arms_lean_lbs': 17.8, 'legs_lean_lbs': 40.5}
+            {
+                'date_str': "04/07/2022", 
+                'total_weight_lbs': 143.2,
+                'total_lean_mass_lbs': 106.3, 
+                'fat_mass_lbs': 32.6,
+                'body_fat_percentage': 22.8,
+                'arms_lean_lbs': 12.4, 
+                'legs_lean_lbs': 37.3
+            },
+            {
+                'date_str': "11/25/2024", 
+                'total_weight_lbs': 152.7,
+                'total_lean_mass_lbs': 129.6, 
+                'fat_mass_lbs': 18.2,
+                'body_fat_percentage': 11.9,
+                'arms_lean_lbs': 17.8, 
+                'legs_lean_lbs': 40.5
+            }
         ]
         
         self.goal_params = {
@@ -375,13 +391,19 @@ class TestJSONConfigHandling(unittest.TestCase):
             "scan_history": [
                 {
                     "date": "04/07/2022",
+                    "total_weight_lbs": 143.2,
                     "total_lean_mass_lbs": 106.3,
+                    "fat_mass_lbs": 31.4,
+                    "body_fat_percentage": 22.8,
                     "arms_lean_lbs": 12.4,
                     "legs_lean_lbs": 37.3
                 },
                 {
                     "date": "11/25/2024",
+                    "total_weight_lbs": 152.7,
                     "total_lean_mass_lbs": 129.6,
+                    "fat_mass_lbs": 17.5,
+                    "body_fat_percentage": 11.9,
                     "arms_lean_lbs": 17.8,
                     "legs_lean_lbs": 40.5
                 }
@@ -411,7 +433,10 @@ class TestJSONConfigHandling(unittest.TestCase):
             "scan_history": [
                 {
                     "date": "04/07/2022",
+                    "total_weight_lbs": 143.2,
                     "total_lean_mass_lbs": 106.3,
+                    "fat_mass_lbs": 32.6,
+                    "body_fat_percentage": 22.8,
                     "arms_lean_lbs": 12.4,
                     "legs_lean_lbs": 37.3
                 }
@@ -659,8 +684,24 @@ class TestGoalProcessingIntegration(unittest.TestCase):
         }
         
         self.scan_history = [
-            {'date_str': "04/07/2022", 'total_lean_mass_lbs': 106.3, 'arms_lean_lbs': 12.4, 'legs_lean_lbs': 37.3},
-            {'date_str': "11/25/2024", 'total_lean_mass_lbs': 129.6, 'arms_lean_lbs': 17.8, 'legs_lean_lbs': 40.5}
+            {
+                'date_str': "04/07/2022", 
+                'total_weight_lbs': 143.2,
+                'total_lean_mass_lbs': 106.3, 
+                'fat_mass_lbs': 32.6,
+                'body_fat_percentage': 22.8,
+                'arms_lean_lbs': 12.4, 
+                'legs_lean_lbs': 37.3
+            },
+            {
+                'date_str': "11/25/2024", 
+                'total_weight_lbs': 152.7,
+                'total_lean_mass_lbs': 129.6, 
+                'fat_mass_lbs': 18.2,
+                'body_fat_percentage': 11.9,
+                'arms_lean_lbs': 17.8, 
+                'legs_lean_lbs': 40.5
+            }
         ]
     
     def test_process_with_both_goals(self):
@@ -1395,8 +1436,24 @@ class TestSuggestedGoalIntegration(unittest.TestCase):
         }
         
         self.scan_history = [
-            {'date_str': "01/01/2024", 'total_lean_mass_lbs': 150.0, 'arms_lean_lbs': 15.0, 'legs_lean_lbs': 35.0},
-            {'date_str': "07/01/2024", 'total_lean_mass_lbs': 155.0, 'arms_lean_lbs': 16.0, 'legs_lean_lbs': 36.0}
+            {
+                'date_str': "01/01/2024", 
+                'total_weight_lbs': 180.0,
+                'total_lean_mass_lbs': 150.0, 
+                'fat_mass_lbs': 25.0,
+                'body_fat_percentage': 14.0,
+                'arms_lean_lbs': 15.0, 
+                'legs_lean_lbs': 35.0
+            },
+            {
+                'date_str': "07/01/2024", 
+                'total_weight_lbs': 185.0,
+                'total_lean_mass_lbs': 155.0, 
+                'fat_mass_lbs': 25.0,
+                'body_fat_percentage': 13.5,
+                'arms_lean_lbs': 16.0, 
+                'legs_lean_lbs': 36.0
+            }
         ]
     
     def test_suggested_almi_goal_processing(self):
@@ -1680,6 +1737,204 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
         # Should handle boundary cases
         self.assertIsInstance(updated_goal['target_age'], (int, float))
         self.assertGreater(updated_goal['target_age'], 79.0)
+
+
+class TestBodyFatPercentageAccuracy(unittest.TestCase):
+    """
+    Test suite for body fat percentage accuracy using ground truth DEXA data.
+    
+    This ensures that the system correctly uses actual DEXA body fat percentages
+    instead of calculating them incorrectly from weight and lean mass alone.
+    """
+    
+    def setUp(self):
+        """Set up test data with actual DEXA scan results."""
+        # Ground truth data from actual DEXA scans
+        self.ground_truth_config = {
+            "user_info": {
+                "birth_date": "04/26/1982",
+                "height_in": 66.0,
+                "gender": "male"
+            },
+            "scan_history": [
+                {
+                    "date": "04/07/2022",
+                    "total_weight_lbs": 143.2,
+                    "total_lean_mass_lbs": 106.3,
+                    "fat_mass_lbs": 32.6,
+                    "body_fat_percentage": 22.8,
+                    "arms_lean_lbs": 12.4,
+                    "legs_lean_lbs": 37.3
+                },
+                {
+                    "date": "04/01/2023",
+                    "total_weight_lbs": 154.3,
+                    "total_lean_mass_lbs": 121.2,
+                    "fat_mass_lbs": 28.5,
+                    "body_fat_percentage": 18.5,
+                    "arms_lean_lbs": 16.5,
+                    "legs_lean_lbs": 40.4
+                },
+                {
+                    "date": "10/21/2023",
+                    "total_weight_lbs": 159.5,
+                    "total_lean_mass_lbs": 121.6,
+                    "fat_mass_lbs": 33.3,
+                    "body_fat_percentage": 20.9,
+                    "arms_lean_lbs": 16.7,
+                    "legs_lean_lbs": 40.7
+                },
+                {
+                    "date": "04/02/2024",
+                    "total_weight_lbs": 145.0,
+                    "total_lean_mass_lbs": 123.9,
+                    "fat_mass_lbs": 16.1,
+                    "body_fat_percentage": 11.1,
+                    "arms_lean_lbs": 17.2,
+                    "legs_lean_lbs": 39.4
+                },
+                {
+                    "date": "11/25/2024",
+                    "total_weight_lbs": 152.7,
+                    "total_lean_mass_lbs": 129.6,
+                    "fat_mass_lbs": 18.2,
+                    "body_fat_percentage": 11.9,
+                    "arms_lean_lbs": 17.8,
+                    "legs_lean_lbs": 40.5
+                }
+            ]
+        }
+        
+        # Expected ground truth body fat percentages
+        self.expected_bf_percentages = [22.8, 18.5, 20.9, 11.1, 11.9]
+        self.scan_dates = ["04/07/2022", "04/01/2023", "10/21/2023", "04/02/2024", "11/25/2024"]
+    
+    def test_body_fat_percentage_accuracy(self):
+        """Test that body fat percentages match actual DEXA scan results exactly."""
+        # Create a temporary config file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(self.ground_truth_config, f)
+            temp_config_path = f.name
+        
+        try:
+            # Load the config and extract data
+            config = load_config_json(temp_config_path)
+            user_info, scan_history, _, _ = extract_data_from_config(config)
+            
+            # Verify that the body fat percentages in scan_history match ground truth
+            for i, scan in enumerate(scan_history):
+                expected_bf = self.expected_bf_percentages[i]
+                actual_bf = scan['body_fat_percentage']
+                
+                self.assertAlmostEqual(
+                    actual_bf, expected_bf, places=1,
+                    msg=f"Body fat percentage mismatch for scan {i+1} ({self.scan_dates[i]}): "
+                        f"expected {expected_bf}%, got {actual_bf}%"
+                )
+        
+        finally:
+            # Clean up
+            os.unlink(temp_config_path)
+    
+    def test_data_consistency_validation(self):
+        """Test that the DEXA data components are internally consistent."""
+        # Verify that total_weight ≈ lean_mass + fat_mass + bone_mass
+        # (We can't check bone mass directly, but we can verify the relationship)
+        
+        for i, scan_data in enumerate(self.ground_truth_config['scan_history']):
+            total_weight = scan_data['total_weight_lbs']
+            lean_mass = scan_data['total_lean_mass_lbs']
+            fat_mass = scan_data['fat_mass_lbs']
+            bf_percentage = scan_data['body_fat_percentage']
+            
+            # Verify fat mass vs body fat percentage consistency
+            calculated_bf_from_fat_mass = (fat_mass / total_weight) * 100
+            self.assertAlmostEqual(
+                calculated_bf_from_fat_mass, bf_percentage, places=1,
+                msg=f"Fat mass and BF% inconsistent for scan {i+1}: "
+                    f"fat_mass calculation gives {calculated_bf_from_fat_mass:.1f}%, "
+                    f"but BF% field shows {bf_percentage}%"
+            )
+            
+            # Verify that lean + fat < total (accounting for bone mass)
+            lean_plus_fat = lean_mass + fat_mass
+            self.assertLess(
+                lean_plus_fat, total_weight,
+                msg=f"Scan {i+1}: lean + fat mass ({lean_plus_fat:.1f}) should be less than "
+                    f"total weight ({total_weight:.1f}) to account for bone mass"
+            )
+            
+            # Bone mass should be reasonable (typically 3-5% of body weight)
+            bone_mass = total_weight - lean_plus_fat
+            bone_percentage = (bone_mass / total_weight) * 100
+            self.assertTrue(
+                2.0 <= bone_percentage <= 8.0,
+                msg=f"Scan {i+1}: bone mass percentage ({bone_percentage:.1f}%) outside "
+                    f"reasonable range (2-8%) - check data consistency"
+            )
+    
+    def test_old_calculation_would_be_wrong(self):
+        """Test that the old calculation method would produce incorrect results."""
+        # Demonstrate what the old calculation would have given vs ground truth
+        for i, scan_data in enumerate(self.ground_truth_config['scan_history']):
+            total_weight = scan_data['total_weight_lbs']
+            lean_mass = scan_data['total_lean_mass_lbs']
+            actual_bf = scan_data['body_fat_percentage']
+            
+            # This is what the old incorrect calculation would have produced
+            old_calculated_fat_mass = total_weight - lean_mass  # WRONG: ignores bone mass
+            old_calculated_bf = (old_calculated_fat_mass / total_weight) * 100
+            
+            # Verify that the old calculation is significantly different from ground truth
+            # (This proves our fix was necessary)
+            difference = abs(old_calculated_bf - actual_bf)
+            self.assertGreater(
+                difference, 1.0,  # Should differ by more than 1%
+                msg=f"Scan {i+1}: old calculation ({old_calculated_bf:.1f}%) too close to "
+                    f"actual DEXA result ({actual_bf:.1f}%) - test may not be demonstrating the fix"
+            )
+    
+    def test_schema_validation_with_new_fields(self):
+        """Test that the updated schema correctly validates the new required fields."""
+        # This should pass with all required fields
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(self.ground_truth_config, f)
+                temp_config_path = f.name
+            
+            config = load_config_json(temp_config_path)
+            self.assertIsNotNone(config)
+            
+        finally:
+            os.unlink(temp_config_path)
+        
+        # Test that missing fat_mass_lbs fails validation
+        invalid_config = self.ground_truth_config.copy()
+        del invalid_config['scan_history'][0]['fat_mass_lbs']
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(invalid_config, f)
+            temp_invalid_path = f.name
+        
+        try:
+            with self.assertRaises(Exception):  # Should raise ValidationError
+                load_config_json(temp_invalid_path)
+        finally:
+            os.unlink(temp_invalid_path)
+        
+        # Test that missing body_fat_percentage fails validation
+        invalid_config2 = self.ground_truth_config.copy()
+        del invalid_config2['scan_history'][0]['body_fat_percentage']
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(invalid_config2, f)
+            temp_invalid_path2 = f.name
+        
+        try:
+            with self.assertRaises(Exception):  # Should raise ValidationError
+                load_config_json(temp_invalid_path2)
+        finally:
+            os.unlink(temp_invalid_path2)
 
 
 if __name__ == '__main__':
