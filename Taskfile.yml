@@ -1,0 +1,62 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: "Set up virtual environment and install dependencies"
+    cmds:
+      - chmod +x setup_env.sh
+      - ./setup_env.sh
+
+  pipenv-setup:
+    desc: "Set up using pipenv specifically"
+    cmds:
+      - pipenv install -r requirements.txt
+      - echo "Environment ready! Run 'task pipenv-shell' to activate"
+
+  pipenv-shell:
+    desc: "Activate pipenv shell"
+    cmds:
+      - pipenv shell
+
+  venv-setup:
+    desc: "Set up using standard venv"
+    cmds:
+      - python3 -m venv venv
+      - source venv/bin/activate && pip install -r requirements.txt
+      - echo "Environment ready! Run 'source venv/bin/activate' to activate"
+
+  install:
+    desc: "Install dependencies in current environment"
+    cmds:
+      - pip install -r requirements.txt
+
+  run:
+    desc: "Run analysis with example config"
+    cmds:
+      - python run_analysis.py example_config.json
+
+  run-config:
+    desc: "Run analysis with custom config (usage: task run-config -- config.json)"
+    cmds:
+      - python run_analysis.py {{.CLI_ARGS}}
+
+  test:
+    desc: "Run test suite"
+    cmds:
+      - python test_zscore_calculations.py
+
+  help-config:
+    desc: "Show configuration help"
+    cmds:
+      - python run_analysis.py --help-config
+
+  clean:
+    desc: "Clean up generated files"
+    cmds:
+      - rm -f *.png *.csv
+
+  clean-env:
+    desc: "Remove virtual environments"
+    cmds:
+      - rm -rf venv
+      - pipenv --rm || true

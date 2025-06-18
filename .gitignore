@@ -114,6 +114,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# Poetry
+poetry.lock
+
+# Claude Code
+.claude/
+
 # Spyder project settings
 .spyderproject
 .spyproject
