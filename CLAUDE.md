@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a Python-based DEXA body composition analysis tool that calculates Z-scores and percentiles for body composition metrics (ALMI - Appendicular Lean Mass Index, FFMI - Fat-Free Mass Index) using LMS reference values from the LEAD cohort. The system processes scan history data and generates comprehensive visualizations with percentile curves and goal tracking.
+This is a Python-based DEXA body composition analysis tool that calculates Z-scores and percentiles for body composition metrics (ALMI - Appendicular Lean Mass Index, FFMI - Fat-Free Mass Index) using LMS reference values from the LEAD cohort. The system processes scan history data with actual DEXA body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
 
 ## Common Commands
 
@@ -54,26 +54,60 @@ python zscore_plot.py --config example_config.json
 
 ### Key Features
 
+- **Accurate Body Fat Calculation**: Uses actual DEXA body fat percentages instead of calculated estimates, accounting for bone mass
+- **Comprehensive Change Tracking**: Calculates changes since last scan and since first scan for all body composition metrics
 - **Intelligent TLM Estimation**: Uses personalized ALM/TLM ratios when multiple scans are available, falls back to population-based ratios for single scans
 - **Goal System**: Supports separate ALMI and FFMI goals with target percentiles and ages
+- **Actionable Goal Deltas**: Shows exactly what changes are needed to reach goals (weight, lean mass, fat mass, percentiles)
 - **Suggested Goals**: Automatic goal calculation based on training level detection from scan progression
-- **Comprehensive Testing**: Full test coverage for mathematical functions and data processing
+- **Enhanced Output Table**: 20+ columns showing body composition values, changes, and progress tracking
+- **Comprehensive Testing**: Full test coverage including body fat accuracy validation against ground truth DEXA data
 
 ## Configuration Format
 
 The system uses JSON configuration files with this structure:
-- `user_info`: birth_date (MM/DD/YYYY), height_in, gender
-- `scan_history`: Array of DEXA scans with date, total_lean_mass_lbs, arms_lean_lbs, legs_lean_lbs
+- `user_info`: birth_date (MM/DD/YYYY), height_in, gender, training_level (optional)
+- `scan_history`: Array of DEXA scans with **required fields**:
+  - `date`, `total_weight_lbs`, `total_lean_mass_lbs`, `fat_mass_lbs`, `body_fat_percentage`
+  - `arms_lean_lbs`, `legs_lean_lbs`
 - `goals` (optional): Separate almi and ffmi goal specifications with target_percentile and target_age
+
+**Note**: The system requires actual DEXA body fat percentages and fat mass values. Old configurations missing these fields will fail validation with clear error messages.
 
 ## Testing
 
 Run the test suite with `python test_zscore_calculations.py`. Tests cover:
 - Core mathematical calculations (Z-scores, T-scores, age calculations)
+- Body fat percentage accuracy validation against ground truth DEXA data
 - TLM estimation algorithms
-- Config parsing and validation
+- Config parsing and validation with new required fields
 - Suggested goal calculation logic
-- Integration scenarios
+- Integration scenarios and goal processing
+
+**Key Test Classes:**
+- `TestBodyFatPercentageAccuracy`: Validates actual DEXA body fat percentages (22.8%, 18.5%, 20.9%, 11.1%, 11.9%)
+- `TestBodyCompCalculations`: Core mathematical function validation
+- `TestGoalProcessingIntegration`: End-to-end goal processing with change tracking
+
+## Output Features
+
+### Enhanced Data Table
+The system generates a comprehensive table with 20+ columns:
+
+**Basic Metrics:** Date, Age, Weight, Lean Mass, Fat Mass, Body Fat %, ALMI, FFMI
+
+**Change Tracking:**
+- **Since Last Scan (ΔX_L):** Changes between consecutive scans with +/- indicators
+- **Since First Scan (ΔX_F):** Cumulative changes from baseline
+- **Z-Score Changes:** Performance improvements in ALMI/FFMI percentiles
+
+**Goal Rows:** Show target values and actionable deltas:
+- Target body composition (weight, lean, fat, BF%)
+- Changes needed from current state (e.g., -2.4 lbs weight, +2.8 lbs lean)
+- Performance improvements required (e.g., +7.57 percentile points)
+
+### CSV Export
+Complete data export (`almi_stats_table.csv`) includes all calculated metrics, changes, and goal targets for detailed analysis and tracking.
 
 ## Data Dependencies
 

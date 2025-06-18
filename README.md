@@ -1,8 +1,15 @@
-# WebApp
-A web application for scientific Z-Score computation with LEAD LMS reference values for body composition parameters (adults and children) is available at: [https://floriankrach.github.io/pyscripts/zscore-app-pyscript/](https://floriankrach.github.io/pyscripts/zscore-app-pyscript/index-scientific.html).
+# Body Metrics - DEXA Body Composition Analysis
 
-# Scientific LMS Z-score App
-python program to compute z-scores with LEAD LMS reference values for data-files
+A Python tool that calculates Z-scores and percentiles for body composition metrics (ALMI, FFMI) using LMS reference values from the LEAD cohort. The system processes DEXA scan history with actual body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
+
+## Features
+
+- **Accurate Body Fat Calculation**: Uses actual DEXA body fat percentages instead of calculated estimates
+- **Comprehensive Change Tracking**: Calculates changes since last scan and since first scan
+- **Intelligent TLM Estimation**: Uses personalized ALM/TLM ratios when multiple scans are available
+- **Goal System**: Supports separate ALMI and FFMI goals with target percentiles and ages
+- **Enhanced Output**: 20+ columns showing body composition values, changes, and progress tracking
+- **CSV Export**: Complete data export for detailed analysis and tracking
 
 
 ## Reference
@@ -22,37 +29,150 @@ __Citation__: Ofenheimer, A, Breyer‐Kohansal, R, Hartl, S, et al. Reference ch
 
 
 ## Requirements
-This code was written for python 3.7 with the dependencies listed in requirements.txt.
 
+- Python 3.9+ (recommended: 3.11 or 3.13)
+- Dependencies listed in requirements.txt
+- pyenv (optional but recommended for Python version management)
 
-## Usage
-The code of this repository is provided for scientist and clinicians who want to compute z-scores with our reference LMS-values for multiple individuals at the same time. For single computations we also provide an app which might be easier to use [here](https://github.com/FlorianKrach/LMS-zscore-app). 
+## Setup
 
-- To use this code, python needs to be installed. One possibility to do this is with [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html). 
-- Then download this repository and in Terminal, cd into the main directory. In particular cd in terminal to the directory where you want to save this code-repo and then run:
-```sh
-git clone https://github.com/FlorianKrach/scientific-LMS-zscore-app.git
-cd scientific-LMS-zscore-app
+### Option 1: Automated Setup (Recommended)
+
+Use the provided setup script that automatically detects your Python environment:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd bodymetrics
+
+# Run automated setup
+task setup
 ```
 
-- Then install the needed libraries with the correct version number by running:
-```sh
+The setup script will automatically:
+- Detect pyenv, pipenv, poetry, or use standard venv
+- Install compatible package versions
+- Set up the virtual environment
+
+### Option 2: Manual Setup
+
+If you prefer manual setup or don't have `task` installed:
+
+```bash
+# Install task runner (macOS with Homebrew)
+brew install go-task/tap/go-task
+
+# Or use the setup script directly
+./setup_env.sh
+
+# Or manual venv setup
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Option 3: Using Specific Tools
 
-- Prepare an excel file similar to the [example_file.xlsx](example_file.xlsx) containing all measurements for which z-scores should be computed.
-- Units: all weights in kg, except for VAT_mass in g, indices in kg/m^(x) where x is 2 or the fitted exponent, height in cm, age in years (computed as: "days between birthday and measurement"/365.25, not rounded)
-- __IMPORTANT__: the columns need to have the __same__ names.
-- Compute the z-scores, which will be saved into the same file, by running the following command:
-```shell
-python scientific_zscore_app.py --filename="example_file.xlsx"
+```bash
+# Using pyenv + venv (recommended)
+task pyenv-setup
+
+# Using pipenv
+task pipenv-setup
+
+# Using standard venv
+task venv-setup
 ```
-- if the wanted excel file is not in the same directory, also the (relative or absolute) directory needs to be provided with the filename, e.g. if the file is on the desktop of user '--filename="~/Desktop/example_file.xlsx"'.
-- different reference values are provided for children and adults (i.e. for different body composition parameters), therefore some of the z-scores might be empty.
-- to see all options, run:
-```shell
-python scientific_zscore_app.py --help
+
+## Usage
+
+### Quick Start
+
+```bash
+# Activate environment (if not using pipenv/poetry)
+source venv/bin/activate
+
+# View configuration help
+python run_analysis.py --help-config
+
+# Run analysis with example config
+python run_analysis.py example_config.json
+
+# Run with custom config
+python run_analysis.py my_config.json
+```
+
+### Using Task Runner
+
+```bash
+# Run with example config
+task run
+
+# Run with custom config
+task run-config -- my_config.json
+
+# Run tests
+task test
+
+# View configuration help
+task help-config
+
+# Clean generated files
+task clean
+```
+
+### Configuration Format
+
+Create a JSON configuration file with your DEXA scan data:
+
+```json
+{
+  "user_info": {
+    "birth_date": "MM/DD/YYYY",
+    "height_in": 66.0,
+    "gender": "male",
+    "training_level": "intermediate"
+  },
+  "scan_history": [
+    {
+      "date": "04/07/2022",
+      "total_weight_lbs": 150.0,
+      "total_lean_mass_lbs": 106.3,
+      "fat_mass_lbs": 25.2,
+      "body_fat_percentage": 16.8,
+      "arms_lean_lbs": 12.4,
+      "legs_lean_lbs": 37.3
+    }
+  ],
+  "goals": {
+    "almi": {
+      "target_percentile": 0.90,
+      "target_age": 45.0,
+      "description": "Reach 90th percentile ALMI by age 45"
+    }
+  }
+}
+```
+
+**Required Fields:**
+- `date`, `total_weight_lbs`, `total_lean_mass_lbs`, `fat_mass_lbs`, `body_fat_percentage`
+- `arms_lean_lbs`, `legs_lean_lbs`
+
+**Important:** The system requires actual DEXA body fat percentages and fat mass values for accurate calculations.
+
+### Output
+
+The analysis generates:
+- **PNG plots**: `almi_plot.png`, `ffmi_plot.png` with percentile curves and data points
+- **CSV export**: `almi_stats_table.csv` with comprehensive body composition tracking
+- **Enhanced table**: 20+ columns including changes since last/first scan and goal progress
+
+### Legacy Excel Processing
+
+For batch processing Excel files (legacy scientific app):
+
+```bash
+python scientific_zscore_app.py --filename="example_file.xlsx"
 ```
 
 
