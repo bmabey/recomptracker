@@ -65,8 +65,8 @@ CONFIG_SCHEMA = {
             "properties": {
                 "birth_date": {"type": "string", "pattern": "^\\d{2}/\\d{2}/\\d{4}$"},
                 "height_in": {"type": "number", "minimum": 12, "maximum": 120},
-                "gender": {"type": "string", "pattern": "^(?i)(m|f|male|female)$"},
-                "training_level": {"type": "string", "pattern": "^(?i)(novice|intermediate|advanced)$"}
+                "gender": {"type": "string", "pattern": "^(m|f|male|female|M|F|Male|Female|MALE|FEMALE)$"},
+                "training_level": {"type": "string", "pattern": "^(novice|intermediate|advanced|Novice|Intermediate|Advanced|NOVICE|INTERMEDIATE|ADVANCED)$"}
             },
             "additionalProperties": False
         },
