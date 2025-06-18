@@ -12,7 +12,7 @@ import json
 import tempfile
 import os
 from scipy.interpolate import interp1d
-from zscore_plot import (
+from core import (
     calculate_age_precise, 
     compute_zscore, 
     get_value_from_zscore, 
@@ -28,8 +28,7 @@ from zscore_plot import (
     determine_training_level,
     calculate_suggested_goal,
     get_gender_string,
-    LEAN_MASS_GAIN_RATES,
-    AGE_ADJUSTMENT_FACTOR
+    create_goal_row
 )
 
 
