@@ -1,31 +1,72 @@
 #!/usr/bin/env python3
 """
-CLI Wrapper for DEXA Body Composition Analysis
+DEXA Body Composition Analysis - Main CLI Script
 
-This is a simplified wrapper around zscore_plot.py that provides a cleaner
-command-line interface and helpful error messages.
+This is the main entry point for DEXA body composition analysis. It provides
+a comprehensive command-line interface with helpful error messages and 
+delegates the core analysis logic to the core module.
 """
 
 import sys
 import os
 import argparse
-import subprocess
-from pathlib import Path
+from core import run_analysis
 
 
 def main():
-    """Main CLI wrapper function."""
+    """Main CLI function with comprehensive argument parsing."""
     parser = argparse.ArgumentParser(
-        description='DEXA Body Composition Analysis - CLI Wrapper',
+        description='DEXA Body Composition Analysis with Intelligent TLM Estimation',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python run_analysis.py                           # Use example_config.json
   python run_analysis.py my_config.json           # Use custom config
   python run_analysis.py --config my_config.json  # Alternative syntax
+  python run_analysis.py --suggest-goals          # Generate suggested goals
 
-The config file should be a JSON file with user info, scan history, and goals.
-Run with --help-config to see the expected JSON format.
+JSON config format:
+  {
+    "user_info": {
+      "birth_date": "04/26/1982",
+      "height_in": 66.0,
+      "gender": "male",
+      "training_level": "intermediate"  // optional: novice/intermediate/advanced
+    },
+    "scan_history": [
+      {
+        "date": "04/07/2022",
+        "total_weight_lbs": 143.2,
+        "total_lean_mass_lbs": 106.3,
+        "fat_mass_lbs": 31.4,
+        "body_fat_percentage": 22.8,
+        "arms_lean_lbs": 12.4,
+        "legs_lean_lbs": 37.3
+      }
+    ],
+    "goals": {
+      "almi": {
+        "target_percentile": 0.90,
+        "target_age": 45.0,        // or "?" for auto-calculated timeframe
+        "target_body_fat_percentage": 20.0,  // optional: defaults to last scan's BF%
+        "suggested": true,         // optional: enables suggested goal logic
+        "description": "optional"
+      },
+      "ffmi": {
+        "target_percentile": 0.85,
+        "target_age": "?",         // auto-calculate based on progression rates
+        "target_body_fat_percentage": 18.0,  // optional: defaults to last scan's BF%
+        "description": "optional"
+      }
+    }
+  }
+
+Notes:
+  - Goals section is optional (scan history analysis only if omitted)
+  - Either almi or ffmi goals can be specified independently
+  - training_level: If not specified, automatically detected from scan progression
+  - target_age: Use "?" or null for automatic timeframe calculation
+  - Suggested goals use conservative progression rates based on demographics and training level
         """
     )
     
@@ -40,6 +81,19 @@ Run with --help-config to see the expected JSON format.
         '--config', '-c',
         dest='config_file_alt',
         help='Alternative way to specify config file path'
+    )
+    
+    parser.add_argument(
+        '--suggest-goals', '-s',
+        action='store_true',
+        help='Generate suggested goals for reaching 90th percentile with realistic timeframes'
+    )
+    
+    parser.add_argument(
+        '--target-percentile', '-p',
+        type=float,
+        default=0.90,
+        help='Target percentile for suggested goals (default: 0.90 for 90th percentile)'
     )
     
     parser.add_argument(
@@ -73,32 +127,24 @@ Run with --help-config to see the expected JSON format.
         print("Run with --help-config to see the expected JSON format.")
         return 1
     
-    # Run the main analysis script
+    # Run the analysis using core module
     try:
-        print(f"Running DEXA analysis with config: {config_file}")
-        print("=" * 60)
+        exit_code = run_analysis(
+            config_path=config_file,
+            suggest_goals=args.suggest_goals,
+            target_percentile=args.target_percentile
+        )
         
-        result = subprocess.run([
-            sys.executable, 'zscore_plot.py', 
-            '--config', config_file
-        ], check=True)
+        if exit_code == 0:
+            print()
+            print("Analysis completed successfully!")
+            print("Generated files:")
+            print("  - almi_plot.png        (ALMI percentile curves)")
+            print("  - ffmi_plot.png        (FFMI percentile curves)")
+            print("  - almi_stats_table.csv (Comprehensive data table)")
         
-        print()
-        print("Analysis completed successfully!")
-        print("Generated files:")
-        print("  - almi_plot.png        (ALMI percentile curves)")
-        print("  - ffmi_plot.png        (FFMI percentile curves)")
-        print("  - almi_stats_table.csv (Comprehensive data table)")
+        return exit_code
         
-        return 0
-        
-    except subprocess.CalledProcessError as e:
-        print(f"\nAnalysis failed with exit code: {e.returncode}")
-        return e.returncode
-    except FileNotFoundError:
-        print("Error: zscore_plot.py not found in current directory.")
-        print("Please ensure you're running this script from the correct directory.")
-        return 1
     except KeyboardInterrupt:
         print("\nAnalysis interrupted by user.")
         return 1
