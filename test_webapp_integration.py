@@ -262,6 +262,115 @@ class TestWebAppIntegration:
             
             # Verify no exceptions occurred during fake data generation
             assert len(at.exception) == 0, "Fake data generation should not cause exceptions"
+    
+    def test_plotly_goal_hover_formatting(self):
+        """Test that goal hover text is properly formatted for plotly (unit test)."""
+        # Test the underlying plotly function directly without streamlit
+        from webapp import create_plotly_metric_plot
+        from core import run_analysis_from_data, parse_gender, load_config_json, extract_data_from_config
+        
+        # Load example data to get realistic goal calculations
+        try:
+            config = load_config_json('example_config.json', quiet=True)
+            user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(config)
+            user_info['gender_code'] = parse_gender(user_info['gender'])
+            
+            # Run analysis to get goal calculations
+            df_results, goal_calculations, figures = run_analysis_from_data(
+                user_info, scan_history, almi_goal, ffmi_goal
+            )
+            
+            # Test ALMI goal hover if available
+            if 'almi' in goal_calculations:
+                from core import load_lms_data
+                lms_functions = {}
+                lms_functions['almi_L'], lms_functions['almi_M'], lms_functions['almi_S'] = load_lms_data('appendicular_LMI', user_info['gender_code'])
+                lms_functions['lmi_L'], lms_functions['lmi_M'], lms_functions['lmi_S'] = load_lms_data('LMI', user_info['gender_code'])
+                
+                # Create plotly figure
+                fig = create_plotly_metric_plot(df_results, 'ALMI', lms_functions, goal_calculations)
+                
+                # Find the goal trace
+                goal_trace = None
+                for trace in fig.data:
+                    if trace.name == 'Goal':
+                        goal_trace = trace
+                        break
+                
+                # Verify goal trace exists and has proper hover formatting
+                assert goal_trace is not None, "Goal trace should be present in plotly figure"
+                assert hasattr(goal_trace, 'text'), "Goal trace should have text attribute for hover"
+                # Plotly converts lists to tuples internally, so check for either
+                assert isinstance(goal_trace.text, (list, tuple)), "Goal trace text should be a list or tuple for plotly compatibility"
+                assert len(goal_trace.text) == 1, "Goal trace should have exactly one text item for single data point"
+                
+                # Verify hover content contains expected goal information
+                hover_text = goal_trace.text[0]
+                assert "🎯 ALMI Goal" in hover_text, "Hover should contain goal title"
+                assert "Target Age:" in hover_text, "Hover should contain target age"
+                assert "Target Body Composition:" in hover_text, "Hover should contain target body composition section"
+                assert "Changes Needed:" in hover_text, "Hover should contain changes needed section"
+                assert "Weight:" in hover_text, "Hover should contain weight information"
+                assert "Lean Mass:" in hover_text, "Hover should contain lean mass information"
+                
+                print(f"✅ Goal hover test passed! Hover text length: {len(hover_text)} chars")
+                print(f"✅ Text is properly formatted as list with {len(goal_trace.text)} item(s)")
+                
+        except FileNotFoundError:
+            # If example config doesn't exist, create a minimal test
+            print("⚠️ Example config not found, using minimal test data")
+            import pandas as pd
+            
+            # Create minimal test data
+            minimal_goal_calc = {
+                'target_age': 45.0,
+                'target_metric_value': 8.5,
+                'target_percentile': 0.75,
+                'target_z_score': 0.67,
+                'target_body_composition': {
+                    'weight_lbs': 170.0,
+                    'lean_mass_lbs': 140.0,
+                    'fat_mass_lbs': 30.0,
+                    'body_fat_percentage': 17.6
+                },
+                'weight_change': 5.0,
+                'lean_change': 3.0,
+                'fat_change': 2.0,
+                'bf_change': -1.0,
+                'percentile_change': 15.0
+            }
+            
+            goal_calculations = {'almi': minimal_goal_calc}
+            df_results = pd.DataFrame({'date_str': ['2024-01-01'], 'age_at_scan': [44.0], 'almi_kg_m2': [8.0]})
+            
+            # Create simple LMS functions for testing
+            lms_functions = {
+                'almi_L': lambda x: 1.0,
+                'almi_M': lambda x: 8.0,
+                'almi_S': lambda x: 0.15,
+                'lmi_L': lambda x: 1.0,
+                'lmi_M': lambda x: 18.0,
+                'lmi_S': lambda x: 0.12
+            }
+            
+            # Test with minimal data
+            fig = create_plotly_metric_plot(df_results, 'ALMI', lms_functions, goal_calculations)
+            
+            # Find goal trace and verify
+            goal_trace = None
+            for trace in fig.data:
+                if trace.name == 'Goal':
+                    goal_trace = trace
+                    break
+            
+            assert goal_trace is not None, "Goal trace should be present even with minimal data"
+            assert isinstance(goal_trace.text, (list, tuple)), "Goal trace text should be a list or tuple"
+            assert len(goal_trace.text) == 1, "Goal trace should have one text item"
+            
+            print("✅ Minimal goal hover test passed!")
+            
+        except Exception as e:
+            pytest.fail(f"Goal hover test failed with exception: {e}")
 
 
 class TestWebAppErrorHandling:

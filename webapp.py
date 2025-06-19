@@ -411,12 +411,30 @@ def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_ca
         goal_value = goal_calc['target_metric_value']
         goal_percentile = goal_calc['target_percentile']
         
-        goal_hover = [
+        # Build comprehensive goal hover information
+        goal_z_score = goal_calc.get('target_z_score', 0)
+        target_body_comp = goal_calc.get('target_body_composition', {})
+        
+        goal_hover_text = "<br>".join([
             f"<b>🎯 {metric_to_plot} Goal</b>",
             f"<b>Target Age:</b> {goal_age:.1f} years",
             f"<b>Target {y_label}:</b> {goal_value:.2f}",
-            f"<b>Target Percentile:</b> {goal_percentile*100:.0f}%"
-        ]
+            f"<b>Target Percentile:</b> {goal_percentile*100:.0f}%",
+            f"<b>Target Z-Score:</b> {goal_z_score:.2f}",
+            "",
+            "<b>Target Body Composition:</b>",
+            f"<b>Weight:</b> {target_body_comp.get('weight_lbs', 0):.1f} lbs",
+            f"<b>Lean Mass:</b> {target_body_comp.get('lean_mass_lbs', 0):.1f} lbs",
+            f"<b>Fat Mass:</b> {target_body_comp.get('fat_mass_lbs', 0):.1f} lbs",
+            f"<b>Body Fat:</b> {target_body_comp.get('body_fat_percentage', 0):.1f}%",
+            "",
+            "<b>Changes Needed:</b>",
+            f"<b>Weight:</b> {goal_calc.get('weight_change', 0):+.1f} lbs",
+            f"<b>Lean Mass:</b> {goal_calc.get('lean_change', 0):+.1f} lbs",
+            f"<b>Fat Mass:</b> {goal_calc.get('fat_change', 0):+.1f} lbs",
+            f"<b>Body Fat:</b> {goal_calc.get('bf_change', 0):+.1f}%",
+            f"<b>Percentile:</b> {goal_calc.get('percentile_change', 0):+.1f} points"
+        ])
         
         fig.add_trace(go.Scatter(
             x=[goal_age],
@@ -430,7 +448,7 @@ def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_ca
                 line=dict(color='black', width=1)
             ),
             hovertemplate='%{text}<extra></extra>',
-            text="<br>".join(goal_hover)
+            text=[goal_hover_text]
         ))
         
         # Draw line from last scan to goal
