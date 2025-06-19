@@ -539,6 +539,7 @@ def display_user_profile_form():
             st.session_state.user_info.update(fake_profile)
             fake_scans = generate_fake_scans(st.session_state.user_info)
             st.session_state.scan_history = fake_scans
+            run_analysis()
             st.rerun()
     
     with col2:
@@ -558,6 +559,7 @@ def display_user_profile_form():
                     st.session_state.almi_goal = almi_goal
                 if ffmi_goal:
                     st.session_state.ffmi_goal = ffmi_goal
+                run_analysis()
                 st.rerun()
             except Exception as e:
                 st.error(f"Could not load example config: {e}")
