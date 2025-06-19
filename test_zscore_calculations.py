@@ -1640,6 +1640,91 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
             # Expected to fail with empty data - this is acceptable
             pass
     
+    def test_already_above_target_percentile(self):
+        """Test behavior when user is already above target percentile (e.g., above 90th)."""
+        # Create scenario where user is already at 95th percentile
+        processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'almi_kg_m2': 12.0,  # Very high ALMI value
+                'ffmi_kg_m2': 22.0,  # Very high FFMI value
+                'total_lean_mass_lbs': 170.0,
+                'alm_lbs': 50.0,
+                'arms_lean_lbs': 20.0,
+                'legs_lean_lbs': 30.0
+            }
+        ]
+        
+        # Try to set 90th percentile goal when already above it
+        goal_params = {'target_percentile': 0.90, 'target_age': None}
+        
+        updated_goal = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should return None since user is already above 90th percentile
+        self.assertIsNone(updated_goal)
+        
+        # Test the same for FFMI
+        updated_ffmi_goal = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'ffmi'
+        )
+        
+        # Should also return None since user is already above 90th percentile
+        self.assertIsNone(updated_ffmi_goal)
+
+    def test_already_at_95th_percentile_cap(self):
+        """Test behavior when user is already at 95th percentile (cap scenario)."""
+        # Create scenario where user is already at 96th percentile
+        processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'almi_kg_m2': 13.0,  # Extremely high ALMI value
+                'ffmi_kg_m2': 24.0,  # Extremely high FFMI value
+                'total_lean_mass_lbs': 180.0,
+                'alm_lbs': 55.0,
+                'arms_lean_lbs': 22.0,
+                'legs_lean_lbs': 33.0
+            }
+        ]
+        
+        # Try to set 90th percentile goal when already well above it
+        goal_params = {'target_percentile': 0.90, 'target_age': None}
+        
+        updated_goal = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should return None since user is already above 90th percentile
+        self.assertIsNone(updated_goal)
+
+    def test_below_90th_percentile_still_works(self):
+        """Test behavior when user is below 90th percentile - should still suggest goals."""
+        # Create scenario where user is at normal percentile levels
+        processed_data = [
+            {
+                'age_at_scan': 30.0,
+                'almi_kg_m2': 8.0,   # Normal ALMI value
+                'ffmi_kg_m2': 18.0,  # Normal FFMI value
+                'total_lean_mass_lbs': 155.0,
+                'alm_lbs': 40.0,
+                'arms_lean_lbs': 16.0,
+                'legs_lean_lbs': 24.0
+            }
+        ]
+        
+        # Set a reasonable goal
+        goal_params = {'target_percentile': 0.75, 'target_age': None}
+        
+        updated_goal = calculate_suggested_goal(
+            goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
+        )
+        
+        # Should return a valid goal since user is below 90th percentile
+        self.assertIsNotNone(updated_goal)
+        self.assertTrue('target_age' in updated_goal)
+        self.assertTrue(updated_goal.get('suggested', False))
+
     def test_single_scan_fallback(self):
         """Test behavior with single scan (no progression data)."""
         processed_data = [
