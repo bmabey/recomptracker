@@ -651,6 +651,38 @@ def run_analysis():
         st.error(f"Analysis failed: {str(e)}")
 
 
+def format_goal_info(goal_calc, metric):
+    """Format detailed goal information for display in the webapp."""
+    if not goal_calc:
+        return None
+    
+    # Create the formatted goal information similar to CLI output
+    alm_lbs = goal_calc.get('alm_change_needed_lbs', 0)
+    alm_kg = goal_calc.get('alm_change_needed_kg', 0)
+    tlm_lbs = goal_calc.get('tlm_change_needed_lbs', 0)
+    tlm_kg = goal_calc.get('tlm_change_needed_kg', 0)
+    target_bf = goal_calc.get('target_body_composition', {}).get('body_fat_percentage', 0)
+    weight_change = goal_calc.get('weight_change', 0)
+    
+    goal_info = f"""
+**🎯 {metric.upper()} Goal: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}**
+
+**Goal Requirements:**
+- **ALM to add:** {alm_lbs:.1f} lbs ({alm_kg:.2f} kg)
+- **Est. TLM gain:** {tlm_lbs:.1f} lbs ({tlm_kg:.2f} kg) 
+- **Target BF:** {target_bf:.1f}%
+- **Total weight change:** {weight_change:+.1f} lbs
+
+**Target Body Composition:**
+- **Weight:** {goal_calc['target_body_composition']['weight_lbs']:.1f} lbs
+- **Lean Mass:** {goal_calc['target_body_composition']['lean_mass_lbs']:.1f} lbs
+- **Fat Mass:** {goal_calc['target_body_composition']['fat_mass_lbs']:.1f} lbs
+- **Body Fat %:** {goal_calc['target_body_composition']['body_fat_percentage']:.1f}%
+"""
+    
+    return goal_info
+
+
 def display_header():
     """Display the application header with explanations."""
     explanations = get_metric_explanations()
@@ -1022,6 +1054,12 @@ def display_results():
     tab1, tab2 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis"])
     
     with tab1:
+        # Show ALMI goal information if available - above the plot
+        if 'almi' in goal_calculations:
+            goal_info = format_goal_info(goal_calculations['almi'], 'almi')
+            if goal_info:
+                st.markdown(goal_info)
+        
         # ALMI plot - full width
         st.subheader("ALMI Percentile Curves")
         
@@ -1077,13 +1115,14 @@ def display_results():
                     df_almi[col] = df_almi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
         st.dataframe(df_almi, use_container_width=True)
-        
-        # Show ALMI goal information if available
-        if 'almi' in goal_calculations:
-            goal_calc = goal_calculations['almi']
-            st.info(f"🎯 **ALMI Goal**: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}")
     
     with tab2:
+        # Show FFMI goal information if available - above the plot
+        if 'ffmi' in goal_calculations:
+            goal_info = format_goal_info(goal_calculations['ffmi'], 'ffmi')
+            if goal_info:
+                st.markdown(goal_info)
+        
         # FFMI plot - full width
         st.subheader("FFMI Percentile Curves")
         
@@ -1138,11 +1177,6 @@ def display_results():
                     df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
         st.dataframe(df_ffmi, use_container_width=True)
-        
-        # Show FFMI goal information if available
-        if 'ffmi' in goal_calculations:
-            goal_calc = goal_calculations['ffmi']
-            st.info(f"🎯 **FFMI Goal**: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}")
     
     # Download button for CSV
     csv_buffer = BytesIO()
