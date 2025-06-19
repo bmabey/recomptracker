@@ -266,7 +266,7 @@ def display_user_profile_form():
 
 
 def display_scan_history_form():
-    """Display the DEXA scan history form."""
+    """Display the DEXA scan history form using an editable data table."""
     st.subheader("🔬 DEXA Scan History")
     
     # Initialize with empty scan if none exist
@@ -281,104 +281,111 @@ def display_scan_history_form():
             'legs_lean_lbs': 0.0
         }]
     
-    # Display scans
+    # Convert session state to DataFrame for data editor
+    df = pd.DataFrame(st.session_state.scan_history)
+    
+    # Get tooltips for help text
+    tooltips = get_metric_explanations()['tooltips']
+    
+    # Configure column types and validation
+    column_config = {
+        "date": st.column_config.TextColumn(
+            "Date (MM/DD/YYYY)",
+            help="Date of the DEXA scan",
+            required=True,
+            validate=r"^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}$"
+        ),
+        "total_weight_lbs": st.column_config.NumberColumn(
+            "Total Weight (lbs)",
+            help="Total body weight from DEXA scan",
+            min_value=0.0,
+            step=0.1,
+            format="%.1f",
+            required=True
+        ),
+        "total_lean_mass_lbs": st.column_config.NumberColumn(
+            "Total Lean Mass (lbs)",
+            help=tooltips['lean_mass'],
+            min_value=0.0,
+            step=0.1,
+            format="%.1f",
+            required=True
+        ),
+        "fat_mass_lbs": st.column_config.NumberColumn(
+            "Fat Mass (lbs)",
+            help="Total fat mass from DEXA scan",
+            min_value=0.0,
+            step=0.1,
+            format="%.1f",
+            required=True
+        ),
+        "body_fat_percentage": st.column_config.NumberColumn(
+            "Body Fat %",
+            help=tooltips['body_fat_percentage'],
+            min_value=0.0,
+            max_value=100.0,
+            step=0.1,
+            format="%.1f",
+            required=True
+        ),
+        "arms_lean_lbs": st.column_config.NumberColumn(
+            "Arms Lean Mass (lbs)",
+            help=tooltips['arms_lean'],
+            min_value=0.0,
+            step=0.1,
+            format="%.1f",
+            required=True
+        ),
+        "legs_lean_lbs": st.column_config.NumberColumn(
+            "Legs Lean Mass (lbs)",
+            help=tooltips['legs_lean'],
+            min_value=0.0,
+            step=0.1,
+            format="%.1f",
+            required=True
+        )
+    }
+    
+    # Display editable data table
+    edited_df = st.data_editor(
+        df,
+        column_config=column_config,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="scan_history_editor",
+        height=min(200 + (len(df) * 35), 400)  # Dynamic height based on number of rows
+    )
+    
+    # Update session state with edited data
+    st.session_state.scan_history = edited_df.to_dict('records')
+    
+    # Validate scan data and show errors
+    scan_errors = []
     for i, scan in enumerate(st.session_state.scan_history):
-        with st.expander(f"Scan {i+1}" + (f" - {scan.get('date', 'No date')}" if scan.get('date') else ""), expanded=True):
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                date = st.text_input(
-                    "Date (MM/DD/YYYY)",
-                    value=scan.get('date', ''),
-                    key=f"scan_{i}_date",
-                    help="Date of the DEXA scan"
-                )
-                scan['date'] = date
-                
-                total_weight = st.number_input(
-                    "Total Weight (lbs)",
-                    min_value=0.0,
-                    value=float(scan.get('total_weight_lbs', 0.0)),
-                    step=0.1,
-                    key=f"scan_{i}_weight",
-                    help="Total body weight from DEXA scan"
-                )
-                scan['total_weight_lbs'] = total_weight
-                
-                body_fat_pct = st.number_input(
-                    "Body Fat %",
-                    min_value=0.0,
-                    max_value=100.0,
-                    value=float(scan.get('body_fat_percentage', 0.0)),
-                    step=0.1,
-                    key=f"scan_{i}_bf_pct",
-                    help=get_metric_explanations()['tooltips']['body_fat_percentage']
-                )
-                scan['body_fat_percentage'] = body_fat_pct
-            
-            with col2:
-                lean_mass = st.number_input(
-                    "Total Lean Mass (lbs)",
-                    min_value=0.0,
-                    value=float(scan.get('total_lean_mass_lbs', 0.0)),
-                    step=0.1,
-                    key=f"scan_{i}_lean",
-                    help=get_metric_explanations()['tooltips']['lean_mass']
-                )
-                scan['total_lean_mass_lbs'] = lean_mass
-                
-                fat_mass = st.number_input(
-                    "Fat Mass (lbs)",
-                    min_value=0.0,
-                    value=float(scan.get('fat_mass_lbs', 0.0)),
-                    step=0.1,
-                    key=f"scan_{i}_fat",
-                    help="Total fat mass from DEXA scan"
-                )
-                scan['fat_mass_lbs'] = fat_mass
-            
-            with col3:
-                arms_lean = st.number_input(
-                    "Arms Lean Mass (lbs)",
-                    min_value=0.0,
-                    value=float(scan.get('arms_lean_lbs', 0.0)),
-                    step=0.1,
-                    key=f"scan_{i}_arms",
-                    help=get_metric_explanations()['tooltips']['arms_lean']
-                )
-                scan['arms_lean_lbs'] = arms_lean
-                
-                legs_lean = st.number_input(
-                    "Legs Lean Mass (lbs)",
-                    min_value=0.0,
-                    value=float(scan.get('legs_lean_lbs', 0.0)),
-                    step=0.1,
-                    key=f"scan_{i}_legs",
-                    help=get_metric_explanations()['tooltips']['legs_lean']
-                )
-                scan['legs_lean_lbs'] = legs_lean
-                
-                # Delete button
-                if len(st.session_state.scan_history) > 1:
-                    if st.button(f"🗑️ Delete Scan {i+1}", key=f"delete_{i}"):
-                        st.session_state.scan_history.pop(i)
-                        st.rerun()
+        # Check for empty required fields
+        if not scan.get('date') or scan.get('date', '').strip() == '':
+            scan_errors.append(f"Row {i+1}: Date is required")
+        elif scan.get('date'):
+            # Validate date format
+            is_valid, error_msg = validate_user_input('scan_date', scan['date'])
+            if not is_valid:
+                scan_errors.append(f"Row {i+1}: {error_msg}")
+        
+        # Check for zero values in required numeric fields
+        required_numeric = ['total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 
+                          'body_fat_percentage', 'arms_lean_lbs', 'legs_lean_lbs']
+        for field in required_numeric:
+            if not scan.get(field) or scan.get(field, 0) <= 0:
+                field_display = field.replace('_', ' ').replace('lbs', '(lbs)').replace('percentage', '%').title()
+                scan_errors.append(f"Row {i+1}: {field_display} must be greater than 0")
     
-    # Add scan button
+    if scan_errors:
+        st.error("Please fix the following scan data issues:")
+        for error in scan_errors:
+            st.error(f"• {error}")
+    
+    # Helper buttons
     col1, col2 = st.columns([1, 3])
-    with col1:
-        if st.button("➕ Add Scan"):
-            st.session_state.scan_history.append({
-                'date': '',
-                'total_weight_lbs': 0.0,
-                'total_lean_mass_lbs': 0.0,
-                'fat_mass_lbs': 0.0,
-                'body_fat_percentage': 0.0,
-                'arms_lean_lbs': 0.0,
-                'legs_lean_lbs': 0.0
-            })
-            st.rerun()
-    
     with col2:
         if st.button("🎲 Generate Fake Scans"):
             if st.session_state.user_info.get('gender') and st.session_state.user_info.get('height_in'):
