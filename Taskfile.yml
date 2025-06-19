@@ -30,20 +30,36 @@ tasks:
     cmds:
       - pip install -r requirements.txt
 
+  webapp:
+    desc: "Launch Streamlit web application"
+    cmds:
+      - streamlit run webapp.py
+
   run:
-    desc: "Run analysis with example config"
+    desc: "Run CLI analysis with example config"
     cmds:
       - python run_analysis.py example_config.json
 
   run-config:
-    desc: "Run analysis with custom config (usage: task run-config -- config.json)"
+    desc: "Run CLI analysis with custom config (usage: task run-config -- config.json)"
     cmds:
       - python run_analysis.py {{.CLI_ARGS}}
 
   test:
-    desc: "Run test suite"
+    desc: "Run core test suite"
     cmds:
       - python test_zscore_calculations.py
+
+  test-webapp:
+    desc: "Run Streamlit webapp integration tests"
+    cmds:
+      - python -m pytest test_webapp_integration.py -v --tb=short
+
+  test-all:
+    desc: "Run all tests (core + webapp)"
+    cmds:
+      - python test_zscore_calculations.py
+      - python -m pytest test_webapp_integration.py -v --tb=short
 
   help-config:
     desc: "Show configuration help"

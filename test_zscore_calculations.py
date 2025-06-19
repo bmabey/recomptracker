@@ -18,6 +18,7 @@ from core import (
     get_value_from_zscore, 
     calculate_t_score,
     get_alm_tlm_ratio,
+    LEAN_MASS_GAIN_RATES,
     process_scans_and_goal,
     load_config_json,
     parse_gender,
