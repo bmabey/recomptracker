@@ -866,8 +866,8 @@ def display_scan_history_form():
         column_config=column_config,
         num_rows="dynamic",
         use_container_width=True,
-        key="scan_history_editor",
-        height=min(200 + (len(df) * 35), 400)  # Dynamic height based on number of rows
+        key="scan_hisory_editor",
+        height=min(75 + (len(df) * 35), 400)  # Dynamic height based on number of rows
     )
     
     # Update session state with edited data, but limit to 20 scans
