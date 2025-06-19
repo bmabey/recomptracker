@@ -785,7 +785,7 @@ def display_results():
             st.metric(
                 "Current ALMI",
                 f"{latest_scan['almi_kg_m2']:.2f} kg/m²",
-                help=get_metric_explanations()['tooltips']['almi']
+                help="ALMI (Appendicular Lean Mass Index) measures lean muscle mass in arms and legs relative to height"
             )
         
         with col2:
@@ -799,7 +799,7 @@ def display_results():
             st.metric(
                 "Current FFMI",
                 f"{latest_scan['ffmi_kg_m2']:.2f} kg/m²",
-                help=get_metric_explanations()['tooltips']['ffmi']
+                help="FFMI (Fat-Free Mass Index) measures total lean body mass relative to height"
             )
         
         with col4:
@@ -809,41 +809,90 @@ def display_results():
                 help=get_metric_explanations()['tooltips']['percentile']
             )
     
-    # Display plots
-    col1, col2 = st.columns(2)
+    # Display results in tabs
+    tab1, tab2 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis"])
     
-    with col1:
+    with tab1:
+        # ALMI plot - full width
         st.subheader("ALMI Percentile Curves")
         st.pyplot(figures['ALMI'])
+        
+        # ALMI-focused data table
+        st.subheader("📋 ALMI Results Table")
+        
+        almi_columns = [
+            'date_str', 'age_at_scan', 
+            'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
+            'almi_kg_m2', 'almi_percentile', 'almi_z_score'
+        ]
+        
+        almi_names = [
+            'Date', 'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
+            'ALMI (kg/m²)', 'ALMI Percentile', 'ALMI Z-Score'
+        ]
+        
+        # Check which columns exist in the dataframe
+        available_almi_columns = [col for col in almi_columns if col in df_results.columns]
+        available_almi_names = [almi_names[i] for i, col in enumerate(almi_columns) if col in df_results.columns]
+        
+        df_almi = df_results[available_almi_columns].copy()
+        df_almi.columns = available_almi_names
+        
+        # Format numeric columns
+        for col in df_almi.columns:
+            if df_almi[col].dtype in ['float64', 'int64']:
+                if 'Percentile' in col:
+                    df_almi[col] = df_almi[col].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/A")
+                else:
+                    df_almi[col] = df_almi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        
+        st.dataframe(df_almi, use_container_width=True)
+        
+        # Show ALMI goal information if available
+        if 'almi' in goal_calculations:
+            goal_calc = goal_calculations['almi']
+            st.info(f"🎯 **ALMI Goal**: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}")
     
-    with col2:
+    with tab2:
+        # FFMI plot - full width
         st.subheader("FFMI Percentile Curves")
         st.pyplot(figures['FFMI'])
-    
-    # Display data table
-    st.subheader("📋 Detailed Results Table")
-    
-    # Prepare display table
-    display_columns = [
-        'date_str', 'age_at_scan', 
-        'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
-        'almi_kg_m2', 'ffmi_kg_m2'
-    ]
-    
-    display_names = [
-        'Date', 'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
-        'ALMI (kg/m²)', 'FFMI (kg/m²)'
-    ]
-    
-    df_display = df_results[display_columns].copy()
-    df_display.columns = display_names
-    
-    # Format numeric columns
-    for col in df_display.columns:
-        if df_display[col].dtype in ['float64', 'int64']:
-            df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
-    
-    st.dataframe(df_display, use_container_width=True)
+        
+        # FFMI-focused data table
+        st.subheader("📋 FFMI Results Table")
+        
+        ffmi_columns = [
+            'date_str', 'age_at_scan', 
+            'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
+            'ffmi_kg_m2', 'ffmi_percentile', 'ffmi_z_score'
+        ]
+        
+        ffmi_names = [
+            'Date', 'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
+            'FFMI (kg/m²)', 'FFMI Percentile', 'FFMI Z-Score'
+        ]
+        
+        # Check which columns exist in the dataframe
+        available_ffmi_columns = [col for col in ffmi_columns if col in df_results.columns]
+        available_ffmi_names = [ffmi_names[i] for i, col in enumerate(ffmi_columns) if col in df_results.columns]
+        
+        df_ffmi = df_results[available_ffmi_columns].copy()
+        df_ffmi.columns = available_ffmi_names
+        
+        # Format numeric columns
+        for col in df_ffmi.columns:
+            if df_ffmi[col].dtype in ['float64', 'int64']:
+                if 'Percentile' in col:
+                    df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/A")
+                else:
+                    df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        
+        st.dataframe(df_ffmi, use_container_width=True)
+        
+        # Show FFMI goal information if available
+        if 'ffmi' in goal_calculations:
+            goal_calc = goal_calculations['ffmi']
+            st.info(f"🎯 **FFMI Goal**: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}")
     
     # Download button for CSV
     csv_buffer = BytesIO()
