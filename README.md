@@ -4,12 +4,19 @@ A Python tool that calculates Z-scores and percentiles for body composition metr
 
 ## Features
 
+### Core Analysis
 - **Accurate Body Fat Calculation**: Uses actual DEXA body fat percentages instead of calculated estimates
 - **Comprehensive Change Tracking**: Calculates changes since last scan and since first scan
 - **Intelligent TLM Estimation**: Uses personalized ALM/TLM ratios when multiple scans are available
 - **Goal System**: Supports separate ALMI and FFMI goals with target percentiles and ages
 - **Enhanced Output**: 20+ columns showing body composition values, changes, and progress tracking
 - **CSV Export**: Complete data export for detailed analysis and tracking
+
+### Interfaces
+- **🌐 Web Interface**: Interactive Streamlit application with real-time validation and visualization
+- **⌨️ Command Line**: Scriptable CLI for batch processing and automation
+- **📊 Dual Visualizations**: ALMI and FFMI percentile curves with goal tracking
+- **🎯 Smart Goals**: Automatic goal calculation based on training level and progression rates
 
 
 ## Reference
@@ -86,7 +93,29 @@ task venv-setup
 
 ## Usage
 
-### Quick Start
+### Web Interface (Recommended)
+
+Launch the interactive web application for an intuitive analysis experience:
+
+```bash
+# Activate environment (if not using pipenv/poetry)
+source venv/bin/activate
+
+# Launch web application
+streamlit run webapp.py
+```
+
+The web interface will open in your browser at `http://localhost:8501` and provides:
+- Interactive data input forms with real-time validation
+- Editable DEXA scan history grid
+- Goal setting with intelligent suggestions
+- Live analysis updates and visualizations
+- Downloadable results (CSV)
+- Fake data generation for testing/demos
+
+### Command Line Interface
+
+For programmatic usage or batch processing:
 
 ```bash
 # Activate environment (if not using pipenv/poetry)
@@ -105,10 +134,13 @@ python run_analysis.py my_config.json
 ### Using Task Runner
 
 ```bash
-# Run with example config
+# Launch web application
+task webapp
+
+# Run CLI with example config
 task run
 
-# Run with custom config
+# Run CLI with custom config
 task run-config -- my_config.json
 
 # Run tests
