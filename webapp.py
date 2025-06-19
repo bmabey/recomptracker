@@ -14,11 +14,14 @@ Run with: streamlit run webapp.py
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import json
 import tempfile
 import os
+import base64
+import urllib.parse
 from datetime import datetime
 from io import BytesIO
 
@@ -42,8 +45,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for better styling
+# Custom CSS for better styling and add LZ-string library
 st.markdown("""
+<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 <style>
     .metric-box {
         background-color: #f0f2f6;
@@ -71,8 +75,239 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def get_compact_config():
+    """Convert current session state to compact JSON format."""
+    compact = {
+        "u": {
+            "bd": st.session_state.user_info.get('birth_date', ''),
+            "h": st.session_state.user_info.get('height_in', 66.0),
+            "g": st.session_state.user_info.get('gender', 'male')[0],  # 'm' or 'f'
+        }
+    }
+    
+    # Add training level if set
+    if st.session_state.user_info.get('training_level'):
+        compact["u"]["tl"] = st.session_state.user_info['training_level']
+    
+    # Convert scan history to array format
+    compact["s"] = []
+    for scan in st.session_state.scan_history:
+        if scan.get('date'):  # Only include scans with dates
+            compact["s"].append([
+                scan.get('date', ''),
+                scan.get('total_weight_lbs', 0.0),
+                scan.get('total_lean_mass_lbs', 0.0),
+                scan.get('fat_mass_lbs', 0.0),
+                scan.get('body_fat_percentage', 0.0),
+                scan.get('arms_lean_lbs', 0.0),
+                scan.get('legs_lean_lbs', 0.0)
+            ])
+    
+    # Add goals if set
+    if st.session_state.almi_goal.get('target_percentile'):
+        compact["ag"] = {"tp": st.session_state.almi_goal['target_percentile']}
+        if st.session_state.almi_goal.get('target_age') and st.session_state.almi_goal['target_age'] != '?':
+            compact["ag"]["ta"] = st.session_state.almi_goal['target_age']
+    
+    if st.session_state.ffmi_goal.get('target_percentile'):
+        compact["fg"] = {"tp": st.session_state.ffmi_goal['target_percentile']}
+        if st.session_state.ffmi_goal.get('target_age') and st.session_state.ffmi_goal['target_age'] != '?':
+            compact["fg"]["ta"] = st.session_state.ffmi_goal['target_age']
+    
+    return compact
+
+
+def expand_compact_config(compact_config):
+    """Convert compact JSON format back to full session state format."""
+    # User info
+    user_info = {
+        'birth_date': compact_config.get("u", {}).get("bd", ''),
+        'height_in': compact_config.get("u", {}).get("h", 66.0),
+        'gender': 'male' if compact_config.get("u", {}).get("g", 'm') == 'm' else 'female',
+        'training_level': compact_config.get("u", {}).get("tl", '')
+    }
+    
+    # Scan history
+    scan_history = []
+    for scan_array in compact_config.get("s", []):
+        if len(scan_array) >= 7:
+            scan_history.append({
+                'date': scan_array[0],
+                'total_weight_lbs': scan_array[1],
+                'total_lean_mass_lbs': scan_array[2],
+                'fat_mass_lbs': scan_array[3],
+                'body_fat_percentage': scan_array[4],
+                'arms_lean_lbs': scan_array[5],
+                'legs_lean_lbs': scan_array[6]
+            })
+    
+    # Goals
+    almi_goal = {'target_percentile': 0.75, 'target_age': '?'}
+    if "ag" in compact_config:
+        almi_goal['target_percentile'] = compact_config["ag"].get("tp", 0.75)
+        almi_goal['target_age'] = compact_config["ag"].get("ta", '?')
+    
+    ffmi_goal = {'target_percentile': 0.75, 'target_age': '?'}
+    if "fg" in compact_config:
+        ffmi_goal['target_percentile'] = compact_config["fg"].get("tp", 0.75)
+        ffmi_goal['target_age'] = compact_config["fg"].get("ta", '?')
+    
+    return user_info, scan_history, almi_goal, ffmi_goal
+
+
+def encode_state_to_url():
+    """Generate a shareable URL with the current state encoded."""
+    try:
+        # Get compact config
+        compact_config = get_compact_config()
+        
+        # Convert to JSON string and encode as base64 (simple approach)
+        json_str = json.dumps(compact_config, separators=(',', ':'))
+        encoded_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+        
+        # Create the shareable URL
+        base_url = "http://localhost:8501"  # This would be the actual domain in production
+        share_url = f"{base_url}?data={urllib.parse.quote(encoded_data)}"
+        
+        return share_url
+        
+    except Exception as e:
+        st.error(f"Failed to generate share URL: {e}")
+        return None
+
+
+def decode_state_from_url():
+    """Decode state from URL parameters and update session state."""
+    try:
+        # Get URL parameters using the newer API
+        query_params = st.query_params
+        
+        if 'data' not in query_params:
+            return False
+        
+        compressed_data = query_params['data']
+        
+        # For now, we'll use a simplified approach without compression
+        # In a real implementation, we'd need a different approach for JavaScript integration
+        try:
+            # Try to decode as base64 first (fallback)
+            decoded_bytes = base64.b64decode(compressed_data.encode('utf-8'))
+            json_str = decoded_bytes.decode('utf-8')
+            compact_config = json.loads(json_str)
+            
+            # Update session state
+            user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(compact_config)
+            
+            st.session_state.user_info = user_info
+            st.session_state.scan_history = scan_history
+            st.session_state.almi_goal = almi_goal
+            st.session_state.ffmi_goal = ffmi_goal
+            
+            st.success("Configuration loaded from URL!")
+            return True
+            
+        except Exception:
+            # If base64 fails, we'd need JavaScript decompression
+            st.warning("URL contains compressed data. Full compression support requires additional setup.")
+            return False
+        
+    except Exception as e:
+        st.error(f"Failed to decode URL data: {e}")
+        return False
+
+
+def copy_url_to_clipboard(url):
+    """Create JavaScript to copy URL to clipboard."""
+    copy_js = f"""
+    <script>
+    function copyToClipboard() {{
+        const url = `{url}`;
+        navigator.clipboard.writeText(url).then(function() {{
+            // Show success message
+            const successDiv = document.createElement('div');
+            successDiv.innerHTML = '<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0;">✅ URL copied to clipboard!</div>';
+            document.body.appendChild(successDiv);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {{
+                if (successDiv.parentNode) {{
+                    successDiv.parentNode.removeChild(successDiv);
+                }}
+            }}, 3000);
+        }}, function(err) {{
+            console.error('Could not copy text: ', err);
+        }});
+    }}
+    
+    // Auto-execute
+    copyToClipboard();
+    </script>
+    """
+    return copy_js
+
+
+def auto_update_url():
+    """Automatically update the URL when state changes."""
+    try:
+        # Only update if we have meaningful data
+        if not (st.session_state.user_info.get('birth_date') or 
+                st.session_state.user_info.get('height_in', 66.0) != 66.0 or
+                len(st.session_state.scan_history) > 0):
+            return
+        
+        # Generate current state hash to detect changes
+        current_compact = get_compact_config()
+        current_hash = hash(json.dumps(current_compact, sort_keys=True))
+        
+        # Check if state has changed
+        if 'last_state_hash' not in st.session_state:
+            st.session_state.last_state_hash = current_hash
+            st.session_state.share_url = encode_state_to_url()
+        elif st.session_state.last_state_hash != current_hash:
+            # State has changed, update URL
+            st.session_state.last_state_hash = current_hash
+            st.session_state.share_url = encode_state_to_url()
+            
+            # Update browser URL using JavaScript (debounced)
+            if st.session_state.share_url and 'url_update_count' not in st.session_state:
+                st.session_state.url_update_count = 0
+            
+            # Only update browser URL every few changes to avoid excessive updates
+            if st.session_state.share_url and st.session_state.url_update_count % 3 == 0:
+                # Extract just the query parameter part
+                url_parts = st.session_state.share_url.split('?', 1)
+                if len(url_parts) > 1:
+                    query_part = url_parts[1]
+                    update_url_js = f"""
+                    <script>
+                    if (window.history && window.history.replaceState) {{
+                        const newUrl = window.location.pathname + '?' + '{query_part}';
+                        window.history.replaceState(null, '', newUrl);
+                    }}
+                    </script>
+                    """
+                    components.html(update_url_js, height=0)
+            
+            if 'url_update_count' in st.session_state:
+                st.session_state.url_update_count += 1
+        
+    except Exception as e:
+        # Silently handle errors to avoid disrupting the UI
+        pass
+
+
 def initialize_session_state():
     """Initialize session state variables."""
+    # Check if we need to load from URL first
+    if 'url_loaded' not in st.session_state:
+        st.session_state.url_loaded = False
+        
+        # Try to load state from URL
+        if decode_state_from_url():
+            st.session_state.url_loaded = True
+            return  # State was loaded from URL, so we're done
+    
+    # Initialize default state if not already set
     if 'user_info' not in st.session_state:
         st.session_state.user_info = {
             'birth_date': '',
@@ -269,6 +504,13 @@ def display_scan_history_form():
     """Display the DEXA scan history form using an editable data table."""
     st.subheader("🔬 DEXA Scan History")
     
+    # Check scan limit
+    num_scans = len([scan for scan in st.session_state.scan_history if scan.get('date', '').strip()])
+    if num_scans >= 20:
+        st.error("⚠️ Maximum of 20 scans supported for URL sharing. Please remove some scans before adding more.")
+    elif num_scans >= 15:
+        st.warning(f"📊 You have {num_scans} scans. URL sharing supports up to 20 scans.")
+    
     # Initialize with empty scan if none exist
     if len(st.session_state.scan_history) == 0:
         st.session_state.scan_history = [{
@@ -356,8 +598,22 @@ def display_scan_history_form():
         height=min(200 + (len(df) * 35), 400)  # Dynamic height based on number of rows
     )
     
-    # Update session state with edited data
-    st.session_state.scan_history = edited_df.to_dict('records')
+    # Update session state with edited data, but limit to 20 scans
+    new_scan_history = edited_df.to_dict('records')
+    
+    # Count meaningful scans (those with actual data)
+    meaningful_scans = [scan for scan in new_scan_history if 
+                       scan.get('date', '').strip() or 
+                       any(scan.get(field, 0) > 0 for field in ['total_weight_lbs', 'total_lean_mass_lbs', 
+                           'fat_mass_lbs', 'body_fat_percentage', 'arms_lean_lbs', 'legs_lean_lbs'])]
+    
+    if len(meaningful_scans) > 20:
+        st.error("⚠️ Cannot add more than 20 scans. URL sharing limit exceeded.")
+        # Keep only the first 20 meaningful scans plus any empty rows
+        empty_scans = [scan for scan in new_scan_history if scan not in meaningful_scans]
+        st.session_state.scan_history = meaningful_scans[:20] + empty_scans
+    else:
+        st.session_state.scan_history = new_scan_history
     
     # Validate scan data and show errors
     scan_errors = []
@@ -554,6 +810,9 @@ def main():
     """Main application function."""
     initialize_session_state()
     
+    # Auto-update URL when state changes
+    auto_update_url()
+    
     # Header
     display_header()
     
@@ -571,6 +830,31 @@ def main():
         # Analyze button
         if st.button("🔬 Run Analysis", type="primary", use_container_width=True):
             run_analysis()
+        
+        # Share section
+        st.divider()
+        st.markdown("### 🔗 Share Configuration")
+        
+        # Show current URL status
+        if 'share_url' in st.session_state and st.session_state.share_url:
+            st.success("🔗 URL automatically updated!")
+            st.text_area(
+                "Current Share URL", 
+                st.session_state.share_url, 
+                height=80, 
+                help="This URL updates automatically as you edit your configuration. Copy it to share with others."
+            )
+            
+            # Show URL length info
+            url_length = len(st.session_state.share_url)
+            if url_length < 1500:
+                st.info(f"📊 URL length: {url_length} characters (Excellent)")
+            elif url_length < 2000:
+                st.warning(f"📊 URL length: {url_length} characters (Good)")
+            else:
+                st.error(f"📊 URL length: {url_length} characters (May be too long)")
+        else:
+            st.info("📝 Enter some data above and the shareable URL will appear here automatically")
     
     with col2:
         # Right panel - Results
