@@ -425,6 +425,34 @@ def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functio
     current_metric = latest_scan[f'{metric}_kg_m2']
     target_percentile = goal_params['target_percentile']
     
+    # Get current percentile to check against target
+    # Map metric names to LMS function keys for current percentile calculation
+    lms_key = 'almi' if metric == 'almi' else 'lmi'  # ffmi uses lmi functions
+    current_z, current_percentile = calculate_z_percentile(
+        current_metric, current_age, 
+        lms_functions[f'{lms_key}_L'], lms_functions[f'{lms_key}_M'], lms_functions[f'{lms_key}_S']
+    )
+    
+    # Check if user is already at or above target percentile
+    if current_percentile >= target_percentile:
+        print(f"  ✓ Already at {current_percentile*100:.1f}th percentile for {metric.upper()}, which is above target {target_percentile*100:.0f}th percentile")
+        
+        # If user is already above 90th percentile, don't suggest any goal
+        if current_percentile >= 0.90:
+            print(f"  🎯 You're already above the 90th percentile - no goal suggestion needed!")
+            return None  # Return None to indicate no goal should be suggested
+        
+        # Only suggest higher percentile if user is below 90th percentile
+        new_target_percentile = min(0.90, current_percentile + 0.05)
+        print(f"  Suggesting a higher target: {new_target_percentile*100:.0f}th percentile instead")
+        
+        updated_goal = goal_params.copy()
+        updated_goal['target_percentile'] = new_target_percentile
+        updated_goal['target_age'] = current_age + 2  # Default 2-year timeframe
+        updated_goal['suggested'] = True
+        
+        return updated_goal
+    
     # Binary search to find the target age where we can achieve the goal
     min_age = current_age
     max_age = min(current_age + 10, 70)  # Search up to 10 years or age 70
@@ -860,12 +888,14 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         if almi_goal.get('target_age') in [None, "?"] or almi_goal.get('suggested'):
             almi_goal = calculate_suggested_goal(almi_goal, user_info, processed_data, lms_functions, 'almi')
         
-        goal_row, goal_calc = create_goal_row(
-            almi_goal, user_info, processed_data, lms_functions, 'almi'
-        )
-        if goal_row is not None:
-            goal_rows.append(goal_row)
-            goal_calculations['almi'] = goal_calc
+        # Only create goal row if we have a valid goal (not None)
+        if almi_goal is not None:
+            goal_row, goal_calc = create_goal_row(
+                almi_goal, user_info, processed_data, lms_functions, 'almi'
+            )
+            if goal_row is not None:
+                goal_rows.append(goal_row)
+                goal_calculations['almi'] = goal_calc
     
     if ffmi_goal:
         print(f"Processing {'suggested ' if ffmi_goal.get('suggested') else ''}FFMI goal: {ffmi_goal['target_percentile']*100:.0f}th percentile")
@@ -874,12 +904,14 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         if ffmi_goal.get('target_age') in [None, "?"] or ffmi_goal.get('suggested'):
             ffmi_goal = calculate_suggested_goal(ffmi_goal, user_info, processed_data, lms_functions, 'ffmi')
             
-        goal_row, goal_calc = create_goal_row(
-            ffmi_goal, user_info, processed_data, lms_functions, 'ffmi'
-        )
-        if goal_row is not None:
-            goal_rows.append(goal_row)
-            goal_calculations['ffmi'] = goal_calc
+        # Only create goal row if we have a valid goal (not None)
+        if ffmi_goal is not None:
+            goal_row, goal_calc = create_goal_row(
+                ffmi_goal, user_info, processed_data, lms_functions, 'ffmi'
+            )
+            if goal_row is not None:
+                goal_rows.append(goal_row)
+                goal_calculations['ffmi'] = goal_calc
     
     # Combine scan data with goal rows
     if goal_rows:
