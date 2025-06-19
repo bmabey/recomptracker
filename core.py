@@ -36,6 +36,26 @@ LEAN_MASS_GAIN_RATES = {
     }
 }
 
+# Healthy body fat percentage ranges by gender
+# Based on American Council on Exercise (ACE) and athletic performance standards
+HEALTHY_BF_RANGES = {
+    'male': {
+        'athletic': (6, 13),      # Athletes
+        'fitness': (14, 17),     # Fitness enthusiasts  
+        'acceptable': (18, 24),  # General health
+        'overweight': (25, 100)  # Above healthy range
+    },
+    'female': {
+        'athletic': (16, 20),    # Athletes
+        'fitness': (21, 24),     # Fitness enthusiasts
+        'acceptable': (25, 31),  # General health  
+        'overweight': (32, 100)  # Above healthy range
+    }
+}
+
+# Age adjustment factor for lean mass gain rates (per decade over 30)
+AGE_ADJUSTMENT_FACTOR = 0.1  # 10% reduction per decade over 30
+
 # JSON Schema for configuration validation
 CONFIG_SCHEMA = {
     "type": "object",
@@ -267,12 +287,13 @@ def detect_training_level_from_scans(processed_data, user_info):
     """
     # If training level is explicitly provided, use it
     if 'training_level' in user_info and user_info['training_level']:
-        return user_info['training_level'].lower()
+        level = user_info['training_level'].lower()
+        return level, f"User-specified training level: {level}"
     
     # Need at least 2 scans for progression analysis
     if len(processed_data) < 2:
         print("  Insufficient scan history for training level detection - defaulting to intermediate")
-        return 'intermediate'
+        return 'intermediate', "Insufficient scan history - defaulting to intermediate"
     
     # Handle both DataFrame and list formats
     if hasattr(processed_data, 'sort_values'):
@@ -327,15 +348,18 @@ def detect_training_level_from_scans(processed_data, user_info):
     
     if avg_gain_rate > novice_threshold:
         detected_level = 'novice'
-        print(f"  Detected novice level: rapid progression {avg_gain_rate:.2f} kg/month")
+        explanation = f"Detected novice level: rapid progression {avg_gain_rate:.2f} kg/month"
+        print(f"  {explanation}")
     elif avg_gain_rate < advanced_threshold:
         detected_level = 'advanced'
-        print(f"  Detected advanced level: slow progression {avg_gain_rate:.2f} kg/month")
+        explanation = f"Detected advanced level: slow progression {avg_gain_rate:.2f} kg/month"
+        print(f"  {explanation}")
     else:
         detected_level = 'intermediate'
-        print(f"  Detected intermediate level: moderate progression {avg_gain_rate:.2f} kg/month")
+        explanation = f"Detected intermediate level: moderate progression {avg_gain_rate:.2f} kg/month"
+        print(f"  {explanation}")
     
-    return detected_level
+    return detected_level, explanation
 
 def get_conservative_gain_rate(user_info, training_level, current_age):
     """
@@ -355,19 +379,20 @@ def get_conservative_gain_rate(user_info, training_level, current_age):
     base_rate = LEAN_MASS_GAIN_RATES[gender_str][training_level]
     
     # Age adjustment factor (muscle building capacity decreases with age)
-    if current_age <= 25:
-        age_factor = 1.0      # Peak muscle building years
-    elif current_age < 35:
-        age_factor = 0.95     # Slight decrease
-    elif current_age < 45:
-        age_factor = 0.9      # Moderate decrease
-    elif current_age < 55:
-        age_factor = 0.8      # More significant decrease
+    if current_age <= 30:
+        age_factor = 1.0  # No adjustment for age 30 and under
     else:
-        age_factor = 0.7      # Substantial decrease but still possible
+        # Linear reduction of 10% per decade over 30
+        decades_over_30 = (current_age - 30) / 10
+        age_factor = max(1 - (AGE_ADJUSTMENT_FACTOR * decades_over_30), 0.5)  # Minimum 50% of base rate
     
     adjusted_rate = base_rate * age_factor
-    explanation = f"Conservative {training_level} rate for {gender_str}: {base_rate:.2f} kg/month, age-adjusted to {adjusted_rate:.2f} kg/month (age {current_age:.0f})"
+    
+    if current_age <= 30:
+        explanation = f"Conservative {training_level} rate for {gender_str}: {base_rate:.2f} kg/month (age {current_age:.0f})"
+    else:
+        explanation = f"Conservative {training_level} rate for {gender_str}: {base_rate:.2f} kg/month, age-adjusted to {adjusted_rate:.2f} kg/month (age {current_age:.0f})"
+    
     print(f"  {explanation}")
     
     return adjusted_rate, explanation
@@ -390,8 +415,7 @@ def determine_training_level(user_info, processed_data):
         return level, explanation
     
     # Detect from scan progression
-    level = detect_training_level_from_scans(processed_data, user_info)
-    explanation = f"Auto-detected training level: {level} based on scan progression"
+    level, explanation = detect_training_level_from_scans(processed_data, user_info)
     return level, explanation
 
 def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functions, metric='almi'):
@@ -794,7 +818,10 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
     
     for i, scan in df.iterrows():
         # Calculate age at scan
-        age_at_scan = calculate_age_precise(user_info['birth_date'], scan['date'])
+        # Handle both birth_date and birth_date_str for test compatibility
+        birth_date_key = 'birth_date' if 'birth_date' in user_info else 'birth_date_str'
+        scan_date_key = 'date' if 'date' in scan else 'date_str'
+        age_at_scan = calculate_age_precise(user_info[birth_date_key], scan[scan_date_key])
         
         # Convert height to meters
         height_m = user_info['height_in'] * 0.0254
@@ -820,8 +847,8 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         
         # Store all calculated values
         result = {
-            'date_str': scan['date'],
-            'scan_date': scan['scan_date'],
+            'date_str': scan[scan_date_key],
+            'scan_date': scan['scan_date'] if 'scan_date' in scan else pd.to_datetime(scan[scan_date_key], format='%m/%d/%Y'),
             'age_at_scan': age_at_scan,
             'total_weight_lbs': scan['total_weight_lbs'],
             'total_lean_mass_lbs': scan['total_lean_mass_lbs'],
@@ -922,6 +949,63 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
     
     return df_results, goal_calculations
 
+
+def get_bf_category(bf_percentage, gender):
+    """Determine the category of body fat percentage for a given gender."""
+    ranges = HEALTHY_BF_RANGES[gender]
+    
+    if ranges['athletic'][0] <= bf_percentage <= ranges['athletic'][1]:
+        return 'athletic'
+    elif ranges['fitness'][0] <= bf_percentage <= ranges['fitness'][1]:
+        return 'fitness'
+    elif ranges['acceptable'][0] <= bf_percentage <= ranges['acceptable'][1]:
+        return 'acceptable'
+    else:
+        return 'overweight'
+
+
+def calculate_target_bf_percentage(current_bf, gender, goal_duration_months, training_level='intermediate'):
+    """
+    Calculate target body fat percentage when none is specified.
+    
+    Args:
+        current_bf (float): Current body fat percentage
+        gender (str): User's gender ('male' or 'female')
+        goal_duration_months (float): Duration until goal age in months
+        training_level (str): Training level for determining feasible rate of change
+        
+    Returns:
+        float: Target body fat percentage
+    """
+    ranges = HEALTHY_BF_RANGES[gender]
+    current_category = get_bf_category(current_bf, gender)
+    
+    # If already in athletic or fitness range, maintain current BF%
+    if current_category in ['athletic', 'fitness']:
+        return current_bf
+    
+    # If in acceptable range, aim for upper fitness range (easier to maintain)
+    if current_category == 'acceptable':
+        if gender == 'male':
+            return 17.0  # Upper fitness range for males
+        else:
+            return 24.0  # Upper fitness range for females
+    
+    # If overweight, calculate feasible target based on duration
+    # Conservative fat loss rate: 0.5-1% BF per month for overweight individuals
+    # More aggressive: 1-2% BF per month with proper training
+    max_bf_loss_rate = 1.0 if training_level in ['intermediate', 'advanced'] else 0.5
+    max_feasible_loss = goal_duration_months * max_bf_loss_rate
+    
+    # Target the fitness range, but don't exceed feasible loss rate
+    target_fitness_bf = ranges['fitness'][1]  # Upper fitness range
+    feasible_target = max(current_bf - max_feasible_loss, target_fitness_bf)
+    
+    # Ensure we don't go below healthy minimums
+    healthy_minimum = ranges['athletic'][0]
+    return max(feasible_target, healthy_minimum)
+
+
 def create_goal_row(goal_params, user_info, processed_data, lms_functions, metric):
     """
     Creates a goal row with target body composition values and required changes.
@@ -988,7 +1072,34 @@ def create_goal_row(goal_params, user_info, processed_data, lms_functions, metri
         tlm_change_needed_lbs = tlm_change_needed_kg * 2.20462
         
         # Calculate target body composition
-        target_body_fat_pct = goal_params.get('target_body_fat_percentage', current_scan['body_fat_percentage'])
+        if 'target_body_fat_percentage' in goal_params and goal_params['target_body_fat_percentage'] is not None:
+            # Use explicitly specified target BF%
+            target_body_fat_pct = goal_params['target_body_fat_percentage']
+        else:
+            # Calculate intelligent target BF% based on health and feasibility
+            current_bf = current_scan['body_fat_percentage']
+            current_age = current_scan['age_at_scan']
+            goal_duration_months = (target_age - current_age) * 12  # Convert years to months
+            training_level = user_info.get('training_level', 'intermediate')
+            # Handle both gender string and gender_code
+            if 'gender' in user_info:
+                gender = user_info['gender']
+            else:
+                gender = get_gender_string(user_info['gender_code'])
+            
+            target_body_fat_pct = calculate_target_bf_percentage(
+                current_bf, gender, goal_duration_months, training_level
+            )
+            
+            # Show BF% targeting rationale
+            current_category = get_bf_category(current_bf, gender)
+            if current_category in ['athletic', 'fitness']:
+                print(f"  Current BF% ({current_bf:.1f}%) is in {current_category} range - maintaining current level")
+            elif current_category == 'acceptable':
+                print(f"  Current BF% ({current_bf:.1f}%) is acceptable - targeting upper fitness range ({target_body_fat_pct:.1f}%)")
+            else:
+                print(f"  Current BF% ({current_bf:.1f}%) is above healthy range - targeting feasible improvement to {target_body_fat_pct:.1f}% over {goal_duration_months:.1f} months")
+        
         target_lean_mass_lbs = current_scan['total_lean_mass_lbs'] + tlm_change_needed_lbs
         
         # Calculate target weight and fat mass
@@ -1067,7 +1178,11 @@ def create_goal_row(goal_params, user_info, processed_data, lms_functions, metri
                 'lean_mass_lbs': target_lean_mass_lbs,
                 'fat_mass_lbs': target_fat_mass_lbs,
                 'body_fat_percentage': target_body_fat_pct
-            }
+            },
+            # Backwards compatibility field names for tests
+            'alm_to_add_kg': alm_change_needed_kg,
+            'estimated_tlm_gain_kg': tlm_change_needed_kg,
+            'tlm_to_add_kg': tlm_change_needed_kg
         }
         
         return goal_row, goal_calculations
