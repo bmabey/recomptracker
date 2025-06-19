@@ -34,7 +34,8 @@ from core import (
     validate_user_input,
     parse_gender,
     load_config_json,
-    extract_data_from_config
+    extract_data_from_config,
+    detect_training_level_from_scans
 )
 
 # Configure page
@@ -244,6 +245,41 @@ def copy_url_to_clipboard(url):
     </script>
     """
     return copy_js
+
+
+def get_inferred_training_level():
+    """Infer training level from current scan data."""
+    try:
+        # Need at least user info with gender and multiple scans
+        if (not st.session_state.user_info.get('gender') or 
+            len(st.session_state.scan_history) < 2):
+            return None, "Need at least 2 scans to infer training level"
+        
+        # Filter scans that have meaningful data
+        valid_scans = []
+        for scan in st.session_state.scan_history:
+            if (scan.get('date') and scan.get('date').strip() and 
+                scan.get('total_lean_mass_lbs', 0) > 0):
+                valid_scans.append(scan)
+        
+        if len(valid_scans) < 2:
+            return None, "Need at least 2 complete scans to infer training level"
+        
+        # Create user_info compatible with core functions
+        user_info = {
+            'gender_code': parse_gender(st.session_state.user_info['gender'])
+        }
+        
+        # Infer training level using core logic
+        inferred_level = detect_training_level_from_scans(valid_scans, user_info)
+        
+        if inferred_level == 'intermediate' and "defaulting to intermediate" in str(inferred_level):
+            return None, "Insufficient data for reliable inference"
+        
+        return inferred_level, f"Based on lean mass progression across {len(valid_scans)} scans"
+        
+    except Exception as e:
+        return None, f"Error inferring training level: {str(e)}"
 
 
 def auto_update_url():
@@ -461,13 +497,37 @@ def display_user_profile_form():
         )
         st.session_state.user_info['gender'] = gender
         
+        # Get inferred training level
+        inferred_level, inference_msg = get_inferred_training_level()
+        
+        # Set up options and default index
+        options = ['', 'novice', 'intermediate', 'advanced']
+        current_level = st.session_state.user_info.get('training_level', '')
+        
+        # If user hasn't set a level and we have an inference, suggest it
+        if not current_level and inferred_level:
+            suggested_index = options.index(inferred_level) if inferred_level in options else 0
+        else:
+            suggested_index = options.index(current_level) if current_level in options else 0
+        
         training_level = st.selectbox(
             "Training Level",
-            options=['', 'novice', 'intermediate', 'advanced'],
-            index=0,
+            options=options,
+            index=suggested_index,
             help=get_metric_explanations()['tooltips']['training_level']
         )
         st.session_state.user_info['training_level'] = training_level
+        
+        # Show inference information
+        if inferred_level:
+            if training_level == inferred_level:
+                st.success(f"✅ **Inferred**: {inferred_level.title()} - {inference_msg}")
+            elif training_level and training_level != inferred_level:
+                st.info(f"🔄 **Manual Override**: Using '{training_level}' instead of inferred '{inferred_level}'")
+            else:
+                st.info(f"💡 **Suggestion**: Based on your scans, you appear to be '{inferred_level}' level")
+        elif inference_msg and len(st.session_state.scan_history) > 0:
+            st.info(f"ℹ️ {inference_msg}")
     
     # Action buttons
     col1, col2, col3 = st.columns([1, 1, 2])
