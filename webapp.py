@@ -652,33 +652,53 @@ def run_analysis():
 
 
 def format_goal_info(goal_calc, metric):
-    """Format detailed goal information for display in the webapp."""
+    """Format concise goal information for display in the webapp."""
     if not goal_calc:
         return None
     
-    # Create the formatted goal information similar to CLI output
+    # Extract values for the concise format
     alm_lbs = goal_calc.get('alm_change_needed_lbs', 0)
-    alm_kg = goal_calc.get('alm_change_needed_kg', 0)
     tlm_lbs = goal_calc.get('tlm_change_needed_lbs', 0)
-    tlm_kg = goal_calc.get('tlm_change_needed_kg', 0)
     target_bf = goal_calc.get('target_body_composition', {}).get('body_fat_percentage', 0)
-    weight_change = goal_calc.get('weight_change', 0)
+    fat_change = goal_calc.get('fat_change', 0)
     
-    goal_info = f"""
-**🎯 {metric.upper()} Goal: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}**
+    # Determine lean mass action
+    if abs(tlm_lbs) < 0.1:  # Minimal change
+        lean_action = f"maintain your current lean mass"
+        alm_part = ""
+    elif tlm_lbs > 0:
+        lean_action = f"add {tlm_lbs:.1f} lbs of total lean mass"
+        alm_part = f", assuming {alm_lbs:.1f} lbs of that goes towards your ALM"
+    else:
+        lean_action = f"lose {abs(tlm_lbs):.1f} lbs of total lean mass"
+        alm_part = f" (including {abs(alm_lbs):.1f} lbs from ALM)"
+    
+    # Determine fat mass action
+    if abs(fat_change) < 0.1:  # Minimal change
+        fat_action = f"while maintaining your current body fat percentage of {target_bf:.1f}%"
+    elif fat_change < 0:  # Need to lose fat
+        fat_action = f"To hit a BF% of {target_bf:.1f}% you will also need to drop {abs(fat_change):.1f} lbs of fat"
+    else:  # Can gain fat
+        fat_action = f"To hit a BF% of {target_bf:.1f}% you can gain {fat_change:.1f} lbs of fat"
+    
+    # Construct the message
+    if abs(tlm_lbs) < 0.1:
+        # Just maintain lean mass
+        message = f"{lean_action} {fat_action}."
+    elif fat_action.startswith("while"):
+        # Maintain fat case
+        message = f"Try to {lean_action}{alm_part} {fat_action}."
+    else:
+        # Change both lean and fat
+        if tlm_lbs > 0:
+            message = f"Try to {lean_action}{alm_part}. {fat_action}."
+        else:
+            message = f"You need to {lean_action}{alm_part} and {fat_action.lower()}."
+    
+    # Create concise goal information
+    goal_info = f"""**🎯 {metric.upper()} Goal: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}**
 
-**Goal Requirements:**
-- **ALM to add:** {alm_lbs:.1f} lbs ({alm_kg:.2f} kg)
-- **Est. TLM gain:** {tlm_lbs:.1f} lbs ({tlm_kg:.2f} kg) 
-- **Target BF:** {target_bf:.1f}%
-- **Total weight change:** {weight_change:+.1f} lbs
-
-**Target Body Composition:**
-- **Weight:** {goal_calc['target_body_composition']['weight_lbs']:.1f} lbs
-- **Lean Mass:** {goal_calc['target_body_composition']['lean_mass_lbs']:.1f} lbs
-- **Fat Mass:** {goal_calc['target_body_composition']['fat_mass_lbs']:.1f} lbs
-- **Body Fat %:** {goal_calc['target_body_composition']['body_fat_percentage']:.1f}%
-"""
+{message}"""
     
     return goal_info
 
