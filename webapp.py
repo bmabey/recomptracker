@@ -341,9 +341,10 @@ def initialize_session_state():
         # Try to load state from URL
         if decode_state_from_url():
             st.session_state.url_loaded = True
-            return  # State was loaded from URL, so we're done
+            # Don't return early - we still need to initialize other attributes
     
-    # Initialize default state if not already set
+    # Always initialize essential attributes if not already set
+    # This ensures all required session state variables exist, even after URL loading
     if 'user_info' not in st.session_state:
         st.session_state.user_info = {
             'birth_date': '',
