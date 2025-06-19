@@ -27,21 +27,18 @@ python test_zscore_calculations.py
 
 # Generate Z-scores for Excel data (legacy scientific app)
 python scientific_zscore_app.py --filename="example_file.xlsx"
-
-# Direct analysis script (bypassing CLI wrapper)
-python zscore_plot.py --config example_config.json
 ```
 
 ## Architecture
 
 ### Core Components
 
-1. **run_analysis.py**: User-friendly CLI wrapper that provides helpful error messages and delegates to zscore_plot.py
-2. **zscore_plot.py**: Main analysis engine with four key sections:
+1. **run_analysis.py**: Main CLI entry point that provides comprehensive argument parsing and delegates to core module
+2. **core.py**: Core analysis engine containing:
    - Core calculation logic (age, Z-scores, T-scores, inverse Z-scores)
    - Data processing and orchestration (TLM estimation, LMS data loading)
    - Plotting logic (percentile curves, visualizations, CSV export)
-   - Main execution orchestration
+   - Main analysis orchestration function
 3. **scientific_zscore_app.py**: Legacy Excel-based Z-score calculator for batch processing
 4. **test_zscore_calculations.py**: Comprehensive test suite covering all calculation functions
 

@@ -1,7 +1,7 @@
 """
-Comprehensive test suite for zscore_plot.py functionality.
+Comprehensive test suite for DEXA body composition analysis.
 
-This module contains all tests for the DEXA body composition analysis script,
+This module contains all tests for the DEXA body composition analysis system,
 including core calculation functions, TLM estimation logic, and integration tests.
 """
 
@@ -1938,5 +1938,5 @@ class TestBodyFatPercentageAccuracy(unittest.TestCase):
 
 if __name__ == '__main__':
     # Run tests with detailed output
-    print("Running comprehensive test suite for zscore_plot.py...")
+    print("Running comprehensive test suite for DEXA body composition analysis...")
     unittest.main(verbosity=2)
