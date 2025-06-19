@@ -56,10 +56,20 @@ tasks:
       - python -m pytest test_webapp_integration.py -v --tb=short
 
   test-all:
-    desc: "Run all tests (core + webapp)"
+    desc: "Run all tests in the project"
     cmds:
+      - echo "Running core test suite..."
       - python test_zscore_calculations.py
+      - echo "Running webapp integration tests..."
       - python -m pytest test_webapp_integration.py -v --tb=short
+      - echo "Running additional integration tests..."
+      - python test_integration_simple.py
+      - python test_url_sharing.py
+      - python test_20_scans.py
+      - python test_auto_update.py
+      - python test_url_state_loading_integration.py
+      - python test_url_loading_bug_reproduction.py
+      - python test_data_editor.py
 
   help-config:
     desc: "Show configuration help"
