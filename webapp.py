@@ -1081,7 +1081,6 @@ def display_results():
                 st.markdown(goal_info)
         
         # ALMI plot - full width
-        st.subheader("ALMI Percentile Curves")
         
         # Create plotly figure with hover tooltips
         # Need to get LMS functions for plotting
@@ -1144,7 +1143,6 @@ def display_results():
                 st.markdown(goal_info)
         
         # FFMI plot - full width
-        st.subheader("FFMI Percentile Curves")
         
         # Create plotly figure with hover tooltips
         try:
