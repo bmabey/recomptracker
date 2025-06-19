@@ -362,22 +362,31 @@ def display_scan_history_form():
     # Validate scan data and show errors
     scan_errors = []
     for i, scan in enumerate(st.session_state.scan_history):
-        # Check for empty required fields
-        if not scan.get('date') or scan.get('date', '').strip() == '':
-            scan_errors.append(f"Row {i+1}: Date is required")
-        elif scan.get('date'):
-            # Validate date format
-            is_valid, error_msg = validate_user_input('scan_date', scan['date'])
-            if not is_valid:
-                scan_errors.append(f"Row {i+1}: {error_msg}")
+        # Check if this row has been meaningfully edited (not just default empty values)
+        has_any_data = (
+            (scan.get('date', '').strip() != '') or
+            any(scan.get(field, 0) > 0 for field in ['total_weight_lbs', 'total_lean_mass_lbs', 
+                'fat_mass_lbs', 'body_fat_percentage', 'arms_lean_lbs', 'legs_lean_lbs'])
+        )
         
-        # Check for zero values in required numeric fields
-        required_numeric = ['total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 
-                          'body_fat_percentage', 'arms_lean_lbs', 'legs_lean_lbs']
-        for field in required_numeric:
-            if not scan.get(field) or scan.get(field, 0) <= 0:
-                field_display = field.replace('_', ' ').replace('lbs', '(lbs)').replace('percentage', '%').title()
-                scan_errors.append(f"Row {i+1}: {field_display} must be greater than 0")
+        # Only validate rows that have some data entered
+        if has_any_data:
+            # Check for empty required fields
+            if not scan.get('date') or scan.get('date', '').strip() == '':
+                scan_errors.append(f"Row {i+1}: Date is required")
+            elif scan.get('date'):
+                # Validate date format
+                is_valid, error_msg = validate_user_input('scan_date', scan['date'])
+                if not is_valid:
+                    scan_errors.append(f"Row {i+1}: {error_msg}")
+            
+            # Check for zero values in required numeric fields
+            required_numeric = ['total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 
+                              'body_fat_percentage', 'arms_lean_lbs', 'legs_lean_lbs']
+            for field in required_numeric:
+                if not scan.get(field) or scan.get(field, 0) <= 0:
+                    field_display = field.replace('_', ' ').replace('lbs', '(lbs)').replace('percentage', '%').title()
+                    scan_errors.append(f"Row {i+1}: {field_display} must be greater than 0")
     
     if scan_errors:
         st.error("Please fix the following scan data issues:")
