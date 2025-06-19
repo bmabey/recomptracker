@@ -476,7 +476,7 @@ def display_results():
             st.metric(
                 "Current ALMI",
                 f"{latest_scan['almi_kg_m2']:.2f} kg/m²",
-                help=get_metric_explanations()['tooltips']['percentile']
+                help=get_metric_explanations()['tooltips']['almi']
             )
         
         with col2:
@@ -490,7 +490,7 @@ def display_results():
             st.metric(
                 "Current FFMI",
                 f"{latest_scan['ffmi_kg_m2']:.2f} kg/m²",
-                help=get_metric_explanations()['tooltips']['percentile']
+                help=get_metric_explanations()['tooltips']['ffmi']
             )
         
         with col4:
