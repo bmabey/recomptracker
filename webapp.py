@@ -24,6 +24,9 @@ import base64
 import urllib.parse
 from datetime import datetime
 from io import BytesIO
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
 
 # Import core analysis functions
 from core import (
@@ -35,8 +38,10 @@ from core import (
     parse_gender,
     load_config_json,
     extract_data_from_config,
-    detect_training_level_from_scans
+    detect_training_level_from_scans,
+    get_value_from_zscore
 )
+import scipy.stats as stats
 
 # Configure page
 st.set_page_config(
@@ -280,6 +285,208 @@ def get_inferred_training_level():
         
     except Exception as e:
         return None, f"Error inferring training level: {str(e)}"
+
+
+def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_calculations):
+    """
+    Creates interactive Plotly plots with hover tooltips for DEXA analysis.
+    
+    Args:
+        df_results (pd.DataFrame): Complete results DataFrame with scan history and goals
+        metric_to_plot (str): Either 'ALMI' or 'FFMI' 
+        lms_functions (dict): Dictionary containing LMS interpolation functions
+        goal_calculations (dict): Goal calculation results
+        
+    Returns:
+        plotly.graph_objects.Figure: Interactive plotly figure
+    """
+    # Define age range for percentile curves
+    age_range = np.linspace(18, 80, 100)
+    
+    # Select appropriate LMS functions and labels
+    if metric_to_plot == 'ALMI':
+        L_func = lms_functions['almi_L']
+        M_func = lms_functions['almi_M']
+        S_func = lms_functions['almi_S']
+        y_column = 'almi_kg_m2'
+        y_label = 'ALMI (kg/m²)'
+        plot_title = 'Appendicular Lean Mass Index (ALMI) Percentiles'
+    else:  # FFMI
+        L_func = lms_functions['lmi_L']
+        M_func = lms_functions['lmi_M']
+        S_func = lms_functions['lmi_S']
+        y_column = 'ffmi_kg_m2'
+        y_label = 'FFMI (kg/m²)'
+        plot_title = 'Fat-Free Mass Index (FFMI) Percentiles'
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Define percentiles and colors (matching matplotlib version)
+    percentiles = [0.03, 0.10, 0.25, 0.50, 0.75, 0.90, 0.97]
+    percentile_labels = ['3rd', '10th', '25th', '50th', '75th', '90th', '97th']
+    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECCA7', '#DDA0DD', '#FFB347']
+    
+    # Add percentile curves
+    for i, (percentile, label, color) in enumerate(zip(percentiles, percentile_labels, colors)):
+        z_score = stats.norm.ppf(percentile)
+        curve_values = []
+        
+        for age in age_range:
+            try:
+                L_val = L_func(age)
+                M_val = M_func(age)
+                S_val = S_func(age)
+                value = get_value_from_zscore(z_score, L_val, M_val, S_val)
+                curve_values.append(value)
+            except:
+                curve_values.append(None)
+        
+        fig.add_trace(go.Scatter(
+            x=age_range,
+            y=curve_values,
+            mode='lines',
+            name=f'{label} percentile',
+            line=dict(color=color, width=2),
+            hovertemplate=f'{label} percentile<br>Age: %{{x:.1f}} years<br>{y_label}: %{{y:.2f}}<extra></extra>'
+        ))
+    
+    # Filter data for actual scans (not goal rows)
+    scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+    
+    # Add actual data points with detailed hover information
+    if len(scan_data) > 0:
+        # Create hover text with comprehensive information
+        hover_text = []
+        for _, scan in scan_data.iterrows():
+            percentile_col = f'{metric_to_plot.lower()}_percentile'
+            z_score_col = f'{metric_to_plot.lower()}_z_score'
+            
+            hover_info = [
+                f"<b>Scan Date:</b> {scan['date_str']}",
+                f"<b>Age:</b> {scan['age_at_scan']:.1f} years",
+                f"<b>{y_label}:</b> {scan[y_column]:.2f}",
+                f"<b>Percentile:</b> {scan[percentile_col]*100:.1f}%",
+                f"<b>Z-Score:</b> {scan[z_score_col]:.2f}",
+                "",
+                f"<b>Weight:</b> {scan['total_weight_lbs']:.1f} lbs",
+                f"<b>Lean Mass:</b> {scan['total_lean_mass_lbs']:.1f} lbs",
+                f"<b>Fat Mass:</b> {scan['fat_mass_lbs']:.1f} lbs",
+                f"<b>Body Fat:</b> {scan['body_fat_percentage']:.1f}%"
+            ]
+            hover_text.append("<br>".join(hover_info))
+        
+        fig.add_trace(go.Scatter(
+            x=scan_data['age_at_scan'],
+            y=scan_data[y_column],
+            mode='markers',
+            name='Your Scans',
+            marker=dict(
+                color='red',
+                size=12,
+                line=dict(color='black', width=1)
+            ),
+            hovertemplate='%{text}<extra></extra>',
+            text=hover_text
+        ))
+        
+        # Connect points with lines if multiple scans
+        if len(scan_data) > 1:
+            fig.add_trace(go.Scatter(
+                x=scan_data['age_at_scan'],
+                y=scan_data[y_column],
+                mode='lines',
+                name='Progression',
+                line=dict(color='red', width=2, dash='solid'),
+                opacity=0.7,
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+    
+    # Add goal if available
+    goal_key = metric_to_plot.lower()
+    if goal_key in goal_calculations:
+        goal_calc = goal_calculations[goal_key]
+        goal_age = goal_calc['target_age']
+        goal_value = goal_calc['target_metric_value']
+        goal_percentile = goal_calc['target_percentile']
+        
+        goal_hover = [
+            f"<b>🎯 {metric_to_plot} Goal</b>",
+            f"<b>Target Age:</b> {goal_age:.1f} years",
+            f"<b>Target {y_label}:</b> {goal_value:.2f}",
+            f"<b>Target Percentile:</b> {goal_percentile*100:.0f}%"
+        ]
+        
+        fig.add_trace(go.Scatter(
+            x=[goal_age],
+            y=[goal_value],
+            mode='markers',
+            name='Goal',
+            marker=dict(
+                color='gold',
+                size=15,
+                symbol='star',
+                line=dict(color='black', width=1)
+            ),
+            hovertemplate='%{text}<extra></extra>',
+            text="<br>".join(goal_hover)
+        ))
+        
+        # Draw line from last scan to goal
+        if len(scan_data) > 0:
+            last_scan = scan_data.iloc[-1]
+            fig.add_trace(go.Scatter(
+                x=[last_scan['age_at_scan'], goal_age],
+                y=[last_scan[y_column], goal_value],
+                mode='lines',
+                name='Goal Projection',
+                line=dict(color='gold', width=3, dash='dash'),
+                opacity=0.8,
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+    
+    # Customize layout
+    fig.update_layout(
+        title=dict(
+            text=plot_title,
+            font=dict(size=16, family="Arial", color="black"),
+            x=0.5
+        ),
+        xaxis=dict(
+            title=dict(text='Age (years)', font=dict(size=14)),
+            tickfont=dict(size=12),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        yaxis=dict(
+            title=dict(text=y_label, font=dict(size=14)),
+            tickfont=dict(size=12),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            font=dict(size=10)
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hovermode='closest',
+        hoverlabel=dict(
+            bgcolor="white",
+            bordercolor="black",
+            font_size=12
+        ),
+        height=600,
+        margin=dict(r=150)  # Right margin for legend
+    )
+    
+    return fig
 
 
 def auto_update_url():
@@ -822,7 +1029,28 @@ def display_results():
     with tab1:
         # ALMI plot - full width
         st.subheader("ALMI Percentile Curves")
-        st.pyplot(figures['ALMI'])
+        
+        # Create plotly figure with hover tooltips
+        # Need to get LMS functions for plotting
+        try:
+            from core import load_lms_data, parse_gender
+            user_info = st.session_state.user_info.copy()
+            user_info['gender_code'] = parse_gender(user_info['gender'])
+            
+            # Load LMS functions
+            lms_functions_local = {}
+            lms_functions_local['almi_L'], lms_functions_local['almi_M'], lms_functions_local['almi_S'] = load_lms_data('appendicular_LMI', user_info['gender_code'])
+            lms_functions_local['lmi_L'], lms_functions_local['lmi_M'], lms_functions_local['lmi_S'] = load_lms_data('LMI', user_info['gender_code'])
+            
+            if all(lms_functions_local.values()):
+                almi_fig = create_plotly_metric_plot(df_results, 'ALMI', lms_functions_local, goal_calculations)
+                st.plotly_chart(almi_fig, use_container_width=True)
+            else:
+                st.error("Could not load LMS data for plotting")
+        except Exception as e:
+            st.error(f"Error creating interactive plot: {e}")
+            # Fallback to matplotlib if plotly fails
+            st.pyplot(figures['ALMI'])
         
         # ALMI-focused data table
         st.subheader("📋 ALMI Results Table")
@@ -863,7 +1091,27 @@ def display_results():
     with tab2:
         # FFMI plot - full width
         st.subheader("FFMI Percentile Curves")
-        st.pyplot(figures['FFMI'])
+        
+        # Create plotly figure with hover tooltips
+        try:
+            from core import load_lms_data, parse_gender
+            user_info = st.session_state.user_info.copy()
+            user_info['gender_code'] = parse_gender(user_info['gender'])
+            
+            # Load LMS functions (reuse from tab1 if needed, but reload for clarity)
+            lms_functions_local = {}
+            lms_functions_local['almi_L'], lms_functions_local['almi_M'], lms_functions_local['almi_S'] = load_lms_data('appendicular_LMI', user_info['gender_code'])
+            lms_functions_local['lmi_L'], lms_functions_local['lmi_M'], lms_functions_local['lmi_S'] = load_lms_data('LMI', user_info['gender_code'])
+            
+            if all(lms_functions_local.values()):
+                ffmi_fig = create_plotly_metric_plot(df_results, 'FFMI', lms_functions_local, goal_calculations)
+                st.plotly_chart(ffmi_fig, use_container_width=True)
+            else:
+                st.error("Could not load LMS data for plotting")
+        except Exception as e:
+            st.error(f"Error creating interactive plot: {e}")
+            # Fallback to matplotlib if plotly fails
+            st.pyplot(figures['FFMI'])
         
         # FFMI-focused data table
         st.subheader("📋 FFMI Results Table")
