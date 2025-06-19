@@ -537,6 +537,8 @@ def display_user_profile_form():
         if st.button("🎲 Random Profile"):
             fake_profile = generate_fake_profile()
             st.session_state.user_info.update(fake_profile)
+            fake_scans = generate_fake_scans(st.session_state.user_info)
+            st.session_state.scan_history = fake_scans
             st.rerun()
     
     with col2:
@@ -710,16 +712,6 @@ def display_scan_history_form():
         for error in scan_errors:
             st.error(f"• {error}")
     
-    # Helper buttons
-    col1, col2 = st.columns([1, 3])
-    with col2:
-        if st.button("🎲 Generate Fake Scans"):
-            if st.session_state.user_info.get('gender') and st.session_state.user_info.get('height_in'):
-                fake_scans = generate_fake_scans(st.session_state.user_info)
-                st.session_state.scan_history = fake_scans
-                st.rerun()
-            else:
-                st.error("Please set gender and height first")
 
 
 def display_goals_form():
