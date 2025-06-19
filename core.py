@@ -331,7 +331,7 @@ def detect_training_level_from_scans(processed_data, user_info):
     
     if not lean_gains:
         print("  No sufficient time gaps between scans for progression analysis - defaulting to intermediate")
-        return 'intermediate'
+        return 'intermediate', "No sufficient time gaps between scans for progression analysis - defaulting to intermediate"
     
     # Calculate average monthly lean mass gain rate
     avg_gain_rate = np.mean(lean_gains)
@@ -352,7 +352,7 @@ def detect_training_level_from_scans(processed_data, user_info):
         print(f"  {explanation}")
     elif avg_gain_rate < advanced_threshold:
         detected_level = 'advanced'
-        explanation = f"Detected advanced level: slow progression {avg_gain_rate:.2f} kg/month"
+        explanation = f"Detected advanced level: slow progression {avg_gain_rate:.2f} kg/month, experienced trainee"
         print(f"  {explanation}")
     else:
         detected_level = 'intermediate'
@@ -430,8 +430,11 @@ def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functio
         metric (str): Metric type ('almi' or 'ffmi')
         
     Returns:
-        dict: Updated goal parameters with calculated target_age
+        tuple: (updated_goal, messages) where updated_goal contains target_age and messages is list of explanations
     """
+    # Initialize messages list to collect explanations
+    messages = []
+    
     # Get the most recent scan data (handle both DataFrame and list)
     if hasattr(processed_data, 'iloc'):
         latest_scan = processed_data.iloc[-1]
@@ -441,41 +444,41 @@ def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functio
     
     # Determine training level
     training_level, level_explanation = determine_training_level(user_info, processed_data)
+    messages.append(level_explanation)
     
     # Get conservative gain rate
     monthly_gain_rate_kg, gain_explanation = get_conservative_gain_rate(user_info, training_level, current_age)
+    messages.append(gain_explanation)
     
     # Get current metric value and target percentile
     current_metric = latest_scan[f'{metric}_kg_m2']
     target_percentile = goal_params['target_percentile']
     
-    # Get current percentile to check against target
-    # Map metric names to LMS function keys for current percentile calculation
-    lms_key = 'almi' if metric == 'almi' else 'lmi'  # ffmi uses lmi functions
-    current_z, current_percentile = calculate_z_percentile(
-        current_metric, current_age, 
-        lms_functions[f'{lms_key}_L'], lms_functions[f'{lms_key}_M'], lms_functions[f'{lms_key}_S']
-    )
+    # Get current percentile from scan data (already calculated in percentage format)
+    current_percentile = latest_scan[f'{metric}_percentile']
     
     # Check if user is already at or above target percentile
-    if current_percentile >= target_percentile:
-        print(f"  ✓ Already at {current_percentile*100:.1f}th percentile for {metric.upper()}, which is above target {target_percentile*100:.0f}th percentile")
+    # Note: current_percentile is in percentage format (0-100), target_percentile is in decimal format (0-1)
+    current_percentile_decimal = current_percentile / 100
+    if current_percentile_decimal >= target_percentile:
+        print(f"  ✓ Already at {current_percentile:.1f}th percentile for {metric.upper()}, which is above target {target_percentile*100:.0f}th percentile")
         
         # If user is already above 90th percentile, don't suggest any goal
-        if current_percentile >= 0.90:
+        if current_percentile_decimal >= 0.90:
             print(f"  🎯 You're already above the 90th percentile - no goal suggestion needed!")
-            return None  # Return None to indicate no goal should be suggested
+            return None, messages  # Return None to indicate no goal should be suggested
         
         # Only suggest higher percentile if user is below 90th percentile
-        new_target_percentile = min(0.90, current_percentile + 0.05)
+        new_target_percentile = min(0.90, current_percentile_decimal + 0.05)
         print(f"  Suggesting a higher target: {new_target_percentile*100:.0f}th percentile instead")
         
         updated_goal = goal_params.copy()
         updated_goal['target_percentile'] = new_target_percentile
         updated_goal['target_age'] = current_age + 2  # Default 2-year timeframe
         updated_goal['suggested'] = True
+        messages.append(f"Suggesting a higher target: {new_target_percentile*100:.0f}th percentile instead")
         
-        return updated_goal
+        return updated_goal, messages
     
     # Binary search to find the target age where we can achieve the goal
     min_age = current_age
@@ -545,10 +548,13 @@ def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functio
     if best_age is None:
         # If no feasible solution found, use a reasonable timeframe
         best_age = current_age + 2  # 2 years as fallback
+        messages.append(f"Could not find feasible timeframe for {target_percentile*100:.0f}th percentile {metric.upper()}")
+        messages.append(f"Using 2-year timeframe as fallback (age {best_age:.1f})")
         print(f"  Could not find feasible timeframe for {target_percentile*100:.0f}th percentile {metric.upper()}")
         print(f"  Using 2-year timeframe as fallback (age {best_age:.1f})")
     else:
         time_to_goal = best_age - current_age
+        messages.append(f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) based on {training_level} progression rates")
         print(f"  ✓ Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) based on {training_level} progression rates")
     
     # Update goal parameters
@@ -556,7 +562,7 @@ def calculate_suggested_goal(goal_params, user_info, processed_data, lms_functio
     updated_goal['target_age'] = best_age
     updated_goal['suggested'] = True
     
-    return updated_goal
+    return updated_goal, messages
 
 
 # ---------------------------------------------------------------------------
@@ -634,8 +640,13 @@ def extract_data_from_config(config):
     if 'birth_date' in user_info:
         user_info['birth_date_str'] = user_info['birth_date']
     
-    # Extract scan history
-    scan_history = config['scan_history']
+    # Extract scan history and add date_str for compatibility
+    scan_history = []
+    for scan in config['scan_history']:
+        scan_copy = scan.copy()
+        if 'date' in scan_copy:
+            scan_copy['date_str'] = scan_copy['date']
+        scan_history.append(scan_copy)
     
     # Extract goals (optional)
     goals = config.get('goals', {})
@@ -860,9 +871,9 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             'almi_kg_m2': almi_kg_m2,
             'ffmi_kg_m2': ffmi_kg_m2,
             'almi_z_score': almi_z,
-            'almi_percentile': almi_percentile,
+            'almi_percentile': almi_percentile * 100,
             'ffmi_z_score': ffmi_z,
-            'ffmi_percentile': ffmi_percentile
+            'ffmi_percentile': ffmi_percentile * 100
         }
         results.append(result)
     
@@ -890,8 +901,8 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
             processed_data.loc[i, 'bf_change_last'] = processed_data.loc[i, 'body_fat_percentage'] - processed_data.loc[prev_idx, 'body_fat_percentage']
             processed_data.loc[i, 'almi_z_change_last'] = processed_data.loc[i, 'almi_z_score'] - processed_data.loc[prev_idx, 'almi_z_score']
             processed_data.loc[i, 'ffmi_z_change_last'] = processed_data.loc[i, 'ffmi_z_score'] - processed_data.loc[prev_idx, 'ffmi_z_score']
-            processed_data.loc[i, 'almi_pct_change_last'] = (processed_data.loc[i, 'almi_percentile'] - processed_data.loc[prev_idx, 'almi_percentile']) * 100
-            processed_data.loc[i, 'ffmi_pct_change_last'] = (processed_data.loc[i, 'ffmi_percentile'] - processed_data.loc[prev_idx, 'ffmi_percentile']) * 100
+            processed_data.loc[i, 'almi_pct_change_last'] = processed_data.loc[i, 'almi_percentile'] - processed_data.loc[prev_idx, 'almi_percentile']
+            processed_data.loc[i, 'ffmi_pct_change_last'] = processed_data.loc[i, 'ffmi_percentile'] - processed_data.loc[prev_idx, 'ffmi_percentile']
         
         # Calculate changes from first scan
         if i == 0:
@@ -913,7 +924,9 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         
         # Handle suggested goals (auto-calculate target age)
         if almi_goal.get('target_age') in [None, "?"] or almi_goal.get('suggested'):
-            almi_goal = calculate_suggested_goal(almi_goal, user_info, processed_data, lms_functions, 'almi')
+            almi_goal, almi_messages = calculate_suggested_goal(almi_goal, user_info, processed_data, lms_functions, 'almi')
+            if almi_messages:
+                goal_calculations['messages'] = goal_calculations.get('messages', []) + almi_messages
         
         # Only create goal row if we have a valid goal (not None)
         if almi_goal is not None:
@@ -929,7 +942,9 @@ def process_scans_and_goal(user_info, scan_history, almi_goal, ffmi_goal, lms_fu
         
         # Handle suggested goals (auto-calculate target age)  
         if ffmi_goal.get('target_age') in [None, "?"] or ffmi_goal.get('suggested'):
-            ffmi_goal = calculate_suggested_goal(ffmi_goal, user_info, processed_data, lms_functions, 'ffmi')
+            ffmi_goal, ffmi_messages = calculate_suggested_goal(ffmi_goal, user_info, processed_data, lms_functions, 'ffmi')
+            if ffmi_messages:
+                goal_calculations['messages'] = goal_calculations.get('messages', []) + ffmi_messages
             
         # Only create goal row if we have a valid goal (not None)
         if ffmi_goal is not None:
@@ -1114,8 +1129,8 @@ def create_goal_row(goal_params, user_info, processed_data, lms_functions, metri
         bf_change = target_body_fat_pct - current_scan['body_fat_percentage']
         
         # Calculate percentile changes
-        current_percentile = current_scan[f'{metric}_percentile']
-        percentile_change = (target_percentile - current_percentile) * 100
+        current_percentile = current_scan[f'{metric}_percentile']  # This is in percentage format (0-100)
+        percentile_change = (target_percentile * 100) - current_percentile  # Convert target to percentage first
         
         # Calculate Z-score changes
         current_z = current_scan[f'{metric}_z_score']
@@ -1138,9 +1153,9 @@ def create_goal_row(goal_params, user_info, processed_data, lms_functions, metri
             'almi_kg_m2': target_metric_value if metric == 'almi' else current_scan['almi_kg_m2'],
             'ffmi_kg_m2': target_metric_value if metric == 'ffmi' else current_scan['ffmi_kg_m2'],
             'almi_z_score': target_z if metric == 'almi' else current_scan['almi_z_score'],
-            'almi_percentile': target_percentile if metric == 'almi' else current_scan['almi_percentile'],
+            'almi_percentile': target_percentile * 100 if metric == 'almi' else current_scan['almi_percentile'],
             'ffmi_z_score': target_z if metric == 'ffmi' else current_scan['ffmi_z_score'],
-            'ffmi_percentile': target_percentile if metric == 'ffmi' else current_scan['ffmi_percentile'],
+            'ffmi_percentile': target_percentile * 100 if metric == 'ffmi' else current_scan['ffmi_percentile'],
             'weight_change_last': weight_change,
             'lean_change_last': lean_change,
             'fat_change_last': fat_change,

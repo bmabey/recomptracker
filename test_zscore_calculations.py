@@ -838,7 +838,7 @@ class TestGoalProcessingIntegration(unittest.TestCase):
         ffmi_goal_row = df_results[df_results['date_str'].str.contains('FFMI Goal')].iloc[0]
         
         self.assertAlmostEqual(almi_goal_row['almi_percentile'], 90.0, places=1)
-        self.assertAlmostEqual(ffmi_goal_row['ffmi_lmi_percentile'], 85.0, places=1)
+        self.assertAlmostEqual(ffmi_goal_row['ffmi_percentile'], 85.0, places=1)
 
 
 class TestTrainingLevelDetection(unittest.TestCase):
@@ -1659,7 +1659,7 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
         # Try to set 90th percentile goal when already above it
         goal_params = {'target_percentile': 0.90, 'target_age': None}
         
-        updated_goal = calculate_suggested_goal(
+        updated_goal, messages = calculate_suggested_goal(
             goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
         )
         
@@ -1667,7 +1667,7 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
         self.assertIsNone(updated_goal)
         
         # Test the same for FFMI
-        updated_ffmi_goal = calculate_suggested_goal(
+        updated_ffmi_goal, ffmi_messages = calculate_suggested_goal(
             goal_params, self.user_info, processed_data, self.lms_functions, 'ffmi'
         )
         
@@ -1692,7 +1692,7 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
         # Try to set 90th percentile goal when already well above it
         goal_params = {'target_percentile': 0.90, 'target_age': None}
         
-        updated_goal = calculate_suggested_goal(
+        updated_goal, messages = calculate_suggested_goal(
             goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
         )
         
@@ -1717,7 +1717,7 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
         # Set a reasonable goal
         goal_params = {'target_percentile': 0.75, 'target_age': None}
         
-        updated_goal = calculate_suggested_goal(
+        updated_goal, messages = calculate_suggested_goal(
             goal_params, self.user_info, processed_data, self.lms_functions, 'almi'
         )
         
