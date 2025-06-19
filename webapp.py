@@ -1018,6 +1018,20 @@ def display_goals_form():
             help=get_metric_explanations()['tooltips']['goal_age']
         )
         st.session_state.almi_goal['target_age'] = almi_age
+        
+        almi_bf = st.number_input(
+            "Target Body Fat % (optional)",
+            min_value=1.0,
+            max_value=50.0,
+            value=st.session_state.almi_goal.get('target_body_fat_percentage', None),
+            step=0.1,
+            help="Leave empty for intelligent targeting based on health guidelines and feasibility",
+            format="%.1f"
+        )
+        if almi_bf is not None and almi_bf > 0:
+            st.session_state.almi_goal['target_body_fat_percentage'] = almi_bf
+        else:
+            st.session_state.almi_goal.pop('target_body_fat_percentage', None)
     
     with col2:
         st.markdown("**FFMI Goal**")
@@ -1038,6 +1052,21 @@ def display_goals_form():
             help=get_metric_explanations()['tooltips']['goal_age']
         )
         st.session_state.ffmi_goal['target_age'] = ffmi_age
+        
+        ffmi_bf = st.number_input(
+            "Target Body Fat % (optional)",
+            min_value=1.0,
+            max_value=50.0,
+            value=st.session_state.ffmi_goal.get('target_body_fat_percentage', None),
+            step=0.1,
+            help="Leave empty for intelligent targeting based on health guidelines and feasibility",
+            format="%.1f",
+            key="ffmi_bf"
+        )
+        if ffmi_bf is not None and ffmi_bf > 0:
+            st.session_state.ffmi_goal['target_body_fat_percentage'] = ffmi_bf
+        else:
+            st.session_state.ffmi_goal.pop('target_body_fat_percentage', None)
 
 
 def display_results():
