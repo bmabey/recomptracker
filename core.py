@@ -1336,6 +1336,8 @@ def get_metric_explanations():
         'tooltips': {
             'z_score': 'Z-score: How many standard deviations you are from the population median. Positive values are above average.',
             'percentile': 'Percentile: The percentage of the population with lower values than yours.',
+            'almi': 'ALMI (Appendicular Lean Mass Index): Measures lean muscle mass in your arms and legs relative to height (kg/m²). Higher values indicate more functional muscle mass.',
+            'ffmi': 'FFMI (Fat-Free Mass Index): Measures your total lean body mass relative to height (kg/m²). Higher values indicate more overall muscle mass.',
             'training_level': 'Training level affects goal suggestions and muscle gain rate estimates.',
             'goal_age': 'Target age to reach your goal. Use "?" for automatic calculation based on realistic progression rates.',
             'target_percentile': 'The percentile you want to reach (e.g., 0.75 = 75th percentile).',
