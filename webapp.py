@@ -1337,7 +1337,7 @@ def display_results():
     
     # Display comparison table if available
     if comparison_table_html:
-        st.subheader("🔄 First vs Most Recent Scan Comparison")
+        st.write("**Changes So Far**")
         st.markdown(comparison_table_html, unsafe_allow_html=True)
     
     # Display results in tabs

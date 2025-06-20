@@ -2205,7 +2205,7 @@ def run_analysis(config_path='example_config.json', suggest_goals=False, target_
             create_body_fat_plot(df_results, user_info, return_figure=False)
             
             # Step 5: Print Comparison Table
-            print("\n--- First vs Most Recent Scan Comparison ---")
+            print("\n--- Changes So Far ---")
             comparison_table = create_scan_comparison_table(df_results, return_html=False)
             print(comparison_table)
             
