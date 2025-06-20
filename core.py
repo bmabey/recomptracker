@@ -1795,8 +1795,8 @@ def generate_fake_profile():
 
 def generate_fake_scans(user_info, num_scans=4):
     """
-    Generates realistic fake body composition scan data showing progression over time.
-    Targets 30-50th ALMI percentile starting range for realistic profiles.
+    Generates realistic fake DEXA scan data with varied progression patterns.
+    Creates different profile types including plateaus, setbacks, and varied endpoints.
     
     Args:
         user_info (dict): User profile with gender and training level
@@ -1828,9 +1828,34 @@ def generate_fake_scans(user_info, num_scans=4):
     else:
         current_age = random.uniform(25, 45)
     
-    # Target ALMI percentile between 32-52th percentile for realistic starting point
-    # Slightly higher range to account for calculation variations
-    target_percentile = random.uniform(0.32, 0.52)
+    # Choose a progression profile type to create variety
+    profile_types = [
+        'steady_improver',    # 20% - consistent moderate gains
+        'plateau_profile',    # 25% - good start then plateaus  
+        'ups_and_downs',      # 25% - variable progress with setbacks
+        'slow_starter',       # 15% - poor start then improvement
+        'inconsistent'        # 15% - yo-yo pattern
+    ]
+    weights = [0.20, 0.25, 0.25, 0.15, 0.15]
+    profile_type = random.choices(profile_types, weights=weights)[0]
+    
+    # Target ALMI percentile ranges based on profile type (more realistic starting points)
+    if profile_type == 'steady_improver':
+        target_percentile = random.uniform(0.25, 0.45)  # Start low-average, end high-average
+        endpoint_target = random.uniform(0.60, 0.80)
+    elif profile_type == 'plateau_profile':
+        target_percentile = random.uniform(0.30, 0.50)  # Start average, plateau
+        endpoint_target = random.uniform(0.40, 0.70) 
+    elif profile_type == 'ups_and_downs':
+        target_percentile = random.uniform(0.20, 0.45)  # Variable journey
+        endpoint_target = random.uniform(0.30, 0.65)
+    elif profile_type == 'slow_starter':
+        target_percentile = random.uniform(0.15, 0.35)  # Start low
+        endpoint_target = random.uniform(0.35, 0.60)
+    else:  # inconsistent
+        target_percentile = random.uniform(0.20, 0.40)  # Yo-yo pattern
+        endpoint_target = random.uniform(0.25, 0.55)
+    
     target_z = stats.norm.ppf(target_percentile)
     
     # Calculate target ALMI value for this age/percentile
@@ -1847,12 +1872,19 @@ def generate_fake_scans(user_info, num_scans=4):
     alm_ratio = random.uniform(0.42, 0.46) if gender == 'male' else random.uniform(0.38, 0.42)
     target_lean_mass = target_alm_lbs / alm_ratio
     
+    # Set initial body fat ranges based on profile type
     if gender == 'male':
-        initial_bf_pct = random.uniform(15, 25)
-        weight_range_factor = random.uniform(0.9, 1.1)
+        if profile_type in ['steady_improver', 'slow_starter']:
+            initial_bf_pct = random.uniform(18, 28)  # Higher starting BF for improvement potential
+        else:
+            initial_bf_pct = random.uniform(15, 25)
     else:
-        initial_bf_pct = random.uniform(20, 30)
-        weight_range_factor = random.uniform(0.9, 1.1)
+        if profile_type in ['steady_improver', 'slow_starter']:
+            initial_bf_pct = random.uniform(25, 35)  # Higher starting BF for improvement potential
+        else:
+            initial_bf_pct = random.uniform(20, 30)
+    
+    weight_range_factor = random.uniform(0.9, 1.1)
     
     # Calculate weight from lean mass and body fat
     initial_fat_mass = (target_lean_mass * initial_bf_pct) / (100 - initial_bf_pct)
@@ -1865,17 +1897,16 @@ def generate_fake_scans(user_info, num_scans=4):
     initial_arms_lean = initial_alm * random.uniform(0.33, 0.37)  # ~35% of ALM in arms
     initial_legs_lean = initial_alm * random.uniform(0.63, 0.67)  # ~65% of ALM in legs
     
-    # Generate progression rates based on training level (adjusted for longer time periods)
-    # These rates are now per 12-18 month periods instead of 3-6 months
+    # More conservative progression rates (reduced by 40-60% from original)
     if training_level == 'novice':
-        lean_gain_rate = random.uniform(6.0, 12.0)  # lbs per scan period (12-18 months)
-        fat_loss_rate = random.uniform(4.0, 10.0)
+        base_lean_gain = random.uniform(2.0, 6.0)  # lbs per scan period (12-18 months)
+        base_fat_loss = random.uniform(1.5, 5.0)
     elif training_level == 'intermediate':
-        lean_gain_rate = random.uniform(2.0, 8.0)
-        fat_loss_rate = random.uniform(2.0, 6.0)
+        base_lean_gain = random.uniform(1.0, 4.0)
+        base_fat_loss = random.uniform(1.0, 3.5)
     else:  # advanced
-        lean_gain_rate = random.uniform(1.0, 4.0)
-        fat_loss_rate = random.uniform(1.0, 3.0)
+        base_lean_gain = random.uniform(0.5, 2.0)
+        base_fat_loss = random.uniform(0.5, 2.0)
     
     # Generate scans over 36-60 months (3-5 years) for more realistic long-term tracking
     total_period_days = random.randint(1095, 1825)  # 3-5 years
@@ -1889,25 +1920,31 @@ def generate_fake_scans(user_info, num_scans=4):
             days_gap = random.randint(365, 550)  # 12-18 months between scans
             scan_date = scans[-1]['scan_date'] + timedelta(days=days_gap)
         
-        # Progressive body composition changes
+        # Progressive body composition changes based on profile type
         if i == 0:
             weight = initial_weight
             lean_mass = initial_lean_mass
             fat_mass = initial_fat_mass
             alm = initial_alm
         else:
-            # Add some randomness to progression
-            lean_change = lean_gain_rate * random.uniform(0.7, 1.3)
-            fat_change = -fat_loss_rate * random.uniform(0.5, 1.2)
+            # Calculate progress multiplier based on profile type and scan number
+            progress_multiplier = _get_progress_multiplier(profile_type, i, num_scans)
             
-            lean_mass = max(scans[-1]['total_lean_mass_lbs'] + lean_change, initial_lean_mass * 0.9)
-            fat_mass = max(scans[-1]['fat_mass_lbs'] + fat_change, initial_fat_mass * 0.4)
+            # Apply profile-specific progression logic
+            lean_change, fat_change = _calculate_profile_changes(
+                profile_type, i, num_scans, base_lean_gain, base_fat_loss, progress_multiplier
+            )
+            
+            # Apply changes with realistic bounds
+            lean_mass = max(scans[-1]['total_lean_mass_lbs'] + lean_change, initial_lean_mass * 0.85)
+            fat_mass = max(scans[-1]['fat_mass_lbs'] + fat_change, initial_fat_mass * 0.3)
+            fat_mass = min(fat_mass, initial_fat_mass * 1.3)  # Prevent excessive fat gain
             weight = lean_mass + fat_mass
             
             # ALM should progress proportionally with lean mass, but maintain realistic ratio
             prev_alm = scans[-1]['arms_lean_lbs'] + scans[-1]['legs_lean_lbs']
             alm_change = lean_change * alm_ratio  # ALM changes proportionally
-            alm = max(prev_alm + alm_change, initial_alm * 0.95)
+            alm = max(prev_alm + alm_change, initial_alm * 0.90)
         
         # Calculate derived values
         body_fat_percentage = (fat_mass / weight) * 100
@@ -1931,6 +1968,83 @@ def generate_fake_scans(user_info, num_scans=4):
         del scan['scan_date']
     
     return scans
+
+
+def _get_progress_multiplier(profile_type, scan_index, total_scans):
+    """
+    Calculate progress multiplier based on profile type and position in timeline.
+    
+    Returns:
+        float: Multiplier for base progression rates
+    """
+    import random
+    
+    progress_ratio = scan_index / (total_scans - 1) if total_scans > 1 else 0
+    
+    if profile_type == 'steady_improver':
+        # Consistent moderate progress with slight decline over time
+        return random.uniform(0.8, 1.2) * (1 - progress_ratio * 0.3)
+    
+    elif profile_type == 'plateau_profile':
+        # Good progress early, then plateau
+        if progress_ratio < 0.4:
+            return random.uniform(1.0, 1.5)  # Good early progress
+        else:
+            return random.uniform(-0.2, 0.3)  # Plateau/minimal progress
+    
+    elif profile_type == 'ups_and_downs':
+        # Variable progress with setbacks
+        return random.uniform(-0.8, 1.5)  # Wide range including setbacks
+    
+    elif profile_type == 'slow_starter':
+        # Poor early progress, then improvement
+        if progress_ratio < 0.5:
+            return random.uniform(-0.3, 0.4)  # Poor early progress
+        else:
+            return random.uniform(0.8, 1.4)  # Better later progress
+    
+    else:  # inconsistent
+        # Yo-yo pattern
+        if scan_index % 2 == 0:
+            return random.uniform(0.6, 1.3)  # Good periods
+        else:
+            return random.uniform(-0.6, 0.4)  # Regression periods
+    
+
+def _calculate_profile_changes(profile_type, scan_index, total_scans, base_lean_gain, base_fat_loss, progress_multiplier):
+    """
+    Calculate lean mass and fat mass changes based on profile type and multiplier.
+    
+    Returns:
+        tuple: (lean_change, fat_change) in lbs
+    """
+    import random
+    
+    # Base changes with profile multiplier
+    lean_change = base_lean_gain * progress_multiplier * random.uniform(0.7, 1.3)
+    fat_change = -base_fat_loss * abs(progress_multiplier) * random.uniform(0.5, 1.2)
+    
+    # Add profile-specific adjustments
+    if profile_type == 'ups_and_downs':
+        # 30% chance of a significant setback
+        if random.random() < 0.3:
+            lean_change *= -0.5  # Lose some lean mass
+            fat_change *= -0.8   # Gain some fat back
+    
+    elif profile_type == 'inconsistent':
+        # More extreme swings
+        if progress_multiplier < 0:
+            lean_change = abs(lean_change) * -0.7  # Lose lean mass
+            fat_change = abs(fat_change) * 0.6     # Gain fat
+    
+    elif profile_type == 'plateau_profile':
+        # Later scans show minimal change
+        progress_ratio = scan_index / (total_scans - 1) if total_scans > 1 else 0
+        if progress_ratio > 0.4:
+            lean_change *= 0.2  # Minimal lean changes
+            fat_change *= 0.3   # Minimal fat changes
+    
+    return lean_change, fat_change
 
 def get_metric_explanations():
     """
