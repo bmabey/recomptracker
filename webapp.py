@@ -45,7 +45,7 @@ import scipy.stats as stats
 
 # Configure page
 st.set_page_config(
-    page_title="DEXA Body Composition Analysis",
+    page_title="ALMI & FFMI Progress Tracker & Goal Calculator",
     page_icon="💪",
     layout="wide",
     initial_sidebar_state="collapsed"
