@@ -222,35 +222,6 @@ def decode_state_from_url():
         return False
 
 
-def copy_url_to_clipboard(url):
-    """Create JavaScript to copy URL to clipboard."""
-    copy_js = f"""
-    <script>
-    function copyToClipboard() {{
-        const url = `{url}`;
-        navigator.clipboard.writeText(url).then(function() {{
-            // Show success message
-            const successDiv = document.createElement('div');
-            successDiv.innerHTML = '<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0;">✅ URL copied to clipboard!</div>';
-            document.body.appendChild(successDiv);
-            
-            // Remove after 3 seconds
-            setTimeout(() => {{
-                if (successDiv.parentNode) {{
-                    successDiv.parentNode.removeChild(successDiv);
-                }}
-            }}, 3000);
-        }}, function(err) {{
-            console.error('Could not copy text: ', err);
-        }});
-    }}
-    
-    // Auto-execute
-    copyToClipboard();
-    </script>
-    """
-    return copy_js
-
 
 def get_inferred_training_level():
     """Infer training level from current scan data."""
@@ -721,12 +692,42 @@ def format_goal_info(goal_calc, metric):
     return goal_info
 
 
+def display_share_button():
+    """Display a simple share button that shows URL for copying."""
+    if 'share_url' in st.session_state and st.session_state.share_url:
+        # Initialize show_url state if not exists
+        if 'show_share_url' not in st.session_state:
+            st.session_state.show_share_url = False
+        
+        # Share button that toggles URL display
+        if st.button("🔗", help="Show shareable URL", key="share_button"):
+            st.session_state.show_share_url = not st.session_state.show_share_url
+        
+        # Show compact URL input when button is clicked
+        if st.session_state.show_share_url:
+            st.text_input(
+                "Copy URL:",
+                value=st.session_state.share_url,
+                key="share_url_display",
+                help="Click in the field and press Ctrl+A then Ctrl+C (or Cmd+A, Cmd+C on Mac) to copy",
+                label_visibility="collapsed"
+            )
+
+
 def display_header():
     """Display the application header with explanations."""
     explanations = get_metric_explanations()
     
-    st.title(explanations['header_info']['title'])
-    st.markdown(explanations['header_info']['subtitle'])
+    # Header with title and share button
+    col1, col2 = st.columns([0.85, 0.15])
+    
+    with col1:
+        st.title(explanations['header_info']['title'])
+        st.markdown(explanations['header_info']['subtitle'])
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)  # Add some spacing
+        display_share_button()
     
     # Metric explanations in expandable sections
     with st.expander("📖 Understanding the Metrics", expanded=False):
@@ -1281,31 +1282,6 @@ def main():
         # Analyze button
         if st.button("🔬 Run Analysis", type="primary", use_container_width=True):
             run_analysis()
-        
-        # Share section
-        st.divider()
-        st.markdown("### 🔗 Share Configuration")
-        
-        # Show current URL status
-        if 'share_url' in st.session_state and st.session_state.share_url:
-            st.success("🔗 URL automatically updated!")
-            st.text_area(
-                "Current Share URL", 
-                st.session_state.share_url, 
-                height=80, 
-                help="This URL updates automatically as you edit your configuration. Copy it to share with others."
-            )
-            
-            # Show URL length info
-            url_length = len(st.session_state.share_url)
-            if url_length < 1500:
-                st.info(f"📊 URL length: {url_length} characters (Excellent)")
-            elif url_length < 2000:
-                st.warning(f"📊 URL length: {url_length} characters (Good)")
-            else:
-                st.error(f"📊 URL length: {url_length} characters (May be too long)")
-        else:
-            st.info("📝 Enter some data above and the shareable URL will appear here automatically")
     
     with col2:
         # Right panel - Results
