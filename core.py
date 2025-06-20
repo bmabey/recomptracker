@@ -1777,8 +1777,8 @@ def get_metric_explanations():
     """
     return {
         'header_info': {
-            'title': 'DEXA Body Composition Analysis',
-            'subtitle': 'Analyze your body composition using scientifically validated percentile curves',
+            'title': 'RecompTracker',
+            'subtitle': 'Analyze and your body composition using scientifically validated percentile curves. Set your body recomposition goals and track your progress.',
             'almi_explanation': '''
             **ALMI (Appendicular Lean Mass Index)** measures the lean muscle mass in your arms and legs 
             relative to your height. It's calculated as (Arms Lean Mass + Legs Lean Mass) ÷ Height². 
