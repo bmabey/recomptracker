@@ -823,7 +823,6 @@ def display_header():
             st.markdown(explanations['header_info']['ffmi_explanation'])
         
         st.markdown(explanations['header_info']['percentiles_explanation'])
-        st.info(explanations['header_info']['population_source'])
 
 
 def inches_to_feet_inches_str(inches):
