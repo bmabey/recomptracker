@@ -1592,6 +1592,170 @@ def create_plotly_body_fat_plot(df_results, user_info):
 
 
 # ---------------------------------------------------------------------------
+# COMPARISON TABLE FUNCTIONS
+# ---------------------------------------------------------------------------
+
+def create_scan_comparison_table(df_results, return_html=False):
+    """
+    Creates a comparison table showing first scan vs most recent scan with changes.
+    
+    Args:
+        df_results (pd.DataFrame): Complete results DataFrame with scan history
+        return_html (bool): If True, returns HTML table with color coding for web interface
+        
+    Returns:
+        str: Formatted table as string (CLI) or HTML (web)
+    """
+    # Filter out goal rows to get only actual scans
+    scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+    
+    if len(scan_data) < 1:
+        return "No scan data available for comparison"
+    
+    # Get first and last scans
+    first_scan = scan_data.iloc[0]
+    last_scan = scan_data.iloc[-1] if len(scan_data) > 1 else first_scan
+    
+    # Prepare data for the table
+    table_data = []
+    
+    # First scan row (no changes)
+    first_row = [
+        first_scan['date_str'],
+        f"{first_scan['total_weight_lbs']:.1f}",
+        "-",  # No change for first scan
+        f"{first_scan['total_lean_mass_lbs']:.1f}",
+        "-",  # No change for first scan
+        f"{first_scan['fat_mass_lbs']:.1f}",
+        "-",  # No change for first scan
+        f"{first_scan['body_fat_percentage']:.1f}%",
+        "-"   # No change for first scan
+    ]
+    
+    # Most recent scan row (with changes from first)
+    if len(scan_data) > 1:
+        weight_change = last_scan['weight_change_first']
+        lean_change = last_scan['lean_change_first'] 
+        fat_change = last_scan['fat_change_first']
+        bf_change = last_scan['bf_change_first']
+        
+        last_row = [
+            last_scan['date_str'],
+            f"{last_scan['total_weight_lbs']:.1f}",
+            f"{weight_change:+.1f}" if pd.notna(weight_change) else "N/A",
+            f"{last_scan['total_lean_mass_lbs']:.1f}",
+            f"{lean_change:+.1f}" if pd.notna(lean_change) else "N/A",
+            f"{last_scan['fat_mass_lbs']:.1f}",
+            f"{fat_change:+.1f}" if pd.notna(fat_change) else "N/A",
+            f"{last_scan['body_fat_percentage']:.1f}%",
+            f"{bf_change:+.1f}%" if pd.notna(bf_change) else "N/A"
+        ]
+    else:
+        # Only one scan - same as first row
+        last_row = first_row.copy()
+    
+    headers = ['Date', 'Total Mass', 'Change', 'Lean Mass', 'Change', 'Fat Mass', 'Change', 'Body Fat %', 'Change']
+    table_data = [first_row, last_row]
+    
+    if return_html:
+        # Create HTML table with color coding
+        html = '<table class="scan-comparison-table" style="border-collapse: collapse; margin: 20px 0;">\n'
+        
+        # Headers
+        html += '  <thead>\n    <tr>\n'
+        for header in headers:
+            html += f'      <th style="border: 1px solid #ddd; padding: 8px; background-color: #f5f5f5; text-align: center;">{header}</th>\n'
+        html += '    </tr>\n  </thead>\n'
+        
+        # Data rows
+        html += '  <tbody>\n'
+        for i, row in enumerate(table_data):
+            html += '    <tr>\n'
+            for j, cell in enumerate(row):
+                # Determine cell styling based on content and position
+                style = "border: 1px solid #ddd; padding: 8px; text-align: center;"
+                
+                # Color code change cells (change columns at indices 2, 4, 6, 8) in the last row
+                if j in [2, 4, 6, 8] and i == 1:  # Change columns, last row only
+                    if cell != "-" and cell != "N/A":
+                        # Parse the change value
+                        try:
+                            if cell.endswith('%'):
+                                change_val = float(cell.replace('%', '').replace('+', ''))
+                            else:
+                                change_val = float(cell.replace('+', ''))
+                            
+                            # Color coding logic based on column position
+                            if j == 4:  # Lean mass change - positive is good
+                                if change_val > 0:
+                                    style += " background-color: #d4edda; color: #155724;"  # Green
+                                elif change_val < 0:
+                                    style += " background-color: #f8d7da; color: #721c24;"  # Red
+                            elif j == 6:  # Fat mass change - negative is good (fat loss)
+                                if change_val < 0:
+                                    style += " background-color: #d4edda; color: #155724;"  # Green
+                                elif change_val > 0:
+                                    style += " background-color: #f8d7da; color: #721c24;"  # Red
+                            elif j == 8:  # Body fat % change - negative is good (BF% reduction)
+                                if change_val < 0:
+                                    style += " background-color: #d4edda; color: #155724;"  # Green
+                                elif change_val > 0:
+                                    style += " background-color: #f8d7da; color: #721c24;"  # Red
+                            # Weight change (j == 2) remains neutral - no color coding
+                        except ValueError:
+                            pass  # Keep default styling if can't parse
+                
+                # Also color code the actual values for improved visualization in the last row
+                elif j % 2 == 0 and j > 0 and i == 1:  # Value columns (even indices), last row only
+                    # Color the actual values based on corresponding changes
+                    change_cell_idx = j + 1
+                    if change_cell_idx < len(row):
+                        change_cell = row[change_cell_idx]
+                        if change_cell != "-" and change_cell != "N/A":
+                            try:
+                                if change_cell.endswith('%'):
+                                    change_val = float(change_cell.replace('%', '').replace('+', ''))
+                                else:
+                                    change_val = float(change_cell.replace('+', ''))
+                                
+                                # Apply lighter background colors to value cells
+                                if j == 3:  # Lean mass value - positive change is good
+                                    if change_val > 0:
+                                        style += " background-color: #e8f5e8;"  # Light green
+                                    elif change_val < 0:
+                                        style += " background-color: #fce8e8;"  # Light red
+                                elif j == 5:  # Fat mass value - negative change is good (fat loss)
+                                    if change_val < 0:
+                                        style += " background-color: #e8f5e8;"  # Light green
+                                    elif change_val > 0:
+                                        style += " background-color: #fce8e8;"  # Light red
+                                elif j == 7:  # Body fat % value - negative change is good (BF% reduction)
+                                    if change_val < 0:
+                                        style += " background-color: #e8f5e8;"  # Light green
+                                    elif change_val > 0:
+                                        style += " background-color: #fce8e8;"  # Light red
+                            except ValueError:
+                                pass
+                
+                html += f'      <td style="{style}">{cell}</td>\n'
+            html += '    </tr>\n'
+        
+        html += '  </tbody>\n</table>'
+        return html
+    else:
+        # Return plain text table for CLI
+        try:
+            from tabulate import tabulate
+            return tabulate(table_data, headers=headers, tablefmt='pipe')
+        except ImportError:
+            # Fallback to simple formatting
+            header_str = ' | '.join(f"{h:>12}" for h in headers)
+            separator = '-' * len(header_str)
+            rows = [' | '.join(f"{cell:>12}" for cell in row) for row in table_data]
+            return f"{header_str}\n{separator}\n" + "\n".join(rows)
+
+
+# ---------------------------------------------------------------------------
 # HELPER FUNCTIONS FOR WEB INTERFACE
 # ---------------------------------------------------------------------------
 
@@ -1922,7 +2086,7 @@ def run_analysis_from_data(user_info, scan_history, almi_goal=None, ffmi_goal=No
         ffmi_goal (dict): FFMI goal parameters (optional)
         
     Returns:
-        tuple: (df_results, goal_calculations, figures)
+        tuple: (df_results, goal_calculations, figures, comparison_table_html)
     """
     # Load LMS Data
     lms_functions = {
@@ -1946,7 +2110,10 @@ def run_analysis_from_data(user_info, scan_history, almi_goal=None, ffmi_goal=No
     bf_fig = create_body_fat_plot(df_results, user_info, return_figure=True)
     figures = {'ALMI': almi_fig, 'FFMI': ffmi_fig, 'BODY_FAT': bf_fig}
     
-    return df_results, goal_calculations, figures
+    # Generate comparison table for web interface
+    comparison_table_html = create_scan_comparison_table(df_results, return_html=True)
+    
+    return df_results, goal_calculations, figures, comparison_table_html
 
 def run_analysis(config_path='example_config.json', suggest_goals=False, target_percentile=0.90, 
                  training_level_override=None, return_results=False):
@@ -2025,14 +2192,20 @@ def run_analysis(config_path='example_config.json', suggest_goals=False, target_
             ffmi_fig = create_metric_plot(df_results, 'FFMI', lms_functions, goal_calculations, return_figure=True)
             bf_fig = create_body_fat_plot(df_results, user_info, return_figure=True)
             figures = {'ALMI': almi_fig, 'FFMI': ffmi_fig, 'BODY_FAT': bf_fig}
-            return df_results, goal_calculations, figures
+            comparison_table_html = create_scan_comparison_table(df_results, return_html=True)
+            return df_results, goal_calculations, figures, comparison_table_html
         else:
             # Save plots to disk for CLI interface
             plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_calculations)
             plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_calculations)
             create_body_fat_plot(df_results, user_info, return_figure=False)
             
-            # Step 5: Print Final Table
+            # Step 5: Print Comparison Table
+            print("\n--- Changes So Far ---")
+            comparison_table = create_scan_comparison_table(df_results, return_html=False)
+            print(comparison_table)
+            
+            # Step 6: Print Final Table
             print("\n--- Final Comprehensive Data Table ---")
             # Select columns for display
             display_columns = [
