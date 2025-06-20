@@ -1072,7 +1072,7 @@ def display_goals_form():
 def display_results():
     """Display analysis results."""
     if st.session_state.analysis_results is None:
-        st.info("👆 Enter your data above and the analysis will appear here automatically")
+        st.info("👈 Enter your data to the left and run the analysis")
         return
     
     results = st.session_state.analysis_results
