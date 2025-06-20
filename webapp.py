@@ -1334,7 +1334,7 @@ def display_results():
             )
     
     # Display results in tabs
-    tab1, tab2 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis"])
+    tab1, tab2, tab3 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis"])
     
     with tab1:
         # Show ALMI goal information if available - above the plot
@@ -1458,6 +1458,112 @@ def display_results():
                     df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
         st.dataframe(df_ffmi, use_container_width=True)
+    
+    with tab3:
+        # Body Fat Analysis tab
+        st.subheader("📈 Body Fat Percentage Analysis")
+        
+        # Body fat summary metrics for latest scan
+        if len(scan_data) > 0:
+            latest_scan = scan_data.iloc[-1]
+            bf_pct = latest_scan['body_fat_percentage']
+            
+            # Get user's gender for health range assessment
+            user_info = st.session_state.user_info.copy()
+            user_info['gender_code'] = parse_gender(user_info['gender'])
+            gender = user_info['gender']
+            
+            # Import the function from core
+            from core import get_bf_category
+            bf_category = get_bf_category(bf_pct, gender)
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Current Body Fat",
+                    f"{bf_pct:.1f}%",
+                    help="Current body fat percentage from latest DEXA scan"
+                )
+            
+            with col2:
+                # Calculate change from previous scan if available
+                bf_change = latest_scan.get('bf_change_last', 0) if pd.notna(latest_scan.get('bf_change_last')) else None
+                change_display = f"{bf_change:+.1f}%" if bf_change is not None else None
+                st.metric(
+                    "Change (Last Scan)",
+                    change_display if change_display else "N/A",
+                    help="Change in body fat percentage from previous scan"
+                )
+            
+            with col3:
+                # Show health category with color coding
+                category_colors = {
+                    'athletic': '🟢',
+                    'fitness': '🔵', 
+                    'acceptable': '🟡',
+                    'overweight': '🔴'
+                }
+                category_icon = category_colors.get(bf_category, '⚪')
+                st.metric(
+                    "Health Category",
+                    f"{category_icon} {bf_category.title()}",
+                    help=f"Health category based on body fat percentage for {gender}s"
+                )
+        
+        # Body fat plot - full width
+        try:
+            # Create plotly body fat plot
+            from core import create_plotly_body_fat_plot
+            user_info = st.session_state.user_info.copy()
+            user_info['gender_code'] = parse_gender(user_info['gender'])
+            
+            bf_fig = create_plotly_body_fat_plot(df_results, user_info)
+            st.plotly_chart(bf_fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error creating body fat plot: {e}")
+            # Fallback to matplotlib if plotly fails
+            if 'BODY_FAT' in figures:
+                st.pyplot(figures['BODY_FAT'])
+        
+        # Body fat-focused data table
+        st.subheader("📋 Body Fat Results Table")
+        
+        bf_columns = [
+            'age_at_scan', 
+            'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage'
+        ]
+        
+        bf_names = [
+            'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %'
+        ]
+        
+        # Add change columns if they exist
+        if 'bf_change_last' in df_results.columns:
+            bf_columns.extend(['bf_change_last', 'bf_change_first'])
+            bf_names.extend(['Change (Last)', 'Change (First)'])
+        
+        # Check which columns exist in the dataframe
+        available_bf_columns = [col for col in bf_columns if col in df_results.columns]
+        available_bf_names = [bf_names[i] for i, col in enumerate(bf_columns) if col in df_results.columns]
+        
+        df_bf = df_results[available_bf_columns].copy()
+        df_bf.columns = available_bf_names
+        
+        # Format numeric columns
+        for col in df_bf.columns:
+            if df_bf[col].dtype in ['float64', 'int64']:
+                if 'Change' in col:
+                    # Changes - show with +/- sign
+                    df_bf[col] = df_bf[col].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
+                elif 'Body Fat %' in col:
+                    # Body fat percentage
+                    df_bf[col] = df_bf[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
+                else:
+                    # Regular values
+                    df_bf[col] = df_bf[col].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
+        
+        st.dataframe(df_bf, use_container_width=True)
     
     # Download button for CSV
     csv_buffer = BytesIO()
