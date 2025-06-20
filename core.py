@@ -975,8 +975,18 @@ def get_bf_category(bf_percentage, gender):
         return 'fitness'
     elif ranges['acceptable'][0] <= bf_percentage <= ranges['acceptable'][1]:
         return 'acceptable'
-    else:
+    elif bf_percentage >= ranges['overweight'][0]:
         return 'overweight'
+    else:
+        # Handle edge cases between ranges - assign to closest range
+        if bf_percentage < ranges['athletic'][0]:
+            return 'athletic'  # Below athletic range (very lean)
+        elif bf_percentage < ranges['fitness'][0]:
+            return 'athletic'  # Between athletic and fitness
+        elif bf_percentage < ranges['acceptable'][0]:
+            return 'fitness'   # Between fitness and acceptable
+        else:
+            return 'acceptable'  # Between acceptable and overweight
 
 
 def calculate_target_bf_percentage(current_bf, gender, goal_duration_months, training_level='intermediate'):
@@ -1339,6 +1349,247 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_calcu
         df_results.to_csv(csv_filename, index=False)
         print(f"Table data saved as: {csv_filename}")
 
+def create_body_fat_plot(df_results, user_info, return_figure=False):
+    """
+    Creates a line plot showing body fat percentage progression over time.
+    
+    Args:
+        df_results (pd.DataFrame): Complete results DataFrame with scan history
+        user_info (dict): User information including gender for health ranges
+        return_figure (bool): If True, returns matplotlib figure object instead of saving
+        
+    Returns:
+        matplotlib.figure.Figure or None: Figure object if return_figure=True, None otherwise
+    """
+    if not return_figure:
+        print("Generating body fat percentage plot...")
+    
+    # Set up the plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
+    # Filter data for actual scans (not goal rows)
+    scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+    
+    if len(scan_data) == 0:
+        if return_figure:
+            return fig
+        else:
+            plt.close()
+            print("No scan data found for body fat plot")
+            return None
+    
+    # Get gender for health ranges
+    if 'gender' in user_info:
+        gender = user_info['gender']
+    else:
+        gender = get_gender_string(user_info['gender_code'])
+    
+    # Add healthy body fat percentage ranges as background shading
+    ranges = HEALTHY_BF_RANGES[gender]
+    
+    # Create age range for background shading
+    age_min = scan_data['age_at_scan'].min() - 1
+    age_max = scan_data['age_at_scan'].max() + 1
+    
+    # Add background shading for health ranges
+    ax.axhspan(ranges['athletic'][0], ranges['athletic'][1], 
+               color='lightgreen', alpha=0.2, label='Athletic Range')
+    ax.axhspan(ranges['fitness'][0], ranges['fitness'][1], 
+               color='lightblue', alpha=0.2, label='Fitness Range')
+    ax.axhspan(ranges['acceptable'][0], ranges['acceptable'][1], 
+               color='lightyellow', alpha=0.2, label='Acceptable Range')
+    
+    # Plot the actual data line
+    ax.plot(scan_data['age_at_scan'], scan_data['body_fat_percentage'], 
+            color='red', linewidth=3, marker='o', markersize=8, 
+            label='Your Body Fat %', zorder=10)
+    
+    # Add data point annotations with values
+    for _, scan in scan_data.iterrows():
+        ax.annotate(f'{scan["body_fat_percentage"]:.1f}%', 
+                   (scan['age_at_scan'], scan['body_fat_percentage']),
+                   textcoords="offset points", xytext=(0,10), ha='center',
+                   fontsize=10, fontweight='bold', color='darkred')
+    
+    # Customize plot
+    ax.set_xlabel('Age (years)', fontsize=12)
+    ax.set_ylabel('Body Fat Percentage (%)', fontsize=12)
+    ax.set_title('Body Fat Percentage Over Time', fontsize=14, fontweight='bold')
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.grid(True, alpha=0.3)
+    
+    # Set reasonable y-axis limits based on data and health ranges
+    y_min = min(scan_data['body_fat_percentage'].min() - 2, ranges['athletic'][0] - 1)
+    y_max = max(scan_data['body_fat_percentage'].max() + 2, ranges['acceptable'][1] + 1)
+    ax.set_ylim(y_min, y_max)
+    
+    plt.tight_layout()
+    
+    if return_figure:
+        return fig
+    else:
+        # Save plot
+        filename = "bf_plot.png"
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Body fat plot saved as: {filename}")
+        return None
+
+def create_plotly_body_fat_plot(df_results, user_info):
+    """
+    Creates interactive Plotly plot for body fat percentage over time.
+    
+    Args:
+        df_results (pd.DataFrame): Complete results DataFrame with scan history
+        user_info (dict): User information including gender for health ranges
+        
+    Returns:
+        plotly.graph_objects.Figure: Interactive plotly figure
+    """
+    # Import plotly here to avoid import errors in CLI-only environments
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+    except ImportError:
+        raise ImportError("Plotly is required for interactive body fat plots")
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Filter data for actual scans (not goal rows)
+    scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+    
+    if len(scan_data) == 0:
+        fig.add_annotation(
+            text="No scan data available",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False
+        )
+        return fig
+    
+    # Get gender for health ranges
+    if 'gender' in user_info:
+        gender = user_info['gender']
+    else:
+        gender = get_gender_string(user_info['gender_code'])
+    
+    # Add healthy body fat percentage ranges as background shading
+    ranges = HEALTHY_BF_RANGES[gender]
+    
+    # Create age range for background shading
+    age_min = scan_data['age_at_scan'].min() - 1
+    age_max = scan_data['age_at_scan'].max() + 1
+    
+    # Add background shapes for health ranges
+    fig.add_hrect(
+        y0=ranges['athletic'][0], y1=ranges['athletic'][1],
+        fillcolor="lightgreen", opacity=0.2,
+        layer="below", line_width=0,
+        annotation_text="Athletic Range", annotation_position="top left"
+    )
+    fig.add_hrect(
+        y0=ranges['fitness'][0], y1=ranges['fitness'][1],
+        fillcolor="lightblue", opacity=0.2,
+        layer="below", line_width=0,
+        annotation_text="Fitness Range", annotation_position="top left"
+    )
+    fig.add_hrect(
+        y0=ranges['acceptable'][0], y1=ranges['acceptable'][1],
+        fillcolor="lightyellow", opacity=0.2,
+        layer="below", line_width=0,
+        annotation_text="Acceptable Range", annotation_position="top left"
+    )
+    
+    # Create hover text with comprehensive information
+    hover_text = []
+    for _, scan in scan_data.iterrows():
+        # Calculate body fat category
+        bf_pct = scan['body_fat_percentage']
+        bf_category = get_bf_category(bf_pct, gender)
+        
+        # Build hover info
+        hover_info = [
+            f"<b>Scan Date:</b> {scan['date_str']}",
+            f"<b>Age:</b> {scan['age_at_scan']:.1f} years",
+            f"<b>Body Fat:</b> {bf_pct:.1f}%",
+            f"<b>Category:</b> {bf_category.title()}",
+            "",
+            f"<b>Weight:</b> {scan['total_weight_lbs']:.1f} lbs",
+            f"<b>Lean Mass:</b> {scan['total_lean_mass_lbs']:.1f} lbs",
+            f"<b>Fat Mass:</b> {scan['fat_mass_lbs']:.1f} lbs"
+        ]
+        
+        # Add change information if available
+        if pd.notna(scan.get('bf_change_last')):
+            change_last = scan['bf_change_last']
+            change_sign = "+" if change_last >= 0 else ""
+            hover_info.extend([
+                "",
+                f"<b>Change from last scan:</b> {change_sign}{change_last:.1f}%"
+            ])
+        
+        if pd.notna(scan.get('bf_change_first')):
+            change_first = scan['bf_change_first']
+            change_sign = "+" if change_first >= 0 else ""
+            hover_info.extend([
+                f"<b>Change from first scan:</b> {change_sign}{change_first:.1f}%"
+            ])
+        
+        hover_text.append("<br>".join(hover_info))
+    
+    # Add the main data line with markers
+    fig.add_trace(go.Scatter(
+        x=scan_data['age_at_scan'],
+        y=scan_data['body_fat_percentage'],
+        mode='lines+markers',
+        name='Your Body Fat %',
+        line=dict(color='red', width=3),
+        marker=dict(
+            color='red',
+            size=10,
+            line=dict(color='black', width=1)
+        ),
+        hovertemplate='%{text}<extra></extra>',
+        text=hover_text
+    ))
+    
+    # Customize layout
+    y_min = min(scan_data['body_fat_percentage'].min() - 2, ranges['athletic'][0] - 1)
+    y_max = max(scan_data['body_fat_percentage'].max() + 2, ranges['acceptable'][1] + 1)
+    
+    fig.update_layout(
+        title=dict(
+            text='Body Fat Percentage Over Time',
+            font=dict(size=16, family="Arial", color="black"),
+            x=0.5
+        ),
+        xaxis=dict(
+            title=dict(text='Age (years)', font=dict(size=14)),
+            tickfont=dict(size=12),
+            gridcolor='lightgray',
+            gridwidth=0.5
+        ),
+        yaxis=dict(
+            title=dict(text='Body Fat Percentage (%)', font=dict(size=14)),
+            tickfont=dict(size=12),
+            gridcolor='lightgray',
+            gridwidth=0.5,
+            range=[y_min, y_max]
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hovermode='closest',
+        hoverlabel=dict(
+            bgcolor="white",
+            bordercolor="black",
+            font_size=12
+        ),
+        height=600,
+        showlegend=True
+    )
+    
+    return fig
+
 
 # ---------------------------------------------------------------------------
 # HELPER FUNCTIONS FOR WEB INTERFACE
@@ -1696,7 +1947,8 @@ def run_analysis_from_data(user_info, scan_history, almi_goal=None, ffmi_goal=No
     # Generate plots
     almi_fig = create_metric_plot(df_results, 'ALMI', lms_functions, goal_calculations, return_figure=True)
     ffmi_fig = create_metric_plot(df_results, 'FFMI', lms_functions, goal_calculations, return_figure=True)
-    figures = {'ALMI': almi_fig, 'FFMI': ffmi_fig}
+    bf_fig = create_body_fat_plot(df_results, user_info, return_figure=True)
+    figures = {'ALMI': almi_fig, 'FFMI': ffmi_fig, 'BODY_FAT': bf_fig}
     
     return df_results, goal_calculations, figures
 
@@ -1775,12 +2027,14 @@ def run_analysis(config_path='example_config.json', suggest_goals=False, target_
             # Return figure objects for web interface
             almi_fig = create_metric_plot(df_results, 'ALMI', lms_functions, goal_calculations, return_figure=True)
             ffmi_fig = create_metric_plot(df_results, 'FFMI', lms_functions, goal_calculations, return_figure=True)
-            figures = {'ALMI': almi_fig, 'FFMI': ffmi_fig}
+            bf_fig = create_body_fat_plot(df_results, user_info, return_figure=True)
+            figures = {'ALMI': almi_fig, 'FFMI': ffmi_fig, 'BODY_FAT': bf_fig}
             return df_results, goal_calculations, figures
         else:
             # Save plots to disk for CLI interface
             plot_metric_with_table(df_results, 'ALMI', lms_functions, goal_calculations)
             plot_metric_with_table(df_results, 'FFMI', lms_functions, goal_calculations)
+            create_body_fat_plot(df_results, user_info, return_figure=False)
             
             # Step 5: Print Final Table
             print("\n--- Final Comprehensive Data Table ---")
