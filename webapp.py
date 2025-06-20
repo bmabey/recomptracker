@@ -1345,12 +1345,6 @@ def display_results():
                     help="Change in ALMI percentile since first scan"
                 )
         
-        # Show ALMI goal information if available - above the plot
-        if 'almi' in goal_calculations:
-            goal_info = format_goal_info(goal_calculations['almi'], 'almi')
-            if goal_info:
-                st.markdown(goal_info)
-        
         # ALMI plot - full width
         
         # Create plotly figure with hover tooltips
@@ -1374,6 +1368,12 @@ def display_results():
             st.error(f"Error creating interactive plot: {e}")
             # Fallback to matplotlib if plotly fails
             st.pyplot(figures['ALMI'])
+        
+        # Show ALMI goal information if available - below the plot
+        if 'almi' in goal_calculations:
+            goal_info = format_goal_info(goal_calculations['almi'], 'almi')
+            if goal_info:
+                st.markdown(goal_info)
         
         # ALMI-focused data table
         st.subheader("📋 ALMI Results Table")
@@ -1443,12 +1443,6 @@ def display_results():
                     help="Change in FFMI percentile since first scan"
                 )
         
-        # Show FFMI goal information if available - above the plot
-        if 'ffmi' in goal_calculations:
-            goal_info = format_goal_info(goal_calculations['ffmi'], 'ffmi')
-            if goal_info:
-                st.markdown(goal_info)
-        
         # FFMI plot - full width
         
         # Create plotly figure with hover tooltips
@@ -1471,6 +1465,12 @@ def display_results():
             st.error(f"Error creating interactive plot: {e}")
             # Fallback to matplotlib if plotly fails
             st.pyplot(figures['FFMI'])
+        
+        # Show FFMI goal information if available - below the plot
+        if 'ffmi' in goal_calculations:
+            goal_info = format_goal_info(goal_calculations['ffmi'], 'ffmi')
+            if goal_info:
+                st.markdown(goal_info)
         
         # FFMI-focused data table
         st.subheader("📋 FFMI Results Table")
