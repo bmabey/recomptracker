@@ -86,7 +86,7 @@ def get_compact_config():
     compact = {
         "u": {
             "bd": st.session_state.user_info.get('birth_date', ''),
-            "h": st.session_state.user_info.get('height_in', 66.0),
+            "h": st.session_state.user_info.get('height_in'),
             "g": st.session_state.user_info.get('gender', 'male')[0],  # 'm' or 'f'
         }
     }
@@ -128,7 +128,7 @@ def expand_compact_config(compact_config):
     # User info
     user_info = {
         'birth_date': compact_config.get("u", {}).get("bd", ''),
-        'height_in': compact_config.get("u", {}).get("h", 66.0),
+        'height_in': compact_config.get("u", {}).get("h"),
         'gender': 'male' if compact_config.get("u", {}).get("g", 'm') == 'm' else 'female',
         'training_level': compact_config.get("u", {}).get("tl", '')
     }
@@ -532,7 +532,7 @@ def auto_update_url():
     try:
         # Only update if we have meaningful data
         if not (st.session_state.user_info.get('birth_date') or 
-                st.session_state.user_info.get('height_in', 66.0) != 66.0 or
+                st.session_state.user_info.get('height_in') is not None or
                 len(st.session_state.scan_history) > 0):
             return
         
@@ -593,7 +593,7 @@ def initialize_session_state():
     if 'user_info' not in st.session_state:
         st.session_state.user_info = {
             'birth_date': '',
-            'height_in': 66.0,
+            'height_in': None,
             'gender': 'male',
             'training_level': ''
         }
@@ -763,6 +763,30 @@ def display_share_button():
             )
 
 
+def reset_all_data():
+    """Reset all form data and analysis results."""
+    st.session_state.user_info = {
+        'birth_date': '',
+        'height_in': None,
+        'gender': 'male',
+        'training_level': ''
+    }
+    st.session_state.scan_history = []
+    st.session_state.almi_goal = {'target_percentile': 0.75, 'target_age': '?'}
+    st.session_state.ffmi_goal = {'target_percentile': 0.75, 'target_age': '?'}
+    st.session_state.analysis_results = None
+    
+    # Clear confirmation state
+    if 'show_reset_confirmation' in st.session_state:
+        del st.session_state.show_reset_confirmation
+    
+    # Clear URL state
+    if 'share_url' in st.session_state:
+        del st.session_state.share_url
+    if 'last_state_hash' in st.session_state:
+        del st.session_state.last_state_hash
+
+
 def display_header():
     """Display the application header with explanations."""
     explanations = get_metric_explanations()
@@ -810,7 +834,7 @@ def display_user_profile_form():
             "Height (inches)",
             min_value=12.0,
             max_value=120.0,
-            value=st.session_state.user_info.get('height_in', 66.0),
+            value=st.session_state.user_info.get('height_in'),
             step=0.1,
             help="Your height in inches (used to calculate ALMI and FFMI)"
         )
@@ -864,7 +888,7 @@ def display_user_profile_form():
             st.info(f"ℹ️ {formatted_msg}")
     
     # Action buttons
-    col1, col2, col3 = st.columns([1, 1, 2])
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     
     with col1:
         if st.button("🎲 Random Profile"):
@@ -896,6 +920,27 @@ def display_user_profile_form():
                 st.rerun()
             except Exception as e:
                 st.error(f"Could not load example config: {e}")
+    
+    with col3:
+        # Initialize confirmation state if not exists
+        if 'show_reset_confirmation' not in st.session_state:
+            st.session_state.show_reset_confirmation = False
+        
+        if not st.session_state.show_reset_confirmation:
+            if st.button("🗑️ Reset Data"):
+                st.session_state.show_reset_confirmation = True
+                st.rerun()
+        else:
+            st.warning("Are you sure you want to clear the form data?")
+            subcol1, subcol2 = st.columns(2)
+            with subcol1:
+                if st.button("✅ Yes, Clear", type="primary"):
+                    reset_all_data()
+                    st.rerun()
+            with subcol2:
+                if st.button("❌ Cancel"):
+                    st.session_state.show_reset_confirmation = False
+                    st.rerun()
 
 
 def display_scan_history_form():
