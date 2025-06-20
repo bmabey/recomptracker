@@ -1561,7 +1561,7 @@ def create_plotly_body_fat_plot(df_results, user_info):
         title=dict(
             text='Body Fat Percentage Over Time',
             font=dict(size=16, family="Arial", color="black"),
-            x=0.5
+            x=0
         ),
         xaxis=dict(
             title=dict(text='Age (years)', font=dict(size=14)),

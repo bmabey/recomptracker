@@ -495,7 +495,7 @@ def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_ca
         title=dict(
             text=plot_title,
             font=dict(size=16, family="Arial", color="black"),
-            x=0.5
+            x=0
         ),
         xaxis=dict(
             title=dict(text='Age (years)', font=dict(size=14)),
