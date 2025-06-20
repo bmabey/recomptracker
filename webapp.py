@@ -495,7 +495,7 @@ def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_ca
         title=dict(
             text=plot_title,
             font=dict(size=16, family="Arial", color="black"),
-            x=0.5
+            x=0
         ),
         xaxis=dict(
             title=dict(text='Age (years)', font=dict(size=14)),
@@ -1299,41 +1299,6 @@ def display_results():
     
     st.subheader("📊 Analysis Results")
     
-    # Display summary metrics for latest scan
-    scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
-    if len(scan_data) > 0:
-        latest_scan = scan_data.iloc[-1]
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric(
-                "Current ALMI",
-                f"{latest_scan['almi_kg_m2']:.2f} kg/m²",
-                help="ALMI (Appendicular Lean Mass Index) measures lean muscle mass in arms and legs relative to height"
-            )
-        
-        with col2:
-            st.metric(
-                "ALMI Percentile",
-                f"{latest_scan['almi_percentile']:.1f}%",
-                help=get_metric_explanations()['tooltips']['percentile']
-            )
-        
-        with col3:
-            st.metric(
-                "Current FFMI",
-                f"{latest_scan['ffmi_kg_m2']:.2f} kg/m²",
-                help="FFMI (Fat-Free Mass Index) measures total lean body mass relative to height"
-            )
-        
-        with col4:
-            st.metric(
-                "FFMI Percentile",
-                f"{latest_scan['ffmi_percentile']:.1f}%",
-                help=get_metric_explanations()['tooltips']['percentile']
-            )
-    
     # Display comparison table if available
     if comparison_table_html:
         st.write("**Changes So Far**")
@@ -1343,11 +1308,41 @@ def display_results():
     tab1, tab2, tab3 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis"])
     
     with tab1:
-        # Show ALMI goal information if available - above the plot
-        if 'almi' in goal_calculations:
-            goal_info = format_goal_info(goal_calculations['almi'], 'almi')
-            if goal_info:
-                st.markdown(goal_info)
+        # ALMI summary metrics
+        scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+        if len(scan_data) > 0:
+            latest_scan = scan_data.iloc[-1]
+            first_scan = scan_data.iloc[0]
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Current ALMI",
+                    f"{latest_scan['almi_kg_m2']:.2f} kg/m²",
+                    help="ALMI (Appendicular Lean Mass Index) measures lean muscle mass in arms and legs relative to height"
+                )
+            
+            with col2:
+                st.metric(
+                    "ALMI Percentile",
+                    f"{latest_scan['almi_percentile']:.1f}%",
+                    help=get_metric_explanations()['tooltips']['percentile']
+                )
+            
+            with col3:
+                # Calculate progress since start
+                if len(scan_data) > 1:
+                    almi_progress = latest_scan['almi_percentile'] - first_scan['almi_percentile']
+                    progress_display = f"{almi_progress:+.1f} points"
+                else:
+                    progress_display = "N/A"
+                
+                st.metric(
+                    "Progress Since Start",
+                    progress_display,
+                    help="Change in ALMI percentile since first scan"
+                )
         
         # ALMI plot - full width
         
@@ -1373,8 +1368,30 @@ def display_results():
             # Fallback to matplotlib if plotly fails
             st.pyplot(figures['ALMI'])
         
+        # Show ALMI goal information if available - below the plot
+        if 'almi' in goal_calculations:
+            goal_info = format_goal_info(goal_calculations['almi'], 'almi')
+            if goal_info:
+                st.markdown(goal_info)
+        
         # ALMI-focused data table
         st.subheader("📋 ALMI Results Table")
+        
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Age**: Age at time of scan
+            - **Weight/Lean/Fat Mass**: Body composition values in pounds
+            - **Body Fat %**: Percentage of total weight that is fat
+            - **ALMI**: Appendicular Lean Mass Index (kg/m²) - lean mass in arms and legs
+            - **ALMI Percentile**: Your ranking compared to others your age and gender
+            - **ALMI Z-Score**: Standard deviations from population average
+            
+            **Change Tracking:**
+            - **Change (Last)**: Difference from your previous scan
+            - **Change (First)**: Total change since your first scan
+            """)
         
         almi_columns = [
             'age_at_scan', 
@@ -1405,11 +1422,41 @@ def display_results():
         st.dataframe(df_almi, use_container_width=True)
     
     with tab2:
-        # Show FFMI goal information if available - above the plot
-        if 'ffmi' in goal_calculations:
-            goal_info = format_goal_info(goal_calculations['ffmi'], 'ffmi')
-            if goal_info:
-                st.markdown(goal_info)
+        # FFMI summary metrics
+        scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+        if len(scan_data) > 0:
+            latest_scan = scan_data.iloc[-1]
+            first_scan = scan_data.iloc[0]
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Current FFMI",
+                    f"{latest_scan['ffmi_kg_m2']:.2f} kg/m²",
+                    help="FFMI (Fat-Free Mass Index) measures total lean body mass relative to height"
+                )
+            
+            with col2:
+                st.metric(
+                    "FFMI Percentile",
+                    f"{latest_scan['ffmi_percentile']:.1f}%",
+                    help=get_metric_explanations()['tooltips']['percentile']
+                )
+            
+            with col3:
+                # Calculate progress since start
+                if len(scan_data) > 1:
+                    ffmi_progress = latest_scan['ffmi_percentile'] - first_scan['ffmi_percentile']
+                    progress_display = f"{ffmi_progress:+.1f} points"
+                else:
+                    progress_display = "N/A"
+                
+                st.metric(
+                    "Progress Since Start",
+                    progress_display,
+                    help="Change in FFMI percentile since first scan"
+                )
         
         # FFMI plot - full width
         
@@ -1434,8 +1481,30 @@ def display_results():
             # Fallback to matplotlib if plotly fails
             st.pyplot(figures['FFMI'])
         
+        # Show FFMI goal information if available - below the plot
+        if 'ffmi' in goal_calculations:
+            goal_info = format_goal_info(goal_calculations['ffmi'], 'ffmi')
+            if goal_info:
+                st.markdown(goal_info)
+        
         # FFMI-focused data table
         st.subheader("📋 FFMI Results Table")
+        
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Age**: Age at time of scan
+            - **Weight/Lean/Fat Mass**: Body composition values in pounds
+            - **Body Fat %**: Percentage of total weight that is fat
+            - **FFMI**: Fat-Free Mass Index (kg/m²) - total lean body mass relative to height
+            - **FFMI Percentile**: Your ranking compared to others your age and gender
+            - **FFMI Z-Score**: Standard deviations from population average
+            
+            **Change Tracking:**
+            - **Change (Last)**: Difference from your previous scan
+            - **Change (First)**: Total change since your first scan
+            """)
         
         ffmi_columns = [
             'age_at_scan', 
@@ -1534,6 +1603,23 @@ def display_results():
         
         # Body fat-focused data table
         st.subheader("📋 Body Fat Results Table")
+        
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Age**: Age at time of scan
+            - **Weight**: Total body weight in pounds
+            - **Lean Mass**: Muscle, bone, and organ mass (excludes fat)
+            - **Fat Mass**: Total fat tissue in pounds
+            - **Body Fat %**: Percentage of total weight that is fat tissue
+            
+            **Change Tracking:**
+            - **Change (Last)**: Change in body fat % from your previous scan
+            - **Change (First)**: Total change in body fat % since your first scan
+            
+            *Positive changes mean BF% increased; negative changes mean BF% decreased (fat loss)*
+            """)
         
         bf_columns = [
             'age_at_scan', 
