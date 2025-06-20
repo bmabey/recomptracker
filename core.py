@@ -1381,6 +1381,7 @@ def generate_fake_profile():
 def generate_fake_scans(user_info, num_scans=4):
     """
     Generates realistic fake DEXA scan data showing progression over time.
+    Targets 30-50th ALMI percentile starting range for realistic profiles.
     
     Args:
         user_info (dict): User profile with gender and training level
@@ -1391,49 +1392,86 @@ def generate_fake_scans(user_info, num_scans=4):
     """
     import random
     from datetime import datetime, timedelta
+    import scipy.stats as stats
     
     scans = []
     gender = user_info['gender']
     training_level = user_info.get('training_level', 'intermediate')
     height_in = user_info['height_in']
+    height_m = height_in * 0.0254
+    height_m2 = height_m ** 2
     
-    # Generate initial body composition based on gender
-    if gender == 'male':
-        initial_weight = random.uniform(140, 200)
-        initial_bf_pct = random.uniform(15, 25)
-        alm_ratio = random.uniform(0.44, 0.48)  # ALM/TLM ratio
+    # Load LMS data for ALMI calculations
+    gender_code = 0 if gender == 'male' else 1
+    almi_L, almi_M, almi_S = load_lms_data('appendicular_LMI', gender_code)
+    
+    # Generate a realistic starting age (25-45)
+    from dateutil import parser
+    if isinstance(user_info.get('birth_date'), str):
+        birth_date = parser.parse(user_info['birth_date'])
+        current_age = (datetime.now() - birth_date).days / 365.25
     else:
-        initial_weight = random.uniform(110, 160)
-        initial_bf_pct = random.uniform(20, 35)
-        alm_ratio = random.uniform(0.40, 0.44)
+        current_age = random.uniform(25, 45)
     
-    # Calculate initial composition
+    # Target ALMI percentile between 32-52th percentile for realistic starting point
+    # Slightly higher range to account for calculation variations
+    target_percentile = random.uniform(0.32, 0.52)
+    target_z = stats.norm.ppf(target_percentile)
+    
+    # Calculate target ALMI value for this age/percentile
+    l_val = almi_L(current_age)
+    m_val = almi_M(current_age)
+    s_val = almi_S(current_age)
+    target_almi = get_value_from_zscore(target_z, l_val, m_val, s_val)
+    
+    # Calculate target ALM from ALMI
+    target_alm_kg = target_almi * height_m2
+    target_alm_lbs = target_alm_kg / 0.453592
+    
+    # Calculate realistic body composition around this ALMI target
+    alm_ratio = random.uniform(0.42, 0.46) if gender == 'male' else random.uniform(0.38, 0.42)
+    target_lean_mass = target_alm_lbs / alm_ratio
+    
+    if gender == 'male':
+        initial_bf_pct = random.uniform(15, 25)
+        weight_range_factor = random.uniform(0.9, 1.1)
+    else:
+        initial_bf_pct = random.uniform(20, 30)
+        weight_range_factor = random.uniform(0.9, 1.1)
+    
+    # Calculate weight from lean mass and body fat
+    initial_fat_mass = (target_lean_mass * initial_bf_pct) / (100 - initial_bf_pct)
+    initial_weight = (target_lean_mass + initial_fat_mass) * weight_range_factor
+    
+    # Recalculate composition based on final weight
     initial_fat_mass = initial_weight * (initial_bf_pct / 100)
     initial_lean_mass = initial_weight - initial_fat_mass
-    initial_alm = initial_lean_mass * alm_ratio
-    initial_arms_lean = initial_alm * 0.35  # ~35% of ALM in arms
-    initial_legs_lean = initial_alm * 0.65  # ~65% of ALM in legs
+    initial_alm = target_alm_lbs  # Use our target ALM
+    initial_arms_lean = initial_alm * random.uniform(0.33, 0.37)  # ~35% of ALM in arms
+    initial_legs_lean = initial_alm * random.uniform(0.63, 0.67)  # ~65% of ALM in legs
     
-    # Generate progression rates based on training level
+    # Generate progression rates based on training level (adjusted for longer time periods)
+    # These rates are now per 12-18 month periods instead of 3-6 months
     if training_level == 'novice':
-        lean_gain_rate = random.uniform(1.5, 3.0)  # lbs per scan period
-        fat_loss_rate = random.uniform(1.0, 3.0)
+        lean_gain_rate = random.uniform(6.0, 12.0)  # lbs per scan period (12-18 months)
+        fat_loss_rate = random.uniform(4.0, 10.0)
     elif training_level == 'intermediate':
-        lean_gain_rate = random.uniform(0.5, 2.0)
-        fat_loss_rate = random.uniform(0.5, 2.0)
+        lean_gain_rate = random.uniform(2.0, 8.0)
+        fat_loss_rate = random.uniform(2.0, 6.0)
     else:  # advanced
-        lean_gain_rate = random.uniform(0.2, 1.0)
-        fat_loss_rate = random.uniform(0.2, 1.0)
+        lean_gain_rate = random.uniform(1.0, 4.0)
+        fat_loss_rate = random.uniform(1.0, 3.0)
     
-    # Generate scans over 18-24 months
-    start_date = datetime.now() - timedelta(days=random.randint(540, 730))
+    # Generate scans over 36-60 months (3-5 years) for more realistic long-term tracking
+    total_period_days = random.randint(1095, 1825)  # 3-5 years
+    start_date = datetime.now() - timedelta(days=total_period_days)
     
     for i in range(num_scans):
-        # Date progression (3-6 months between scans)
+        # Date progression (12-18 months between scans)
         if i == 0:
             scan_date = start_date
         else:
-            days_gap = random.randint(90, 180)
+            days_gap = random.randint(365, 550)  # 12-18 months between scans
             scan_date = scans[-1]['scan_date'] + timedelta(days=days_gap)
         
         # Progressive body composition changes
@@ -1441,6 +1479,7 @@ def generate_fake_scans(user_info, num_scans=4):
             weight = initial_weight
             lean_mass = initial_lean_mass
             fat_mass = initial_fat_mass
+            alm = initial_alm
         else:
             # Add some randomness to progression
             lean_change = lean_gain_rate * random.uniform(0.7, 1.3)
@@ -1449,12 +1488,16 @@ def generate_fake_scans(user_info, num_scans=4):
             lean_mass = max(scans[-1]['total_lean_mass_lbs'] + lean_change, initial_lean_mass * 0.9)
             fat_mass = max(scans[-1]['fat_mass_lbs'] + fat_change, initial_fat_mass * 0.4)
             weight = lean_mass + fat_mass
+            
+            # ALM should progress proportionally with lean mass, but maintain realistic ratio
+            prev_alm = scans[-1]['arms_lean_lbs'] + scans[-1]['legs_lean_lbs']
+            alm_change = lean_change * alm_ratio  # ALM changes proportionally
+            alm = max(prev_alm + alm_change, initial_alm * 0.95)
         
         # Calculate derived values
         body_fat_percentage = (fat_mass / weight) * 100
-        alm = lean_mass * alm_ratio
-        arms_lean = alm * random.uniform(0.32, 0.38)
-        legs_lean = alm * random.uniform(0.62, 0.68)
+        arms_lean = alm * random.uniform(0.33, 0.37)  # Maintain consistent arm/leg distribution
+        legs_lean = alm * random.uniform(0.63, 0.67)
         
         scan = {
             'date': scan_date.strftime("%m/%d/%Y"),
