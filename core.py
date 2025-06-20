@@ -288,12 +288,12 @@ def detect_training_level_from_scans(processed_data, user_info):
     # If training level is explicitly provided, use it
     if 'training_level' in user_info and user_info['training_level']:
         level = user_info['training_level'].lower()
-        return level, f"User-specified training level: {level}"
+        return level, f"user-specified training level: {level}"
     
     # Need at least 2 scans for progression analysis
     if len(processed_data) < 2:
-        print("  Insufficient scan history for training level detection - defaulting to intermediate")
-        return 'intermediate', "Insufficient scan history - defaulting to intermediate"
+        print("  Insufficient scan history for training level detection - defaulting to novice")
+        return 'novice', "Insufficient scan history - defaulting to novice (conservative approach)"
     
     # Handle both DataFrame and list formats
     if hasattr(processed_data, 'sort_values'):
@@ -321,8 +321,16 @@ def detect_training_level_from_scans(processed_data, user_info):
             prev_scan = processed_data[i-1]
             curr_scan = processed_data[i]
             
-            # For test data without dates, assume 6 months between scans
-            time_diff_months = 6.0
+            # Calculate time difference based on date_str if available
+            if 'date_str' in curr_scan and 'date_str' in prev_scan:
+                from datetime import datetime
+                prev_date = datetime.strptime(prev_scan['date_str'], "%m/%d/%Y")
+                curr_date = datetime.strptime(curr_scan['date_str'], "%m/%d/%Y")
+                time_diff_days = (curr_date - prev_date).days
+                time_diff_months = time_diff_days / 30.44  # Average days per month
+            else:
+                # For test data without dates, assume 6 months between scans
+                time_diff_months = 6.0
             
             if 'total_lean_mass_lbs' in curr_scan and 'total_lean_mass_lbs' in prev_scan:
                 lean_gain_lbs = curr_scan['total_lean_mass_lbs'] - prev_scan['total_lean_mass_lbs']
@@ -341,14 +349,14 @@ def detect_training_level_from_scans(processed_data, user_info):
     gender_str = get_gender_string(user_info['gender_code'])
     if gender_str == 'male':
         novice_threshold = 0.8     # >0.8 kg/month suggests novice gains
-        advanced_threshold = 0.2   # <0.2 kg/month suggests advanced/slow gains
+        advanced_threshold = 0.3   # <0.3 kg/month suggests advanced/slow gains
     else:  # female
         novice_threshold = 0.4     # >0.4 kg/month suggests novice gains  
         advanced_threshold = 0.1   # <0.1 kg/month suggests advanced/slow gains
     
     if avg_gain_rate > novice_threshold:
         detected_level = 'novice'
-        explanation = f"Detected novice level: rapid progression {avg_gain_rate:.2f} kg/month"
+        explanation = f"Detected novice level: novice gains {avg_gain_rate:.2f} kg/month, early training phase"
         print(f"  {explanation}")
     elif avg_gain_rate < advanced_threshold:
         detected_level = 'advanced'
@@ -411,7 +419,7 @@ def determine_training_level(user_info, processed_data):
     # Check if explicitly provided
     if 'training_level' in user_info and user_info['training_level']:
         level = user_info['training_level'].lower()
-        explanation = f"User-specified training level: {level}"
+        explanation = f"user-specified training level: {level}"
         return level, explanation
     
     # Detect from scan progression

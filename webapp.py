@@ -130,7 +130,7 @@ def expand_compact_config(compact_config):
     # User info
     user_info = {
         'birth_date': compact_config.get("u", {}).get("bd", ''),
-        'height_in': compact_config.get("u", {}).get("h"),
+        'height_in': compact_config.get("u", {}).get("h", 66.0),
         'gender': 'male' if compact_config.get("u", {}).get("g", 'm') == 'm' else 'female',
         'training_level': compact_config.get("u", {}).get("tl", '')
     }
@@ -650,7 +650,7 @@ def initialize_session_state():
     if 'user_info' not in st.session_state:
         st.session_state.user_info = {
             'birth_date': '',
-            'height_in': None,
+            'height_in': 66.0,
             'gender': 'male',
             'training_level': ''
         }

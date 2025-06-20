@@ -262,7 +262,7 @@ class TestURLStateLoadingIntegration:
         compact = self.get_compact_config_from_data(mock_session_state)
         
         # Expand back to full format
-        user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(compact)
+        user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(compact)
         
         # Verify user info
         assert user_info['birth_date'] == "04/26/1982"
@@ -499,7 +499,7 @@ class TestURLRoundTripIntegrity:
         assert compact_original == compact_recovered, "Round-trip should preserve exact data"
         
         # Expand recovered config
-        user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(compact_recovered)
+        user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(compact_recovered)
         
         # Verify all data matches original
         assert user_info['birth_date'] == example_config['user_info']['birth_date']
@@ -596,7 +596,7 @@ class TestURLEdgeCases:
         }
         
         # Should expand without errors
-        user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(partial_compact)
+        user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(partial_compact)
         
         assert user_info['birth_date'] == "04/26/1982"
         assert len(scan_history) == 0, "Should handle empty scan history"
@@ -621,7 +621,7 @@ class TestURLEdgeCases:
         }
         
         # Should handle without issues
-        user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(special_compact)
+        user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(special_compact)
         
         assert user_info['gender'] == "female", "Should correctly convert gender"
         assert user_info['training_level'] == "advanced"
@@ -652,7 +652,7 @@ class TestURLEdgeCases:
         }
         
         # Should handle 20 scans without issues
-        user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(max_compact)
+        user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(max_compact)
         
         assert len(scan_history) == 20, "Should handle maximum 20 scans"
         assert scan_history[0]['date'] == "01/01/2024"
