@@ -284,7 +284,7 @@ class TestWebAppIntegration:
             user_info['gender_code'] = parse_gender(user_info['gender'])
             
             # Run analysis to get goal calculations
-            df_results, goal_calculations, figures = run_analysis_from_data(
+            df_results, goal_calculations, figures, comparison_table_html = run_analysis_from_data(
                 user_info, scan_history, almi_goal, ffmi_goal
             )
             

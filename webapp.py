@@ -681,7 +681,7 @@ def run_analysis():
         
         # Run analysis
         with st.spinner("Running analysis..."):
-            df_results, goal_calculations, figures = run_analysis_from_data(
+            df_results, goal_calculations, figures, comparison_table_html = run_analysis_from_data(
                 user_info, st.session_state.scan_history, almi_goal, ffmi_goal
             )
         
@@ -689,7 +689,8 @@ def run_analysis():
         st.session_state.analysis_results = {
             'df_results': df_results,
             'goal_calculations': goal_calculations,
-            'figures': figures
+            'figures': figures,
+            'comparison_table_html': comparison_table_html
         }
         
         st.success("Analysis completed successfully!")
@@ -1295,6 +1296,7 @@ def display_results():
     df_results = results['df_results']
     goal_calculations = results['goal_calculations']
     figures = results['figures']
+    comparison_table_html = results.get('comparison_table_html', '')
     
     st.subheader("📊 Analysis Results")
     
@@ -1332,6 +1334,11 @@ def display_results():
                 f"{latest_scan['ffmi_percentile']:.1f}%",
                 help=get_metric_explanations()['tooltips']['percentile']
             )
+    
+    # Display comparison table if available
+    if comparison_table_html:
+        st.subheader("🔄 First vs Most Recent Scan Comparison")
+        st.markdown(comparison_table_html, unsafe_allow_html=True)
     
     # Display results in tabs
     tab1, tab2, tab3 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis"])
