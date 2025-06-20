@@ -87,6 +87,7 @@ def get_compact_config():
         "u": {
             "bd": st.session_state.user_info.get('birth_date', ''),
             "h": st.session_state.user_info.get('height_in'),
+            "hd": st.session_state.get('height_display', ''),  # height display format
             "g": st.session_state.user_info.get('gender', 'male')[0],  # 'm' or 'f'
         }
     }
@@ -133,6 +134,9 @@ def expand_compact_config(compact_config):
         'training_level': compact_config.get("u", {}).get("tl", '')
     }
     
+    # Height display format
+    height_display = compact_config.get("u", {}).get("hd", '')
+    
     # Scan history
     scan_history = []
     for scan_array in compact_config.get("s", []):
@@ -158,7 +162,7 @@ def expand_compact_config(compact_config):
         ffmi_goal['target_percentile'] = compact_config["fg"].get("tp", 0.75)
         ffmi_goal['target_age'] = compact_config["fg"].get("ta", '?')
     
-    return user_info, scan_history, almi_goal, ffmi_goal
+    return user_info, scan_history, almi_goal, ffmi_goal, height_display
 
 
 def encode_state_to_url():
@@ -202,12 +206,13 @@ def decode_state_from_url():
             compact_config = json.loads(json_str)
             
             # Update session state
-            user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(compact_config)
+            user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(compact_config)
             
             st.session_state.user_info = user_info
             st.session_state.scan_history = scan_history
             st.session_state.almi_goal = almi_goal
             st.session_state.ffmi_goal = ffmi_goal
+            st.session_state.height_display = height_display
             
             st.success("Configuration loaded from URL!")
             return True
@@ -598,6 +603,10 @@ def initialize_session_state():
             'training_level': ''
         }
     
+    # Initialize height display value separately
+    if 'height_display' not in st.session_state:
+        st.session_state.height_display = ""
+    
     if 'scan_history' not in st.session_state:
         st.session_state.scan_history = []
     
@@ -771,6 +780,7 @@ def reset_all_data():
         'gender': 'male',
         'training_level': ''
     }
+    st.session_state.height_display = ""  # Reset height display value too
     st.session_state.scan_history = []
     st.session_state.almi_goal = {'target_percentile': 0.75, 'target_age': '?'}
     st.session_state.ffmi_goal = {'target_percentile': 0.75, 'target_age': '?'}
@@ -907,22 +917,17 @@ def display_user_profile_form():
         )
         st.session_state.user_info['birth_date'] = birth_date
         
-        # Get current height value for display
-        current_height = st.session_state.user_info.get('height_in')
-        if current_height is not None:
-            display_value = str(current_height)
-        else:
-            display_value = ""
-        
         height_input = st.text_input(
             "Height (x'y\" or inches)",
-            value=display_value,
+            value=st.session_state.height_display,
             help="Enter height as feet and inches (e.g., 5'10\") or just inches (e.g., 70)",
             placeholder="e.g., 5'10\" or 70"
         )
         
-        # Parse and validate height input
+        # Update display value and parse height
+        st.session_state.height_display = height_input
         parsed_height = parse_height_input(height_input)
+        
         if height_input.strip() and parsed_height is None:
             st.error("Invalid height format. Use formats like 5'10\" or 70 inches")
         
@@ -988,7 +993,8 @@ def display_user_profile_form():
             if fake_profile.get('height_in'):
                 height_inches = fake_profile['height_in']
                 height_str = inches_to_feet_inches_str(height_inches)
-                fake_profile['height_in'] = height_str  # Store as string for UI display
+                st.session_state.height_display = height_str  # Store display format separately
+                # Keep numeric value in fake_profile for user_info
             
             st.session_state.user_info.update(fake_profile)
             st.session_state.scan_history = fake_scans
@@ -1007,6 +1013,10 @@ def display_user_profile_form():
                     'gender': config['user_info']['gender'],
                     'training_level': user_info.get('training_level', '')
                 }
+                
+                # Set height display format for example data
+                height_inches = config['user_info']['height_in']
+                st.session_state.height_display = inches_to_feet_inches_str(height_inches)
                 
                 # Clean up scan history - remove date_str fields that are not needed for UI
                 cleaned_scan_history = []
