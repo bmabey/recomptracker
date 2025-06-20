@@ -141,6 +141,7 @@ Notes:
             print("Generated files:")
             print("  - almi_plot.png        (ALMI percentile curves)")
             print("  - ffmi_plot.png        (FFMI percentile curves)")
+            print("  - bf_plot.png          (Body fat percentage over time)")
             print("  - almi_stats_table.csv (Comprehensive data table)")
         
         return exit_code
