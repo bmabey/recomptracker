@@ -671,13 +671,27 @@ def run_analysis():
         
         if st.session_state.almi_goal.get('target_percentile'):
             almi_goal = st.session_state.almi_goal.copy()
-            if almi_goal.get('target_age') == '?':
+            target_age = almi_goal.get('target_age')
+            if target_age == '?':
                 almi_goal['target_age'] = None
+            elif isinstance(target_age, str) and target_age.strip():
+                try:
+                    almi_goal['target_age'] = float(target_age)
+                except (ValueError, TypeError):
+                    # Invalid string, set to None for auto-calculation
+                    almi_goal['target_age'] = None
         
         if st.session_state.ffmi_goal.get('target_percentile'):
             ffmi_goal = st.session_state.ffmi_goal.copy()
-            if ffmi_goal.get('target_age') == '?':
+            target_age = ffmi_goal.get('target_age')
+            if target_age == '?':
                 ffmi_goal['target_age'] = None
+            elif isinstance(target_age, str) and target_age.strip():
+                try:
+                    ffmi_goal['target_age'] = float(target_age)
+                except (ValueError, TypeError):
+                    # Invalid string, set to None for auto-calculation
+                    ffmi_goal['target_age'] = None
         
         # Run analysis
         with st.spinner("Running analysis..."):
@@ -709,6 +723,14 @@ def format_goal_info(goal_calc, metric):
     tlm_lbs = goal_calc.get('tlm_change_needed_lbs', 0)
     target_bf = goal_calc.get('target_body_composition', {}).get('body_fat_percentage', 0)
     fat_change = goal_calc.get('fat_change', 0)
+    
+    # Ensure target_age is numeric for formatting
+    target_age = goal_calc.get('target_age')
+    if isinstance(target_age, str):
+        try:
+            target_age = float(target_age)
+        except (ValueError, TypeError):
+            target_age = 0.0  # fallback value if conversion fails
     
     # Determine lean mass action
     if abs(tlm_lbs) < 0.1:  # Minimal change
@@ -744,7 +766,7 @@ def format_goal_info(goal_calc, metric):
             message = f"You need to {lean_action}{alm_part} and {fat_action.lower()}."
     
     # Create concise goal information
-    goal_info = f"""**🎯 {metric.upper()} Goal: {goal_calc['target_percentile']*100:.0f}th percentile by age {goal_calc['target_age']:.1f}**
+    goal_info = f"""**🎯 {metric.upper()} Goal: {goal_calc['target_percentile']*100:.0f}th percentile by age {target_age:.1f}**
 
 {message}"""
     
