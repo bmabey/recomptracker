@@ -22,6 +22,7 @@ import tempfile
 import os
 import base64
 import urllib.parse
+import requests
 from datetime import datetime
 from io import BytesIO
 import plotly.graph_objects as go
@@ -225,6 +226,49 @@ def decode_state_from_url():
     except Exception as e:
         st.error(f"Failed to decode URL data: {e}")
         return False
+
+
+def shorten_url_with_tinyurl(long_url):
+    """
+    Shorten a URL using the TinyURL API.
+    
+    Args:
+        long_url (str): The long URL to shorten
+    
+    Returns:
+        tuple: (success: bool, result: str) where result is either the shortened URL or error message
+    """
+    try:
+        # TinyURL API endpoint
+        api_url = "http://tinyurl.com/api-create.php"
+        
+        # Make request with timeout
+        response = requests.get(
+            api_url,
+            params={"url": long_url},
+            timeout=10  # 10 second timeout
+        )
+        
+        # Check if request was successful
+        if response.status_code == 200:
+            shortened_url = response.text.strip()
+            
+            # Validate that we got a proper TinyURL back
+            if shortened_url.startswith("http") and "tinyurl.com" in shortened_url:
+                return True, shortened_url
+            else:
+                return False, f"Invalid response from TinyURL: {shortened_url}"
+        else:
+            return False, f"TinyURL API error: HTTP {response.status_code}"
+            
+    except requests.exceptions.Timeout:
+        return False, "TinyURL request timed out"
+    except requests.exceptions.ConnectionError:
+        return False, "Could not connect to TinyURL service"
+    except requests.exceptions.RequestException as e:
+        return False, f"TinyURL request failed: {str(e)}"
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}"
 
 
 def format_inference_message(inference_msg):
@@ -554,6 +598,14 @@ def auto_update_url():
             st.session_state.last_state_hash = current_hash
             st.session_state.share_url = encode_state_to_url()
             
+            # Hide URL input and reset shortening state when app state changes
+            # This prevents users from copying stale URLs that don't reflect current state
+            if 'show_share_url' in st.session_state and st.session_state.show_share_url:
+                st.session_state.show_share_url = False
+                st.session_state.shortened_url = None
+                st.session_state.shortening_error = None
+                st.session_state.is_shortening = False
+            
             # Update browser URL using JavaScript (debounced)
             if st.session_state.share_url and 'url_update_count' not in st.session_state:
                 st.session_state.url_update_count = 0
@@ -618,6 +670,16 @@ def initialize_session_state():
     
     if 'analysis_results' not in st.session_state:
         st.session_state.analysis_results = None
+    
+    # Initialize URL shortening workflow state
+    if 'shortened_url' not in st.session_state:
+        st.session_state.shortened_url = None
+    
+    if 'is_shortening' not in st.session_state:
+        st.session_state.is_shortening = False
+    
+    if 'shortening_error' not in st.session_state:
+        st.session_state.shortening_error = None
 
 
 def validate_form_data():
@@ -774,25 +836,86 @@ def format_goal_info(goal_calc, metric):
 
 
 def display_share_button():
-    """Display a simple share button that shows URL for copying."""
+    """Display share button with URL shortening functionality."""
     if 'share_url' in st.session_state and st.session_state.share_url:
         # Initialize show_url state if not exists
         if 'show_share_url' not in st.session_state:
             st.session_state.show_share_url = False
         
-        # Share button that toggles URL display
-        if st.button("🔗", help="Show shareable URL", key="share_button"):
-            st.session_state.show_share_url = not st.session_state.show_share_url
+        # ROW 1: Link button and Shorten button (side by side)
+        col1, col2 = st.columns([0.5, 0.5])
         
-        # Show compact URL input when button is clicked
+        with col1:
+            # Share button that toggles URL display
+            if st.button("🔗", help="Show shareable URL", key="share_button"):
+                st.session_state.show_share_url = not st.session_state.show_share_url
+                # Reset shortening state when toggling visibility
+                if st.session_state.show_share_url:
+                    st.session_state.shortened_url = None
+                    st.session_state.shortening_error = None
+        
+        with col2:
+            # Shorten URL button (only shows after link button is clicked)
+            if st.session_state.show_share_url:
+                if not st.session_state.shortened_url and not st.session_state.is_shortening:
+                    if st.button("🔗 Shorten URL", key="shorten_button", help="Create a shorter TinyURL"):
+                        st.session_state.is_shortening = True
+                        st.session_state.shortening_error = None
+                        
+                        # Call TinyURL API
+                        success, result = shorten_url_with_tinyurl(st.session_state.share_url)
+                        
+                        if success:
+                            st.session_state.shortened_url = result
+                            st.session_state.shortening_error = None
+                        else:
+                            st.session_state.shortening_error = result
+                            st.session_state.shortened_url = None
+                        
+                        st.session_state.is_shortening = False
+                        st.rerun()
+                
+                elif st.session_state.is_shortening:
+                    # Show loading state
+                    st.button("⏳ Shortening...", disabled=True, key="shortening_loading")
+                
+                elif st.session_state.shortened_url:
+                    # Show option to get original URL back
+                    if st.button("↩️ Original", key="show_original", help="Show original URL"):
+                        st.session_state.shortened_url = None
+                        st.session_state.shortening_error = None
+                        st.rerun()
+        
+        # ROW 2: Status messages (left) and URL input (right) - only when URL is shown
         if st.session_state.show_share_url:
-            st.text_input(
-                "Copy URL:",
-                value=st.session_state.share_url,
-                key="share_url_display",
-                help="Click in the field and press Ctrl+A then Ctrl+C (or Cmd+A, Cmd+C on Mac) to copy",
-                label_visibility="collapsed"
-            )
+            col1, col2 = st.columns([0.2, 0.8])
+            
+            with col1:
+                # Show status messages (only after shortening is attempted) - very compact
+                if st.session_state.shortening_error:
+                    st.markdown('<div style="color: #ff4b4b; font-size: 12px; padding: 4px;">⚠️ Error</div>', unsafe_allow_html=True)
+                elif st.session_state.shortened_url:
+                    st.markdown('<div style="color: #00c851; font-size: 12px; padding: 4px;">✅ Done</div>', unsafe_allow_html=True)
+            
+            with col2:
+                # Determine which URL to display
+                if st.session_state.shortened_url:
+                    display_url = st.session_state.shortened_url
+                    url_label = "Shortened URL:"
+                    url_help = "This is your shortened TinyURL - copy and share it!"
+                else:
+                    display_url = st.session_state.share_url
+                    url_label = "Full URL:"
+                    url_help = "Click in the field and press Ctrl+A then Ctrl+C (or Cmd+A, Cmd+C on Mac) to copy"
+                
+                # Display the URL input
+                st.text_input(
+                    url_label,
+                    value=display_url,
+                    key="share_url_display",
+                    help=url_help,
+                    label_visibility="collapsed"
+                )
 
 
 def reset_all_data():
@@ -818,6 +941,16 @@ def reset_all_data():
         del st.session_state.share_url
     if 'last_state_hash' in st.session_state:
         del st.session_state.last_state_hash
+    
+    # Clear URL shortening state
+    if 'show_share_url' in st.session_state:
+        st.session_state.show_share_url = False
+    if 'shortened_url' in st.session_state:
+        st.session_state.shortened_url = None
+    if 'is_shortening' in st.session_state:
+        st.session_state.is_shortening = False
+    if 'shortening_error' in st.session_state:
+        st.session_state.shortening_error = None
 
 
 def display_header():
