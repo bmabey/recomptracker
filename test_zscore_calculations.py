@@ -1263,7 +1263,9 @@ class TestSuggestedGoalCalculation(unittest.TestCase):
                 'total_lean_mass_lbs': 150.0,
                 'alm_lbs': 41.0,  # Arms + legs lean mass
                 'arms_lean_lbs': 16.0,
-                'legs_lean_lbs': 25.0
+                'legs_lean_lbs': 25.0,
+                'almi_percentile': 65.0,  # Example percentile
+                'ffmi_percentile': 70.0   # Example percentile
             },
             {
                 'age_at_scan': 30.5,
@@ -1272,7 +1274,9 @@ class TestSuggestedGoalCalculation(unittest.TestCase):
                 'total_lean_mass_lbs': 153.0,
                 'alm_lbs': 42.0,  # Arms + legs lean mass
                 'arms_lean_lbs': 16.5,
-                'legs_lean_lbs': 25.5
+                'legs_lean_lbs': 25.5,
+                'almi_percentile': 68.0,  # Example percentile
+                'ffmi_percentile': 73.0   # Example percentile
             }
         ]
     
@@ -1333,7 +1337,7 @@ class TestSuggestedGoalCalculation(unittest.TestCase):
         
         # Should mention auto-calculation in messages
         message_text = " ".join(messages)
-        self.assertIn('calculate feasible timeframe', message_text)
+        self.assertIn('Calculated feasible timeframe', message_text)
     
     def test_null_target_age(self):
         """Test handling of None/null target_age."""
