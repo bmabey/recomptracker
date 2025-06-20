@@ -45,26 +45,32 @@ tasks:
     cmds:
       - python run_analysis.py {{.CLI_ARGS}}
 
-  test:
-    desc: "Run core test suite"
+  test-unit:
+    desc: "Run unit tests"
     cmds:
-      - python test_zscore_calculations.py
+      - python tests/unit/test_zscore_calculations.py
+
+  test-integration:
+    desc: "Run integration tests"
+    cmds:
+      - echo "Running pytest-based integration tests..."
+      - python -m pytest tests/integration/test_webapp_integration.py tests/integration/test_url_state_loading_integration.py tests/integration/test_20_scans.py tests/integration/test_auto_update.py tests/integration/test_data_editor.py tests/integration/test_url_loading_bug_reproduction.py -v --tb=short
+      - echo "Running simple integration tests..."
+      - python tests/integration/test_integration_simple.py
+      - python tests/integration/test_url_sharing.py
 
   test-webapp:
     desc: "Run Streamlit webapp integration tests"
     cmds:
-      - python -m pytest test_webapp_integration.py -v --tb=short
+      - python -m pytest tests/integration/test_webapp_integration.py -v --tb=short
 
   test-all:
     desc: "Run all tests in the project"
     cmds:
-      - echo "Running core test suite..."
-      - python test_zscore_calculations.py -q
-      - echo "Running pytest-based integration tests..."
-      - python -m pytest test_webapp_integration.py test_url_state_loading_integration.py test_20_scans.py test_auto_update.py test_data_editor.py test_url_loading_bug_reproduction.py -v --tb=short
-      - echo "Running simple integration tests..."
-      - python test_integration_simple.py
-      - python test_url_sharing.py
+      - echo "Running unit tests..."
+      - task test-unit
+      - echo "Running integration tests..."
+      - task test-integration
 
   help-config:
     desc: "Show configuration help"
