@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a Python-based DEXA body composition analysis tool that calculates Z-scores and percentiles for body composition metrics (ALMI - Appendicular Lean Mass Index, FFMI - Fat-Free Mass Index) using LMS reference values from the LEAD cohort. The system processes scan history data with actual DEXA body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
+This is a Python-based RecompTracker tool that calculates Z-scores and percentiles for body composition metrics (ALMI - Appendicular Lean Mass Index, FFMI - Fat-Free Mass Index) using LMS reference values from the LEAD cohort. The system processes DEXA scan history data with actual body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
 
 ## Common Commands
 
@@ -44,21 +44,21 @@ python scientific_zscore_app.py --filename="example_file.xlsx"
 
 ### Data Flow
 
-- Input: JSON config files containing user info, scan history, and optional goals
+- Input: JSON config files containing user info, DEXA scan history, and optional goals
 - Processing: Intelligent TLM (Total Lean Mass) estimation using personalized ALM/TLM ratios
 - Reference: LMS curves from `data/` directory (adults_LMS_*.csv files for different metrics and genders)
 - Output: PNG plots (almi_plot.png, ffmi_plot.png) and CSV data export (almi_stats_table.csv)
 
 ### Key Features
 
-- **Accurate Body Fat Calculation**: Uses actual DEXA body fat percentages instead of calculated estimates, accounting for bone mass
+- **Accurate Body Fat Calculation**: Uses actual body fat percentages instead of calculated estimates, accounting for bone mass
 - **Comprehensive Change Tracking**: Calculates changes since last scan and since first scan for all body composition metrics
 - **Intelligent TLM Estimation**: Uses personalized ALM/TLM ratios when multiple scans are available, falls back to population-based ratios for single scans
 - **Goal System**: Supports separate ALMI and FFMI goals with target percentiles and ages
 - **Actionable Goal Deltas**: Shows exactly what changes are needed to reach goals (weight, lean mass, fat mass, percentiles)
 - **Suggested Goals**: Automatic goal calculation based on training level detection from scan progression
 - **Enhanced Output Table**: 20+ columns showing body composition values, changes, and progress tracking
-- **Comprehensive Testing**: Full test coverage including body fat accuracy validation against ground truth DEXA data
+- **Comprehensive Testing**: Full test coverage including body fat accuracy validation against ground truth body composition data
 
 ## Configuration Format
 
@@ -69,20 +69,20 @@ The system uses JSON configuration files with this structure:
   - `arms_lean_lbs`, `legs_lean_lbs`
 - `goals` (optional): Separate almi and ffmi goal specifications with target_percentile and target_age
 
-**Note**: The system requires actual DEXA body fat percentages and fat mass values. Old configurations missing these fields will fail validation with clear error messages.
+**Note**: The system requires actual body fat percentages and fat mass values. Old configurations missing these fields will fail validation with clear error messages.
 
 ## Testing
 
 Run the test suite with `python test_zscore_calculations.py`. Tests cover:
 - Core mathematical calculations (Z-scores, T-scores, age calculations)
-- Body fat percentage accuracy validation against ground truth DEXA data
+- Body fat percentage accuracy validation against ground truth body composition data
 - TLM estimation algorithms
 - Config parsing and validation with new required fields
 - Suggested goal calculation logic
 - Integration scenarios and goal processing
 
 **Key Test Classes:**
-- `TestBodyFatPercentageAccuracy`: Validates actual DEXA body fat percentages (22.8%, 18.5%, 20.9%, 11.1%, 11.9%)
+- `TestBodyFatPercentageAccuracy`: Validates actual body fat percentages (22.8%, 18.5%, 20.9%, 11.1%, 11.9%)
 - `TestBodyCompCalculations`: Core mathematical function validation
 - `TestGoalProcessingIntegration`: End-to-end goal processing with change tracking
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-DEXA Body Composition Analysis - Main CLI Script
+RecompTracker - Main CLI Script
 
-This is the main entry point for DEXA body composition analysis. It provides
+This is the main entry point for RecompTracker body composition analysis. It provides
 a comprehensive command-line interface with helpful error messages and 
 delegates the core analysis logic to the core module.
 """
@@ -16,7 +16,7 @@ from core import run_analysis
 def main():
     """Main CLI function with comprehensive argument parsing."""
     parser = argparse.ArgumentParser(
-        description='DEXA Body Composition Analysis with Intelligent TLM Estimation',
+        description='RecompTracker with Intelligent TLM Estimation',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -242,7 +242,7 @@ Example:
 }
 
 Notes:
-- Goals section is entirely optional - analysis can run with scan history only
+- Goals section is entirely optional - analysis can run with DEXA scan history only
 - ALMI and FFMI goals can be specified independently (either or both)
     """
     print(help_text)

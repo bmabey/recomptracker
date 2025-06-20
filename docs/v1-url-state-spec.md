@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document defines the V1 URL state format used by the DEXA Body Composition Analysis web application for sharing user configurations via URLs. This format was established as the baseline for backward compatibility when the application was released publicly.
+This document defines the V1 URL state format used by the RecompTracker Body Composition Analysis web application for sharing user configurations via URLs. This format was established as the baseline for backward compatibility when the application was released publicly.
 
 ## Purpose
 

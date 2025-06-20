@@ -1,8 +1,8 @@
 """
-Core DEXA Body Composition Analysis Logic
+Core RecompTracker Analysis Logic
 
 This module contains all the core calculation logic, data processing functions,
-and plotting functionality for DEXA body composition analysis. This is the 
+and plotting functionality for RecompTracker. This is the 
 computational engine that powers the analysis scripts.
 
 Sections:
@@ -1795,7 +1795,7 @@ def generate_fake_profile():
 
 def generate_fake_scans(user_info, num_scans=4):
     """
-    Generates realistic fake DEXA scan data showing progression over time.
+    Generates realistic fake body composition scan data showing progression over time.
     Targets 30-50th ALMI percentile starting range for realistic profiles.
     
     Args:
@@ -1967,7 +1967,7 @@ def get_metric_explanations():
             'training_level': 'Training level affects goal suggestions and muscle gain rate estimates.',
             'goal_age': 'Target age to reach your goal. Use "?" for automatic calculation based on realistic progression rates.',
             'target_percentile': 'The percentile you want to reach (e.g., 0.75 = 75th percentile).',
-            'body_fat_percentage': 'Percentage of total body weight that is fat mass, measured by DEXA scan.',
+            'body_fat_percentage': 'Percentage of total body weight that is fat mass, measured by body composition scan.',
             'lean_mass': 'Total muscle, bone, and organ mass excluding fat.',
             'arms_lean': 'Lean mass in both arms combined.',
             'legs_lean': 'Lean mass in both legs combined.'
@@ -2118,7 +2118,7 @@ def run_analysis_from_data(user_info, scan_history, almi_goal=None, ffmi_goal=No
 def run_analysis(config_path='example_config.json', suggest_goals=False, target_percentile=0.90, 
                  training_level_override=None, return_results=False):
     """
-    Main analysis function that orchestrates the entire DEXA analysis workflow.
+    Main analysis function that orchestrates the entire RecompTracker analysis workflow.
     
     Args:
         config_path (str): Path to JSON configuration file
@@ -2132,7 +2132,7 @@ def run_analysis(config_path='example_config.json', suggest_goals=False, target_
                      or (df_results, goal_calculations, figures) if return_results=True
     """
     if not return_results:
-        print("DEXA Body Composition Analysis with Intelligent TLM Estimation")
+        print("RecompTracker Body Composition Analysis with Intelligent TLM Estimation")
         print("=" * 65)
         print("Note: Run 'python test_zscore_calculations.py' for comprehensive testing\n")
     

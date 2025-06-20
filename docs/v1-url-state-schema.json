@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://bodymetrics.app/schemas/v1-url-state.json",
   "title": "V1 URL State Schema",
-  "description": "JSON Schema for the V1 URL state format used by the DEXA Body Composition Analysis web application",
+  "description": "JSON Schema for the V1 URL state format used by the RecompTracker Body Composition Analysis web application",
   "version": "1.0.0",
   "type": "object",
   "properties": {
@@ -52,12 +52,12 @@
     },
     "s": {
       "title": "Scan History",
-      "description": "Array of DEXA scan data, each scan represented as a 7-element array",
+      "description": "Array of body composition scan data, each scan represented as a 7-element array",
       "type": "array",
       "maxItems": 20,
       "items": {
         "title": "Scan Data",
-        "description": "Single DEXA scan as [date, total_weight_lbs, total_lean_mass_lbs, fat_mass_lbs, body_fat_percentage, arms_lean_lbs, legs_lean_lbs]",
+        "description": "Single body composition scan as [date, total_weight_lbs, total_lean_mass_lbs, fat_mass_lbs, body_fat_percentage, arms_lean_lbs, legs_lean_lbs]",
         "type": "array",
         "minItems": 7,
         "maxItems": 7,
