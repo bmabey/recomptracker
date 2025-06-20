@@ -1378,6 +1378,22 @@ def display_results():
         # ALMI-focused data table
         st.subheader("📋 ALMI Results Table")
         
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Age**: Age at time of scan
+            - **Weight/Lean/Fat Mass**: Body composition values in pounds
+            - **Body Fat %**: Percentage of total weight that is fat
+            - **ALMI**: Appendicular Lean Mass Index (kg/m²) - lean mass in arms and legs
+            - **ALMI Percentile**: Your ranking compared to others your age and gender
+            - **ALMI Z-Score**: Standard deviations from population average
+            
+            **Change Tracking:**
+            - **Change (Last)**: Difference from your previous scan
+            - **Change (First)**: Total change since your first scan
+            """)
+        
         almi_columns = [
             'age_at_scan', 
             'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
@@ -1474,6 +1490,22 @@ def display_results():
         
         # FFMI-focused data table
         st.subheader("📋 FFMI Results Table")
+        
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Age**: Age at time of scan
+            - **Weight/Lean/Fat Mass**: Body composition values in pounds
+            - **Body Fat %**: Percentage of total weight that is fat
+            - **FFMI**: Fat-Free Mass Index (kg/m²) - total lean body mass relative to height
+            - **FFMI Percentile**: Your ranking compared to others your age and gender
+            - **FFMI Z-Score**: Standard deviations from population average
+            
+            **Change Tracking:**
+            - **Change (Last)**: Difference from your previous scan
+            - **Change (First)**: Total change since your first scan
+            """)
         
         ffmi_columns = [
             'age_at_scan', 
@@ -1572,6 +1604,23 @@ def display_results():
         
         # Body fat-focused data table
         st.subheader("📋 Body Fat Results Table")
+        
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Age**: Age at time of scan
+            - **Weight**: Total body weight in pounds
+            - **Lean Mass**: Muscle, bone, and organ mass (excludes fat)
+            - **Fat Mass**: Total fat tissue in pounds
+            - **Body Fat %**: Percentage of total weight that is fat tissue
+            
+            **Change Tracking:**
+            - **Change (Last)**: Change in body fat % from your previous scan
+            - **Change (First)**: Total change in body fat % since your first scan
+            
+            *Positive changes mean BF% increased; negative changes mean BF% decreased (fat loss)*
+            """)
         
         bf_columns = [
             'age_at_scan', 
