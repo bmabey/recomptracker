@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Integration tests for URL state loading functionality in the DEXA webapp.
+Integration tests for URL state loading functionality in the RecompTracker webapp.
 
 These tests verify that configurations can be loaded from URLs, form inputs
 are populated correctly, and analysis runs automatically.

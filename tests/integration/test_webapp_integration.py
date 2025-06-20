@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Streamlit AppTest Integration Tests for DEXA Body Composition Analysis Web App
+Streamlit AppTest Integration Tests for RecompTracker Body Composition Analysis Web App
 
 These tests use Streamlit's native AppTest framework to verify the webapp functionality
 with the example config and various user interaction scenarios.

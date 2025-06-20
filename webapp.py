@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DEXA Body Composition Analysis - Streamlit Web Application
+RecompTracker - Streamlit Web Application
 
 This web interface provides an intuitive way to analyze DEXA scan data using 
 the same core analysis engine as the command-line tool. Features include:
@@ -45,7 +45,7 @@ import scipy.stats as stats
 
 # Configure page
 st.set_page_config(
-    page_title="ALMI & FFMI Progress Tracker & Goal Calculator",
+    page_title="RecompTracker - ALMI & FFMI Progress Tracker & Goal Calculator",
     page_icon="💪",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -314,7 +314,7 @@ def get_inferred_training_level():
 
 def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_calculations):
     """
-    Creates interactive Plotly plots with hover tooltips for DEXA analysis.
+    Creates interactive Plotly plots with hover tooltips for RecompTracker analysis.
     
     Args:
         df_results (pd.DataFrame): Complete results DataFrame with scan history and goals
@@ -1665,7 +1665,7 @@ def display_results():
     st.download_button(
         label="📥 Download Complete Results (CSV)",
         data=csv_buffer.getvalue(),
-        file_name=f"dexa_analysis_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        file_name=f"recomptracker_analysis_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv",
         help="Download the complete analysis results including all calculated metrics"
     )

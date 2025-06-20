@@ -1,6 +1,6 @@
 # Documentation
 
-This directory contains specifications and documentation for the DEXA Body Composition Analysis web application.
+This directory contains specifications and documentation for the RecompTracker Body Composition Analysis web application.
 
 ## Contents
 

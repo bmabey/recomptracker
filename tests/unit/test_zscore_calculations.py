@@ -1,7 +1,7 @@
 """
-Comprehensive test suite for DEXA body composition analysis.
+Comprehensive test suite for RecompTracker body composition analysis.
 
-This module contains all tests for the DEXA body composition analysis system,
+This module contains all tests for the RecompTracker body composition analysis system,
 including core calculation functions, TLM estimation logic, and integration tests.
 """
 
@@ -1856,15 +1856,15 @@ class TestSuggestedGoalEdgeCases(unittest.TestCase):
 
 class TestBodyFatPercentageAccuracy(unittest.TestCase):
     """
-    Test suite for body fat percentage accuracy using ground truth DEXA data.
+    Test suite for body fat percentage accuracy using ground truth body composition data.
     
-    This ensures that the system correctly uses actual DEXA body fat percentages
+    This ensures that the system correctly uses actual body fat percentages
     instead of calculating them incorrectly from weight and lean mass alone.
     """
     
     def setUp(self):
-        """Set up test data with actual DEXA scan results."""
-        # Ground truth data from actual DEXA scans
+        """Set up test data with actual body composition scan results."""
+        # Ground truth data from actual body composition scans
         self.ground_truth_config = {
             "user_info": {
                 "birth_date": "04/26/1982",
@@ -1925,7 +1925,7 @@ class TestBodyFatPercentageAccuracy(unittest.TestCase):
         self.scan_dates = ["04/07/2022", "04/01/2023", "10/21/2023", "04/02/2024", "11/25/2024"]
     
     def test_body_fat_percentage_accuracy(self):
-        """Test that body fat percentages match actual DEXA scan results exactly."""
+        """Test that body fat percentages match actual body composition scan results exactly."""
         # Create a temporary config file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(self.ground_truth_config, f)
@@ -1952,7 +1952,7 @@ class TestBodyFatPercentageAccuracy(unittest.TestCase):
             os.unlink(temp_config_path)
     
     def test_data_consistency_validation(self):
-        """Test that the DEXA data components are internally consistent."""
+        """Test that the body composition data components are internally consistent."""
         # Verify that total_weight ≈ lean_mass + fat_mass + bone_mass
         # (We can't check bone mass directly, but we can verify the relationship)
         
@@ -2006,7 +2006,7 @@ class TestBodyFatPercentageAccuracy(unittest.TestCase):
             self.assertGreater(
                 difference, 1.0,  # Should differ by more than 1%
                 msg=f"Scan {i+1}: old calculation ({old_calculated_bf:.1f}%) too close to "
-                    f"actual DEXA result ({actual_bf:.1f}%) - test may not be demonstrating the fix"
+                    f"actual body composition result ({actual_bf:.1f}%) - test may not be demonstrating the fix"
             )
     
     def test_schema_validation_with_new_fields(self):
@@ -2054,5 +2054,5 @@ class TestBodyFatPercentageAccuracy(unittest.TestCase):
 
 if __name__ == '__main__':
     # Run tests with detailed output
-    print("Running comprehensive test suite for DEXA body composition analysis...")
+    print("Running comprehensive test suite for RecompTracker body composition analysis...")
     unittest.main(verbosity=2)

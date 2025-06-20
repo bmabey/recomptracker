@@ -1,11 +1,11 @@
-# Body Metrics - DEXA Body Composition Analysis
+# RecompTracker
 
 A Python tool that calculates Z-scores and percentiles for body composition metrics (ALMI, FFMI) using LMS reference values from the LEAD cohort. The system processes DEXA scan history with actual body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
 
 ## Features
 
 ### Core Analysis
-- **Accurate Body Fat Calculation**: Uses actual DEXA body fat percentages instead of calculated estimates
+- **Accurate Body Fat Calculation**: Uses actual body fat percentages instead of calculated estimates
 - **Comprehensive Change Tracking**: Calculates changes since last scan and since first scan
 - **Intelligent TLM Estimation**: Uses personalized ALM/TLM ratios when multiple scans are available
 - **Goal System**: Supports separate ALMI and FFMI goals with target percentiles and ages
@@ -190,7 +190,7 @@ Create a JSON configuration file with your DEXA scan data:
 - `date`, `total_weight_lbs`, `total_lean_mass_lbs`, `fat_mass_lbs`, `body_fat_percentage`
 - `arms_lean_lbs`, `legs_lean_lbs`
 
-**Important:** The system requires actual DEXA body fat percentages and fat mass values for accurate calculations.
+**Important:** The system requires actual body fat percentages and fat mass values for accurate calculations.
 
 ### Output
 
