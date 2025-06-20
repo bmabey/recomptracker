@@ -1300,41 +1300,6 @@ def display_results():
     
     st.subheader("📊 Analysis Results")
     
-    # Display summary metrics for latest scan
-    scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
-    if len(scan_data) > 0:
-        latest_scan = scan_data.iloc[-1]
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric(
-                "Current ALMI",
-                f"{latest_scan['almi_kg_m2']:.2f} kg/m²",
-                help="ALMI (Appendicular Lean Mass Index) measures lean muscle mass in arms and legs relative to height"
-            )
-        
-        with col2:
-            st.metric(
-                "ALMI Percentile",
-                f"{latest_scan['almi_percentile']:.1f}%",
-                help=get_metric_explanations()['tooltips']['percentile']
-            )
-        
-        with col3:
-            st.metric(
-                "Current FFMI",
-                f"{latest_scan['ffmi_kg_m2']:.2f} kg/m²",
-                help="FFMI (Fat-Free Mass Index) measures total lean body mass relative to height"
-            )
-        
-        with col4:
-            st.metric(
-                "FFMI Percentile",
-                f"{latest_scan['ffmi_percentile']:.1f}%",
-                help=get_metric_explanations()['tooltips']['percentile']
-            )
-    
     # Display comparison table if available
     if comparison_table_html:
         st.write("**Changes So Far**")
@@ -1344,6 +1309,42 @@ def display_results():
     tab1, tab2, tab3 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis"])
     
     with tab1:
+        # ALMI summary metrics
+        scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+        if len(scan_data) > 0:
+            latest_scan = scan_data.iloc[-1]
+            first_scan = scan_data.iloc[0]
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Current ALMI",
+                    f"{latest_scan['almi_kg_m2']:.2f} kg/m²",
+                    help="ALMI (Appendicular Lean Mass Index) measures lean muscle mass in arms and legs relative to height"
+                )
+            
+            with col2:
+                st.metric(
+                    "ALMI Percentile",
+                    f"{latest_scan['almi_percentile']:.1f}%",
+                    help=get_metric_explanations()['tooltips']['percentile']
+                )
+            
+            with col3:
+                # Calculate progress since start
+                if len(scan_data) > 1:
+                    almi_progress = latest_scan['almi_percentile'] - first_scan['almi_percentile']
+                    progress_display = f"{almi_progress:+.1f} points"
+                else:
+                    progress_display = "N/A"
+                
+                st.metric(
+                    "Progress Since Start",
+                    progress_display,
+                    help="Change in ALMI percentile since first scan"
+                )
+        
         # Show ALMI goal information if available - above the plot
         if 'almi' in goal_calculations:
             goal_info = format_goal_info(goal_calculations['almi'], 'almi')
@@ -1406,6 +1407,42 @@ def display_results():
         st.dataframe(df_almi, use_container_width=True)
     
     with tab2:
+        # FFMI summary metrics
+        scan_data = df_results[~df_results['date_str'].str.contains('Goal', na=False)]
+        if len(scan_data) > 0:
+            latest_scan = scan_data.iloc[-1]
+            first_scan = scan_data.iloc[0]
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Current FFMI",
+                    f"{latest_scan['ffmi_kg_m2']:.2f} kg/m²",
+                    help="FFMI (Fat-Free Mass Index) measures total lean body mass relative to height"
+                )
+            
+            with col2:
+                st.metric(
+                    "FFMI Percentile",
+                    f"{latest_scan['ffmi_percentile']:.1f}%",
+                    help=get_metric_explanations()['tooltips']['percentile']
+                )
+            
+            with col3:
+                # Calculate progress since start
+                if len(scan_data) > 1:
+                    ffmi_progress = latest_scan['ffmi_percentile'] - first_scan['ffmi_percentile']
+                    progress_display = f"{ffmi_progress:+.1f} points"
+                else:
+                    progress_display = "N/A"
+                
+                st.metric(
+                    "Progress Since Start",
+                    progress_display,
+                    help="Change in FFMI percentile since first scan"
+                )
+        
         # Show FFMI goal information if available - above the plot
         if 'ffmi' in goal_calculations:
             goal_info = format_goal_info(goal_calculations['ffmi'], 'ffmi')
