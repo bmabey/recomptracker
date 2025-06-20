@@ -142,3 +142,6 @@ dmypy.json
 *.png
 almi_stats_table.csv
 *_curves.json
+
+# Claude related stuff
+feature_prompt
