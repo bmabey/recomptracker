@@ -1256,13 +1256,13 @@ def display_results():
         st.subheader("📋 ALMI Results Table")
         
         almi_columns = [
-            'date_str', 'age_at_scan', 
+            'age_at_scan', 
             'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
             'almi_kg_m2', 'almi_percentile', 'almi_z_score'
         ]
         
         almi_names = [
-            'Date', 'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
+            'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
             'ALMI (kg/m²)', 'ALMI Percentile', 'ALMI Z-Score'
         ]
         
@@ -1277,7 +1277,7 @@ def display_results():
         for col in df_almi.columns:
             if df_almi[col].dtype in ['float64', 'int64']:
                 if 'Percentile' in col:
-                    df_almi[col] = df_almi[col].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/A")
+                    df_almi[col] = df_almi[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
                 else:
                     df_almi[col] = df_almi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
@@ -1317,13 +1317,13 @@ def display_results():
         st.subheader("📋 FFMI Results Table")
         
         ffmi_columns = [
-            'date_str', 'age_at_scan', 
+            'age_at_scan', 
             'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
             'ffmi_kg_m2', 'ffmi_percentile', 'ffmi_z_score'
         ]
         
         ffmi_names = [
-            'Date', 'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
+            'Age', 'Weight (lbs)', 'Lean Mass (lbs)', 'Fat Mass (lbs)', 'Body Fat %',
             'FFMI (kg/m²)', 'FFMI Percentile', 'FFMI Z-Score'
         ]
         
@@ -1338,7 +1338,7 @@ def display_results():
         for col in df_ffmi.columns:
             if df_ffmi[col].dtype in ['float64', 'int64']:
                 if 'Percentile' in col:
-                    df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/A")
+                    df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
                 else:
                     df_ffmi[col] = df_ffmi[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
