@@ -1675,8 +1675,8 @@ def create_scan_comparison_table(df_results, return_html=False):
                 # Determine cell styling based on content and position
                 style = "border: 1px solid #ddd; padding: 8px; text-align: center;"
                 
-                # Color code change cells (odd indices are change columns) in the last row
-                if j % 2 == 1 and j > 0 and i == 1:  # Change columns, last row only
+                # Color code change cells (change columns at indices 2, 4, 6, 8) in the last row
+                if j in [2, 4, 6, 8] and i == 1:  # Change columns, last row only
                     if cell != "-" and cell != "N/A":
                         # Parse the change value
                         try:
@@ -1686,22 +1686,22 @@ def create_scan_comparison_table(df_results, return_html=False):
                                 change_val = float(cell.replace('+', ''))
                             
                             # Color coding logic based on column position
-                            if j == 3:  # Lean mass change - positive is good
+                            if j == 4:  # Lean mass change - positive is good
                                 if change_val > 0:
                                     style += " background-color: #d4edda; color: #155724;"  # Green
                                 elif change_val < 0:
                                     style += " background-color: #f8d7da; color: #721c24;"  # Red
-                            elif j == 5:  # Fat mass change - negative is good (fat loss)
+                            elif j == 6:  # Fat mass change - negative is good (fat loss)
                                 if change_val < 0:
                                     style += " background-color: #d4edda; color: #155724;"  # Green
                                 elif change_val > 0:
                                     style += " background-color: #f8d7da; color: #721c24;"  # Red
-                            elif j == 7:  # Body fat % change - negative is good (BF% reduction)
+                            elif j == 8:  # Body fat % change - negative is good (BF% reduction)
                                 if change_val < 0:
                                     style += " background-color: #d4edda; color: #155724;"  # Green
                                 elif change_val > 0:
                                     style += " background-color: #f8d7da; color: #721c24;"  # Red
-                            # Weight change (j == 1) remains neutral - no color coding
+                            # Weight change (j == 2) remains neutral - no color coding
                         except ValueError:
                             pass  # Keep default styling if can't parse
                 
@@ -1719,17 +1719,17 @@ def create_scan_comparison_table(df_results, return_html=False):
                                     change_val = float(change_cell.replace('+', ''))
                                 
                                 # Apply lighter background colors to value cells
-                                if j == 2:  # Lean mass value - positive change is good
+                                if j == 3:  # Lean mass value - positive change is good
                                     if change_val > 0:
                                         style += " background-color: #e8f5e8;"  # Light green
                                     elif change_val < 0:
                                         style += " background-color: #fce8e8;"  # Light red
-                                elif j == 4:  # Fat mass value - negative change is good
+                                elif j == 5:  # Fat mass value - negative change is good (fat loss)
                                     if change_val < 0:
                                         style += " background-color: #e8f5e8;"  # Light green
                                     elif change_val > 0:
                                         style += " background-color: #fce8e8;"  # Light red
-                                elif j == 6:  # Body fat % value - negative change is good
+                                elif j == 7:  # Body fat % value - negative change is good (BF% reduction)
                                     if change_val < 0:
                                         style += " background-color: #e8f5e8;"  # Light green
                                     elif change_val > 0:
