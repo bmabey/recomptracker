@@ -1388,8 +1388,25 @@ def main():
         st.divider()
         display_goals_form()
         
-        # Analyze button
-        if st.button("🔬 Run Analysis", type="primary", use_container_width=True):
+        # Analyze button with custom light blue styling
+        st.markdown("""
+        <style>
+        div.stButton > button:first-child {
+            background-color: #8BB9F7;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+        }
+        div.stButton > button:first-child:hover {
+            background-color: #6BA3F0;
+            border: none;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        if st.button("🔬 Run Analysis", use_container_width=True):
             run_analysis()
     
     with col2:
