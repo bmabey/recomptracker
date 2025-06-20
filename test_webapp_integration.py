@@ -184,11 +184,11 @@ class TestWebAppIntegration:
         # Load example config and run analysis
         at = self.load_example_and_run_analysis(at)
         
-        # Check for plot headers
+        # Check for plot headers (now in tabs with results tables)
         plot_headers = [header.value for header in at.subheader]
-        assert any("ALMI Percentile Curves" in header for header in plot_headers), \
+        assert any("ALMI Results Table" in header for header in plot_headers), \
             "ALMI plot section should be displayed"
-        assert any("FFMI Percentile Curves" in header for header in plot_headers), \
+        assert any("FFMI Results Table" in header for header in plot_headers), \
             "FFMI plot section should be displayed"
     
     def test_data_table_display(self, app):
