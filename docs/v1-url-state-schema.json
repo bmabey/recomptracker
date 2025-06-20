@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bodymetrics.app/schemas/v1-url-state.json",
+  "title": "V1 URL State Schema",
+  "description": "JSON Schema for the V1 URL state format used by the DEXA Body Composition Analysis web application",
+  "version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "u": {
+      "title": "User Information",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "bd": {
+          "title": "Birth Date",
+          "description": "Birth date in MM/DD/YYYY format",
+          "type": "string",
+          "pattern": "^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\\d{4}$",
+          "examples": ["04/26/1982", "12/31/1990"]
+        },
+        "h": {
+          "title": "Height (inches)",
+          "description": "Height in inches, decimal values allowed",
+          "type": "number",
+          "minimum": 12,
+          "maximum": 120,
+          "examples": [66.0, 72.5, 68]
+        },
+        "g": {
+          "title": "Gender Code",
+          "description": "Gender code: 'm' for male, 'f' for female",
+          "type": "string",
+          "enum": ["m", "f"],
+          "examples": ["m", "f"]
+        },
+        "tl": {
+          "title": "Training Level",
+          "description": "Optional training level",
+          "type": "string",
+          "enum": ["novice", "intermediate", "advanced"],
+          "examples": ["novice", "intermediate", "advanced"]
+        },
+        "hd": {
+          "title": "Height Display",
+          "description": "Optional height display format for UI (e.g., 5'10\")",
+          "type": "string",
+          "examples": ["5'10\"", "6'2\"", "5'6\""]
+        }
+      },
+      "required": ["bd", "h", "g"],
+      "additionalProperties": false
+    },
+    "s": {
+      "title": "Scan History",
+      "description": "Array of DEXA scan data, each scan represented as a 7-element array",
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "title": "Scan Data",
+        "description": "Single DEXA scan as [date, total_weight_lbs, total_lean_mass_lbs, fat_mass_lbs, body_fat_percentage, arms_lean_lbs, legs_lean_lbs]",
+        "type": "array",
+        "minItems": 7,
+        "maxItems": 7,
+        "prefixItems": [
+          {
+            "title": "Scan Date",
+            "description": "Scan date in MM/DD/YYYY format",
+            "type": "string",
+            "pattern": "^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\\d{4}$"
+          },
+          {
+            "title": "Total Weight (lbs)",
+            "description": "Total body weight in pounds",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          {
+            "title": "Total Lean Mass (lbs)",
+            "description": "Total lean mass in pounds",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 500
+          },
+          {
+            "title": "Fat Mass (lbs)",
+            "description": "Total fat mass in pounds",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 500
+          },
+          {
+            "title": "Body Fat Percentage",
+            "description": "Body fat percentage (0-100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "title": "Arms Lean Mass (lbs)",
+            "description": "Arms lean mass in pounds",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "title": "Legs Lean Mass (lbs)",
+            "description": "Legs lean mass in pounds",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 200
+          }
+        ],
+        "items": false
+      },
+      "examples": [
+        [
+          ["04/07/2022", 143.2, 106.3, 32.6, 22.8, 12.4, 37.3],
+          ["04/01/2023", 154.3, 121.2, 28.5, 18.5, 16.5, 40.4]
+        ]
+      ]
+    },
+    "ag": {
+      "title": "ALMI Goal",
+      "description": "Appendicular Lean Mass Index goal configuration",
+      "type": "object",
+      "properties": {
+        "tp": {
+          "title": "Target Percentile",
+          "description": "Target percentile (0.01 to 0.99)",
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 0.99,
+          "examples": [0.75, 0.90, 0.50]
+        },
+        "ta": {
+          "title": "Target Age",
+          "description": "Optional target age in years",
+          "type": "number",
+          "minimum": 18,
+          "maximum": 100,
+          "examples": [30, 35, 25]
+        }
+      },
+      "required": ["tp"],
+      "additionalProperties": false
+    },
+    "fg": {
+      "title": "FFMI Goal", 
+      "description": "Fat-Free Mass Index goal configuration",
+      "type": "object",
+      "properties": {
+        "tp": {
+          "title": "Target Percentile",
+          "description": "Target percentile (0.01 to 0.99)",
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 0.99,
+          "examples": [0.75, 0.90, 0.50]
+        },
+        "ta": {
+          "title": "Target Age",
+          "description": "Optional target age in years",
+          "type": "number",
+          "minimum": 18,
+          "maximum": 100,
+          "examples": [30, 35, 25]
+        }
+      },
+      "required": ["tp"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["u"],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "u": {
+        "bd": "04/26/1982",
+        "h": 66.0,
+        "g": "m"
+      },
+      "s": [
+        ["04/07/2022", 143.2, 106.3, 32.6, 22.8, 12.4, 37.3]
+      ]
+    },
+    {
+      "u": {
+        "bd": "08/15/1990",
+        "h": 70.0,
+        "g": "f",
+        "tl": "intermediate",
+        "hd": "5'10\""
+      },
+      "s": [
+        ["05/10/2023", 140.5, 110.2, 25.3, 18.0, 13.8, 35.6],
+        ["11/20/2023", 145.2, 115.8, 24.4, 16.8, 14.5, 37.2]
+      ],
+      "ag": {
+        "tp": 0.85,
+        "ta": 32
+      },
+      "fg": {
+        "tp": 0.70
+      }
+    }
+  ],
+  "definitions": {
+    "dateFormat": {
+      "title": "MM/DD/YYYY Date Format",
+      "type": "string",
+      "pattern": "^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\\d{4}$"
+    },
+    "percentile": {
+      "title": "Percentile Value",
+      "type": "number",
+      "minimum": 0.01,
+      "maximum": 0.99
+    },
+    "positiveNumber": {
+      "title": "Positive Number",
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}
