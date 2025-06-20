@@ -102,10 +102,15 @@ class TestWebAppIntegration:
         assert gender_selectbox.value == example_config_data["user_info"]["gender"], \
             f"Gender should be {example_config_data['user_info']['gender']}"
         
-        # Check height input (index 0)
-        height_input = at.number_input[0]
-        assert height_input.value == example_config_data["user_info"]["height_in"], \
-            f"Height should be {example_config_data['user_info']['height_in']}"
+        # Check height input (text input index 1, since birth_date is index 0)
+        height_input = at.text_input[1]
+        # Height is stored as text in display format, need to check the parsed value
+        # The display format converts inches to feet'inches format
+        expected_height = example_config_data["user_info"]["height_in"]
+        # For 66 inches, this becomes "5'6""
+        expected_display = f"{int(expected_height // 12)}'{int(expected_height % 12)}\""
+        assert height_input.value == expected_display, \
+            f"Height display should be {expected_display}, got {height_input.value}"
     
     def test_analysis_execution_with_example_config(self, app):
         """Test that analysis runs successfully with example config data."""
