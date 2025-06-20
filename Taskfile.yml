@@ -46,21 +46,17 @@ tasks:
       - python run_analysis.py {{.CLI_ARGS}}
 
   test-unit:
-    desc: "Run unit tests"
+    desc: "Run unit tests with pytest"
     cmds:
-      - python tests/unit/test_zscore_calculations.py
+      - python -m pytest tests/unit/ -v
 
   test-integration:
-    desc: "Run integration tests"
+    desc: "Run integration tests with pytest"
     cmds:
-      - echo "Running pytest-based integration tests..."
-      - python -m pytest tests/integration/test_webapp_integration.py tests/integration/test_url_state_loading_integration.py tests/integration/test_20_scans.py tests/integration/test_auto_update.py tests/integration/test_data_editor.py tests/integration/test_url_loading_bug_reproduction.py -v --tb=short
-      - echo "Running simple integration tests..."
-      - python tests/integration/test_integration_simple.py
-      - python tests/integration/test_url_sharing.py
+      - python -m pytest tests/integration/ -v --tb=short
 
   test-webapp:
-    desc: "Run Streamlit webapp integration tests"
+    desc: "Run Streamlit webapp integration tests with pytest"
     cmds:
       - python -m pytest tests/integration/test_webapp_integration.py -v --tb=short
 
