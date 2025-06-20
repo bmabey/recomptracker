@@ -222,6 +222,55 @@ def decode_state_from_url():
         return False
 
 
+def format_inference_message(inference_msg):
+    """
+    Format inference messages by converting kg/month to lb/month.
+    
+    Args:
+        inference_msg (str): Raw inference message (e.g., 'moderate progression 0.44 kg/month')
+    
+    Returns:
+        str: Formatted message with lb/month
+    """
+    import re
+    
+    # Convert kg/month to lb/month in the message
+    def kg_to_lb_replacement(match):
+        kg_value = float(match.group(1))
+        lb_value = kg_value * 2.20462
+        return f"{lb_value:.2f} lb/month"
+    
+    # Replace kg/month with lb/month
+    formatted_msg = re.sub(r'(\d+\.?\d*)\s*kg/month', kg_to_lb_replacement, inference_msg)
+    return formatted_msg
+
+def format_training_level_suggestion(level, inference_msg):
+    """
+    Format a clean training level suggestion message with lb/month progression rate.
+    
+    Args:
+        level (str): Training level (e.g., 'intermediate')
+        inference_msg (str): Raw inference message (e.g., 'Detected intermediate level: moderate progression 0.44 kg/month')
+    
+    Returns:
+        str: Formatted suggestion message
+    """
+    import re
+    
+    # Extract progression description and rate from message
+    progression_match = re.search(r'(rapid|moderate|slow)\s+progression\s+(\d+\.?\d*)\s*kg/month', inference_msg)
+    
+    if progression_match:
+        progression_type = progression_match.group(1)
+        kg_per_month = float(progression_match.group(2))
+        # Convert kg/month to lb/month (1 kg = 2.20462 lbs)
+        lb_per_month = kg_per_month * 2.20462
+        
+        # Format the suggestion with progression rate
+        return f"💡 **Suggestion**: Based on your scans, you appear to be {level}, with {progression_type} lean mass progression of {lb_per_month:.2f} lb/month."
+    else:
+        # Fallback if no rate found
+        return f"💡 **Suggestion**: Based on your scans, you appear to be {level} level."
 
 def get_inferred_training_level():
     """Infer training level from current scan data."""
@@ -247,12 +296,12 @@ def get_inferred_training_level():
         }
         
         # Infer training level using core logic
-        inferred_level = detect_training_level_from_scans(valid_scans, user_info)
+        inferred_level, inference_explanation = detect_training_level_from_scans(valid_scans, user_info)
         
-        if inferred_level == 'intermediate' and "defaulting to intermediate" in str(inferred_level):
+        if inferred_level == 'intermediate' and "defaulting to intermediate" in inference_explanation:
             return None, "Insufficient data for reliable inference"
         
-        return inferred_level, f"Based on lean mass progression across {len(valid_scans)} scans"
+        return inferred_level, inference_explanation
         
     except Exception as e:
         return None, f"Error inferring training level: {str(e)}"
@@ -800,13 +849,19 @@ def display_user_profile_form():
         # Show inference information
         if inferred_level:
             if training_level == inferred_level:
-                st.success(f"✅ **Inferred**: {inferred_level.title()} - {inference_msg}")
+                # Format the confirmed inference message
+                formatted_msg = format_inference_message(inference_msg)
+                st.success(f"✅ **Inferred**: {inferred_level.title()} - {formatted_msg}")
             elif training_level and training_level != inferred_level:
                 st.info(f"🔄 **Manual Override**: Using '{training_level}' instead of inferred '{inferred_level}'")
             else:
-                st.info(f"💡 **Suggestion**: Based on your scans, you appear to be '{inferred_level}' level")
+                # Parse and reformat the inference message
+                suggestion_text = format_training_level_suggestion(inferred_level, inference_msg)
+                st.info(suggestion_text)
         elif inference_msg and len(st.session_state.scan_history) > 0:
-            st.info(f"ℹ️ {inference_msg}")
+            # Format any standalone inference messages
+            formatted_msg = format_inference_message(inference_msg)
+            st.info(f"ℹ️ {formatted_msg}")
     
     # Action buttons
     col1, col2, col3 = st.columns([1, 1, 2])
