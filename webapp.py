@@ -366,7 +366,7 @@ def create_plotly_metric_plot(df_results, metric_to_plot, lms_functions, goal_ca
                 f"<b>Scan Date:</b> {scan['date_str']}",
                 f"<b>Age:</b> {scan['age_at_scan']:.1f} years",
                 f"<b>{y_label}:</b> {scan[y_column]:.2f}",
-                f"<b>Percentile:</b> {scan[percentile_col]*100:.1f}%",
+                f"<b>Percentile:</b> {scan[percentile_col]:.1f}%",
                 f"<b>Z-Score:</b> {scan[z_score_col]:.2f}",
                 "",
                 f"<b>Weight:</b> {scan['total_weight_lbs']:.1f} lbs",
@@ -1099,7 +1099,7 @@ def display_results():
         with col2:
             st.metric(
                 "ALMI Percentile",
-                f"{latest_scan['almi_percentile']*100:.1f}%",
+                f"{latest_scan['almi_percentile']:.1f}%",
                 help=get_metric_explanations()['tooltips']['percentile']
             )
         
@@ -1113,7 +1113,7 @@ def display_results():
         with col4:
             st.metric(
                 "FFMI Percentile",
-                f"{latest_scan['ffmi_percentile']*100:.1f}%",
+                f"{latest_scan['ffmi_percentile']:.1f}%",
                 help=get_metric_explanations()['tooltips']['percentile']
             )
     
