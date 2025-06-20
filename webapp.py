@@ -911,7 +911,16 @@ def display_user_profile_form():
                     'gender': config['user_info']['gender'],
                     'training_level': user_info.get('training_level', '')
                 }
-                st.session_state.scan_history = scan_history
+                
+                # Clean up scan history - remove date_str fields that are not needed for UI
+                cleaned_scan_history = []
+                for scan in scan_history:
+                    clean_scan = scan.copy()
+                    if 'date_str' in clean_scan:
+                        del clean_scan['date_str']
+                    cleaned_scan_history.append(clean_scan)
+                
+                st.session_state.scan_history = cleaned_scan_history
                 if almi_goal:
                     st.session_state.almi_goal = almi_goal
                 if ffmi_goal:
