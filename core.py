@@ -1498,10 +1498,10 @@ def get_metric_explanations():
             'percentiles_explanation': '''
             **Percentiles** show how you compare to a reference population. For example, the 75th percentile 
             means you have more muscle mass than 75% of people your age and gender. The reference data comes 
-            from the LEAD cohort study of healthy adults.
+            from the [LEAD cohort study](https://www.nature.com/articles/s41430-020-0596-5) of healthy adults.
             ''',
             'population_source': '''
-            Reference data is from the LEAD cohort (Leadership in Exercise and Active Decisions), 
+            Reference data is from the [LEAD cohort](https://www.nature.com/articles/s41430-020-0596-5) (Leadership in Exercise and Active Decisions), 
             a comprehensive study of body composition in healthy adults across different ages.
             '''
         },
