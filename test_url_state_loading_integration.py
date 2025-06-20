@@ -98,21 +98,23 @@ class TestURLStateLoadingIntegration:
         
         return MockSessionState()
     
-    def create_encoded_url(self, config):
+    def create_encoded_url(self, config, mock_session_state=None):
         """Helper to create an encoded URL from a configuration."""
         # Convert to compact format
-        mock_session = self.mock_session_state()
-        mock_session.user_info = config['user_info']
-        mock_session.scan_history = config['scan_history']
+        if mock_session_state is None:
+            mock_session_state = self.mock_session_state()
+        
+        mock_session_state.user_info = config['user_info']
+        mock_session_state.scan_history = config['scan_history']
         
         if 'goals' in config:
             if 'almi' in config['goals']:
-                mock_session.almi_goal = config['goals']['almi']
+                mock_session_state.almi_goal = config['goals']['almi']
             if 'ffmi' in config['goals']:
-                mock_session.ffmi_goal = config['goals']['ffmi']
+                mock_session_state.ffmi_goal = config['goals']['ffmi']
         
         # Get compact representation
-        compact = self.get_compact_config_from_data(mock_session)
+        compact = self.get_compact_config_from_data(mock_session_state)
         
         # Encode as base64
         json_str = json.dumps(compact, separators=(',', ':'))
@@ -193,10 +195,10 @@ class TestURLStateLoadingIntegration:
         assert compact["fg"]["tp"] == 0.75
     
     @patch('streamlit.query_params')
-    def test_decode_state_from_url_success(self, mock_query_params, example_config):
+    def test_decode_state_from_url_success(self, mock_query_params, example_config, mock_session_state):
         """Test successful decoding of state from URL parameters."""
         # Create encoded URL data
-        url = self.create_encoded_url(example_config)
+        url = self.create_encoded_url(example_config, mock_session_state)
         encoded_data = url.split('data=')[1]
         
         # Mock query parameters
@@ -205,11 +207,10 @@ class TestURLStateLoadingIntegration:
         
         # Mock session state
         with patch('streamlit.session_state') as mock_st_session:
-            mock_session = self.mock_session_state()
-            mock_st_session.user_info = mock_session.user_info
-            mock_st_session.scan_history = mock_session.scan_history
-            mock_st_session.almi_goal = mock_session.almi_goal
-            mock_st_session.ffmi_goal = mock_session.ffmi_goal
+            mock_st_session.user_info = mock_session_state.user_info
+            mock_st_session.scan_history = mock_session_state.scan_history
+            mock_st_session.almi_goal = mock_session_state.almi_goal
+            mock_st_session.ffmi_goal = mock_session_state.ffmi_goal
             
             # Test decoding
             result = decode_state_from_url()
@@ -250,16 +251,15 @@ class TestURLStateLoadingIntegration:
         # Should return False for invalid data
         assert result == False
     
-    def test_expand_compact_config(self, example_config):
+    def test_expand_compact_config(self, example_config, mock_session_state):
         """Test expansion of compact config back to full format."""
         # Create compact config
-        mock_session = self.mock_session_state()
-        mock_session.user_info = example_config['user_info']
-        mock_session.scan_history = example_config['scan_history']
-        mock_session.almi_goal = example_config['goals']['almi']
-        mock_session.ffmi_goal = example_config['goals']['ffmi']
+        mock_session_state.user_info = example_config['user_info']
+        mock_session_state.scan_history = example_config['scan_history']
+        mock_session_state.almi_goal = example_config['goals']['almi']
+        mock_session_state.ffmi_goal = example_config['goals']['ffmi']
         
-        compact = self.get_compact_config_from_data(mock_session)
+        compact = self.get_compact_config_from_data(mock_session_state)
         
         # Expand back to full format
         user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(compact)
@@ -460,6 +460,41 @@ class TestWebAppURLIntegration:
 
 class TestURLRoundTripIntegrity:
     """Test round-trip integrity of URL state loading and generation."""
+    
+    @pytest.fixture
+    def example_config(self):
+        """Example configuration based on example_config.json."""
+        return {
+            "user_info": {
+                "birth_date": "04/26/1982",
+                "height_in": 66.0,
+                "gender": "male"
+            },
+            "scan_history": [
+                {
+                    "date": "04/07/2022",
+                    "total_weight_lbs": 143.2,
+                    "total_lean_mass_lbs": 106.3,
+                    "fat_mass_lbs": 32.6,
+                    "body_fat_percentage": 22.8,
+                    "arms_lean_lbs": 12.4,
+                    "legs_lean_lbs": 37.3
+                },
+                {
+                    "date": "04/01/2023",
+                    "total_weight_lbs": 154.3,
+                    "total_lean_mass_lbs": 121.2,
+                    "fat_mass_lbs": 28.5,
+                    "body_fat_percentage": 18.5,
+                    "arms_lean_lbs": 16.5,
+                    "legs_lean_lbs": 40.4
+                }
+            ],
+            "goals": {
+                "almi": {"target_percentile": 0.90},
+                "ffmi": {"target_percentile": 0.75}
+            }
+        }
     
     def test_full_round_trip_integrity(self, example_config):
         """Test that URL generation and loading preserves data integrity perfectly."""
