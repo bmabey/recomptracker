@@ -34,7 +34,7 @@ def test_url_integration_basic():
     print(f"Original compact config: {json.dumps(compact_config, indent=2)}")
     
     # Test expansion to full format
-    user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(compact_config)
+    user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(compact_config)
     
     # Verify user info
     assert user_info['birth_date'] == "04/26/1982"
@@ -90,7 +90,7 @@ def test_edge_cases():
         }
     }
     
-    user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(partial_config)
+    user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(partial_config)
     
     assert user_info['gender'] == "female"
     assert len(scan_history) == 0
@@ -105,7 +105,7 @@ def test_edge_cases():
         "fg": {"tp": 0.75}
     }
     
-    user_info, scan_history, almi_goal, ffmi_goal = expand_compact_config(max_scans_config)
+    user_info, scan_history, almi_goal, ffmi_goal, height_display = expand_compact_config(max_scans_config)
     
     assert len(scan_history) == 20
     assert scan_history[0]['date'] == "01/01/2024"
