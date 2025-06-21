@@ -78,6 +78,30 @@ st.markdown("""
         border-left: 4px solid #1f77b4;
         margin: 1rem 0;
     }
+    .inference-success {
+        background-color: #d4f1d4;
+        border-left: 3px solid #00c851;
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+        font-size: 0.875rem;
+        border-radius: 0.25rem;
+    }
+    .inference-info {
+        background-color: #e8f4fd;
+        border-left: 3px solid #1f77b4;
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+        font-size: 0.875rem;
+        border-radius: 0.25rem;
+    }
+    .inference-override {
+        background-color: #fff3cd;
+        border-left: 3px solid #ffc107;
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+        font-size: 0.875rem;
+        border-radius: 0.25rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -774,8 +798,6 @@ def run_analysis():
             'comparison_table_html': comparison_table_html
         }
         
-        st.success("Analysis completed successfully!")
-        
     except Exception as e:
         st.error(f"Analysis failed: {str(e)}")
 
@@ -1139,23 +1161,29 @@ def display_user_profile_form():
             help=get_metric_explanations()['tooltips']['training_level']
         )
         st.session_state.user_info['training_level'] = training_level
-        
-        # Show inference information
+    
+    # Fixed-height reserved space for training level inference messages
+    inference_container = st.container()
+    with inference_container:
+        # Always reserve space for inference messages with fixed height
         if inferred_level:
             if training_level == inferred_level:
                 # Format the confirmed inference message
                 formatted_msg = format_inference_message(inference_msg)
-                st.success(f"✅ **Inferred**: {inferred_level.title()} - {formatted_msg}")
+                st.markdown(f'<div class="inference-success">✅ <strong>Inferred:</strong> {inferred_level.title()} - {formatted_msg}</div>', unsafe_allow_html=True)
             elif training_level and training_level != inferred_level:
-                st.info(f"🔄 **Manual Override**: Using '{training_level}' instead of inferred '{inferred_level}'")
+                st.markdown(f'<div class="inference-override">🔄 <strong>Manual Override:</strong> Using \'{training_level}\' instead of inferred \'{inferred_level}\'</div>', unsafe_allow_html=True)
             else:
                 # Parse and reformat the inference message
                 suggestion_text = format_training_level_suggestion(inferred_level, inference_msg)
-                st.info(suggestion_text)
+                st.markdown(f'<div class="inference-info">{suggestion_text}</div>', unsafe_allow_html=True)
         elif inference_msg and len(st.session_state.scan_history) > 0:
             # Format any standalone inference messages
             formatted_msg = format_inference_message(inference_msg)
-            st.info(f"ℹ️ {formatted_msg}")
+            st.markdown(f'<div class="inference-info">ℹ️ {formatted_msg}</div>', unsafe_allow_html=True)
+        else:
+            # Always reserve space even when no inference is available
+            st.markdown('<div style="height: 60px;"></div>', unsafe_allow_html=True)
     
     # Action buttons
     col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
