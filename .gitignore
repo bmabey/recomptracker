@@ -145,3 +145,7 @@ almi_stats_table.csv
 
 # Claude related stuff
 feature_prompt
+
+# misc
+scratch/
+
