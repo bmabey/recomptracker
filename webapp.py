@@ -1454,13 +1454,8 @@ def display_results():
     
     st.subheader("📊 Analysis Results")
     
-    # Display comparison table if available
-    if comparison_table_html:
-        st.write("**Changes So Far**")
-        st.markdown(comparison_table_html, unsafe_allow_html=True)
-    
     # Display results in tabs
-    tab1, tab2, tab3 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis", "📊 Changes Summary"])
     
     with tab1:
         # ALMI summary metrics
@@ -1811,6 +1806,40 @@ def display_results():
                     df_bf[col] = df_bf[col].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
         
         st.dataframe(df_bf, use_container_width=True)
+    
+    with tab4:
+        # Changes Summary tab
+        st.subheader("📊 Changes Summary")
+        
+        # Column explanations
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            **Basic Metrics:**
+            - **Date**: Date of DEXA scan
+            - **Age**: Age at time of scan
+            - **Weight**: Total body weight in pounds
+            - **Lean**: Total lean mass (muscle, bone, organs) in pounds
+            - **Fat**: Total fat mass in pounds
+            - **BF%**: Body fat percentage
+            - **ALMI**: Appendicular Lean Mass Index (kg/m²) - lean mass in arms and legs
+            - **FFMI**: Fat-Free Mass Index (kg/m²) - total lean mass normalized for height
+            
+            **Changes Row:**
+            - **Changes**: Shows the change from your first scan to most recent scan
+            - **Age**: Years elapsed since first scan (neutral - no color coding)
+            - **Weight/Lean/Fat/BF%**: Physical changes from baseline
+            - **ALMI/FFMI**: Z-score changes (performance improvements/declines)
+            
+            **Color Coding:**
+            - 🟢 **Green**: Positive changes (lean mass gain, fat loss, BF% reduction, Z-score improvements)
+            - 🔴 **Red**: Negative changes (lean mass loss, fat gain, BF% increase, Z-score declines)
+            - ⚪ **White**: Neutral changes (weight, age)
+            - **Intensity**: Color intensity reflects the magnitude of change
+            """)
+        
+        # Display comparison table if available
+        if comparison_table_html:
+            st.markdown(comparison_table_html, unsafe_allow_html=True)
     
     # Download button for CSV
     csv_buffer = BytesIO()
