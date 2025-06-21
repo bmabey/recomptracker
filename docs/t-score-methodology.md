@@ -1,16 +1,48 @@
-# T-Score Reference Calculation: From LMS Parameters to Population Statistics
+# T-Score Methodology Documentation
 
-## The Challenge: Getting Realistic T-Score Reference Values
+## Overview
 
-When implementing T-score functionality for body composition analysis, we encountered a fundamental problem that highlights the difference between **statistical parameters** and **actual population statistics**. This blog post explains how we solved it using Monte Carlo sampling from LMS distributions.
+T-scores are a standardized measurement that compares an individual's muscle mass to a "peak reference population" - typically healthy young adults aged 20-30. T-scores tell you how many standard deviations you are from the peak values typically seen in young adulthood.
 
-## What Are T-Scores and Why Do We Need Them?
+## T-Scores in Medical Context
 
-T-scores compare an individual's measurement to the **peak reference values** typically seen in young adults (ages 20-30). Originally developed for bone density analysis, T-scores provide a "peak bone mass" perspective that answers: *"How does my current muscle mass compare to what young, healthy adults typically have?"*
+### Bone Density vs. Muscle Mass
 
-Unlike Z-scores (which compare to age-matched peers), T-scores provide a **longevity-focused perspective** by comparing against the physiological peak we should strive to maintain.
+T-scores are **commonly used** for bone density analysis, where they help diagnose osteoporosis and fracture risk. The World Health Organization officially defines osteoporosis as a bone density T-score of -2.5 or lower.
 
-## The Initial Problem: Tiny Standard Deviations
+For muscle mass and ALMI, T-scores are **much less standard**. While some research has explored T-score approaches for sarcopenia (muscle loss) assessment, there are no official clinical guidelines or widely accepted thresholds like there are for bone density.
+
+### Clinical Interpretation
+
+In simple terms: **T-scores show how your current muscle mass compares to what you might have had in your physical prime.**
+
+- **T-score of 0**: Your muscle mass matches the average healthy 25-year-old
+- **T-score of +2**: You have exceptional muscle mass - better than 97% of young adults at their peak
+- **T-score of -2**: Your muscle mass is significantly below typical young adult levels
+
+## RecompTracker T-Score Zones
+
+We've created 5 experimental zones that are **not based on clinical standards**:
+
+- **Elite Zone** (T ≥ +2.0): Exceptional muscle mass
+- **Peak Zone** (0 ≤ T < +2.0): Excellent muscle mass
+- **Approaching Peak** (-1.0 ≤ T < 0): Good muscle mass
+- **Below Peak** (-2.0 ≤ T < -1.0): Below optimal
+- **Well Below Peak** (T < -2.0): Significantly below optimal
+
+## Important Disclaimer
+
+**Age-appropriate percentiles remain the recommended approach** for actual goal-setting and health assessment. T-scores are provided as an experimental feature for those interested in comparing against peak young adult muscle mass.
+
+Think of T-scores as a "fun fact" overlay rather than clinical guidance - your primary focus should remain on improving within your age and gender demographic using the standard percentile system.
+
+## Technical Implementation
+
+### The Challenge: From LMS Parameters to Population Statistics
+
+When implementing T-score functionality for body composition analysis, we encountered a fundamental problem that highlights the difference between **statistical parameters** and **actual population statistics**. This section explains how we solved it using Monte Carlo sampling from LMS distributions.
+
+### The Initial Problem: Incorrect Reference Values
 
 Our first implementation naively calculated T-score reference values by taking statistics directly from the LMS parameter files:
 
@@ -35,7 +67,7 @@ This gave us results like:
 
 The problem? We were calculating the standard deviation of **median values across different ages**, not the actual **population variation** we needed for T-score calculation.
 
-## Understanding LMS Parameters vs Population Statistics
+### Understanding LMS Parameters vs Population Statistics
 
 The LMS method describes population distributions using three age-varying parameters:
 
@@ -45,17 +77,17 @@ The LMS method describes population distributions using three age-varying parame
 
 These parameters **describe the shape of the distribution** but aren't directly the population mean and standard deviation we need for T-score calculation.
 
-### What We Actually Need
+#### What We Actually Need
 
 For T-score calculation, we need:
 - **μ_peak**: True population mean for young adults (ages 20-30)
 - **σ_peak**: True population standard deviation for young adults
 
-## The Solution: Monte Carlo Sampling from LMS Distributions
+### The Solution: Monte Carlo Sampling from LMS Distributions
 
 Our solution uses Monte Carlo sampling to generate a synthetic population from the LMS distributions, then calculate empirical statistics:
 
-### Step 1: Sample Across Young Adult Age Range
+#### Step 1: Sample Across Young Adult Age Range
 
 ```python
 def calculate_tscore_reference_values(gender_code):
@@ -70,7 +102,7 @@ def calculate_tscore_reference_values(gender_code):
     n_samples_per_age = 1000  # Sample size per age year
 ```
 
-### Step 2: Generate Samples from Each Age's LMS Distribution
+#### Step 2: Generate Samples from Each Age's LMS Distribution
 
 For each age in the 20-30 range, we sample from that age's specific LMS distribution:
 
@@ -93,7 +125,7 @@ For each age in the 20-30 range, we sample from that age's specific LMS distribu
         all_samples.extend(samples)
 ```
 
-### Step 3: Calculate Empirical Population Statistics
+#### Step 3: Calculate Empirical Population Statistics
 
 Once we have our simulated population, we calculate the actual statistics:
 
@@ -105,7 +137,7 @@ Once we have our simulated population, we calculate the actual statistics:
     return mu_peak, sigma_peak
 ```
 
-## The LMS Inverse Transformation
+### The LMS Inverse Transformation
 
 The key piece that makes this work is the `get_value_from_zscore` function, which performs the inverse LMS transformation:
 
@@ -129,16 +161,16 @@ This function converts a standard normal Z-score back into the original metric s
 
 ## Why This Approach Works
 
-### 1. **Representative Sampling**
+### 1. Representative Sampling
 By sampling across the entire young adult age range (20-30), we capture the natural variation in peak muscle mass across these ages.
 
-### 2. **Proper Distribution Sampling** 
+### 2. Proper Distribution Sampling 
 We're not just taking medians - we're sampling the full distribution at each age, including the tails where people with high and low muscle mass exist.
 
-### 3. **Percentile-Based Sampling**
+### 3. Percentile-Based Sampling
 Using `np.linspace(0.01, 0.99, 1000)` ensures we sample uniformly across the probability space, giving us a representative population.
 
-### 4. **Age-Weighted Combination**
+### 4. Age-Weighted Combination
 Since we sample equally from each age (20, 21, 22, ... 30), we effectively create a uniform age distribution across the peak muscle mass years.
 
 ## Results: Realistic T-Score Reference Values
@@ -176,9 +208,9 @@ for almi in test_almi_values:
 # ALMI 10.0 → T-score 1.67
 ```
 
-## Peak Zone Stratification: From T-Scores to Healthspan Optimization
+## Peak Zone Implementation
 
-With proper reference values, we can now implement meaningful peak muscle mass zone stratification for longevity and healthspan optimization:
+With proper reference values, we can now implement meaningful peak muscle mass zone stratification:
 
 ```python
 def get_tscore_peak_zone(t_score):
@@ -262,7 +294,7 @@ class TestTScoreCalculations(unittest.TestCase):
             # Verify T-score is in expected range...
 ```
 
-## Conclusion: From Parameters to People
+## Conclusion
 
 This implementation demonstrates how to bridge the gap between **statistical parameters** (LMS values) and **clinical interpretation** (T-scores). By using Monte Carlo sampling, we:
 
@@ -273,9 +305,9 @@ This implementation demonstrates how to bridge the gap between **statistical par
 
 The key insight is that **LMS parameters describe distributions, not populations**. To get population statistics, you need to sample from those distributions and calculate empirical values - exactly what our Monte Carlo approach accomplishes.
 
-### Files Modified
-- `core.py:273-353`: New `calculate_tscore_reference_values()` function
-- `tests/unit/test_zscore_calculations.py:2155-2297`: Comprehensive T-score test suite
-- `webapp.py:1854-1867, 2008-2021`: Web interface integration with dual-mode plotting
+### Implementation Files
+- [`core.py:273-353`](https://github.com/benmabey/bodymetrics/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/core.py#L273-L353): New `calculate_tscore_reference_values()` function
+- [`tests/unit/test_zscore_calculations.py:2155-2297`](https://github.com/benmabey/bodymetrics/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/tests/unit/test_zscore_calculations.py#L2155-L2297): Comprehensive T-score test suite
+- [`webapp.py:1854-1867, 2008-2021`](https://github.com/benmabey/bodymetrics/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/webapp.py#L1854-L1867): Web interface integration with dual-mode plotting
 
 This approach now provides the realistic T-score reference values needed for meaningful body composition analysis in the longevity and healthspan optimization context.
