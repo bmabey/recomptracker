@@ -4,19 +4,33 @@ A Python tool that calculates Z-scores and percentiles for body composition metr
 
 ## Operationalizing Peter Attia's Medicine 3.0 Philosophy
 
-This tool directly implements Dr. Peter Attia's revolutionary **Medicine 3.0** approach to longevity and healthspan optimization. Rather than accepting "normal" population averages as healthy targets, Attia advocates for a proactive, data-driven strategy that aims for **elite percentiles** to build substantial physiological reserves against age-related decline.
+This tool directly implements [Dr. Peter Attia's](https://peterattiamd.com/) revolutionary **Medicine 3.0** approach to longevity and healthspan optimization. Rather than accepting "normal" population averages as healthy targets, Attia advocates for a proactive, data-driven strategy that aims for **elite percentiles** to build substantial physiological reserves against age-related decline.
 
 ### The Strategic Imperative: Building a Buffer Against Inevitable Decline
 
 Attia's core insight is profound yet simple: **if you aspire to "kick ass" at 85, you can't afford to be average at 50**. With muscle mass declining 1-2% annually after age 50, and strength declining even faster at 4% per year, being "normal" today means being frail tomorrow. The solution is to build such a substantial buffer of muscle mass that even after decades of predictable decline, you never cross the threshold into frailty and dysfunction.
 
-### Why ALMI is the Ultimate Longevity Metric
+### Why ALMI Over BMI: A Better Metric for Body Composition
 
-Attia emphasizes ALMI (Appendicular Lean Mass Index) as the "purer" measure of skeletal muscle compared to FFMI, because it isolates the metabolically active tissue in your arms and legs that responds to training. This isn't just about aesthetics—it's about engineering three critical pillars of healthspan:
+Attia firmly rejects BMI as a useful tool for individual health assessment, famously noting that at the individual level, it tells him little more about a patient's health than their eye color ([read more](https://peterattiamd.com/should-bmi-be-used-measuring-obesity-at-the-individual-level/)). While BMI may have utility for large-scale epidemiological studies, it has fundamental limitations for personal health management because **it fails to distinguish between fat mass and lean mass**—two components that have opposing effects on metabolic health.
 
-1. **Metabolic Resilience**: Muscle is your body's primary glucose disposal site. Higher ALMI directly translates to better insulin sensitivity and protection against metabolic diseases
-2. **Functional Reserve**: Starting with elite muscle mass ensures you maintain independence and physical capability deep into old age
-3. **Strength Foundation**: While strength beats muscle mass for longevity prediction, muscle provides the biological substrate required to generate that strength
+**The Problem with BMI:**
+- Cannot differentiate between muscle and fat
+- A highly muscular athlete and an obese individual can have identical BMI scores
+- Provides no information about body composition or metabolic health
+- Ignores the critical importance of muscle mass for longevity
+
+**Why ALMI is Superior:**
+
+ALMI (Appendicular Lean Mass Index) measures the lean mass specifically in your arms and legs, normalized for height. Attia considers this a "purer" measure of skeletal muscle compared to FFMI because it isolates the metabolically active tissue that responds to training. Here's why this matters:
+
+1. **Metabolic Function**: Muscle tissue is your body's largest glucose disposal site. When you eat carbohydrates, healthy muscle takes up 80-90% of the circulating glucose. Higher ALMI directly correlates with better insulin sensitivity and protection against metabolic diseases ([learn more about insulin resistance](https://peterattiamd.com/peter-attia-on-how-insulin-resistance-manifests-in-the-muscle/)).
+
+2. **Functional Capacity**: The lean mass in your arms and legs determines your ability to perform daily activities—carrying groceries, climbing stairs, getting up from chairs. This appendicular muscle mass is what you lose with age-related sarcopenia.
+
+3. **Training Response**: Unlike organ mass or bone density, appendicular lean mass is what responds to resistance training and nutritional interventions. It's the tissue you can actually build and maintain through lifestyle choices ([see Attia's training approach](https://peterattiamd.com/ama71/)).
+
+4. **Predictive Power**: Studies show that individuals in the lowest quartile for muscle mass have mortality rates more than double those in the highest quartile over 12-year follow-up periods ([more on muscle mass and longevity](https://peterattiamd.com/peter-attia-on-the-importance-of-preserving-strength-and-muscle-mass-as-we-age/)).
 
 ### From Philosophy to Action: Evidence-Based Goal Setting
 
@@ -41,6 +55,11 @@ The tool embodies Attia's rejection of population-based "normal" ranges, which r
 What was once available only to Attia's high-net-worth patients is now accessible to anyone with DEXA scan data. RecompTracker democratizes the quantified, engineering approach to healthspan optimization that defines Medicine 3.0, giving users the same analytical framework used in elite longevity medicine.
 
 This is how you move from hoping to age well to **engineering** a robust, functional future.
+
+**Learn More:**
+- [Peter Attia's complete approach to body composition](https://peterattiamd.com/improving-body-composition/)
+- [Why DEXA scans matter for longevity](https://peterattiamd.com/ai-dexa-and-mortality/)
+- [Tim Ferriss interview with Peter Attia (detailed transcript)](https://tim.blog/2023/03/17/peter-attia-outlive-transcript/)
 
 ## Features
 

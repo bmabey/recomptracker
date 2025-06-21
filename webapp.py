@@ -52,58 +52,28 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for better styling and add LZ-string library
-st.markdown("""
-<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
-<style>
-    .metric-box {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 0.5rem 0;
-    }
-    .error-message {
-        color: #ff4b4b;
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
-    }
-    .success-message {
-        color: #00c851;
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
-    }
-    .explanation-box {
-        background-color: #e8f4fd;
-        padding: 1rem;
-        border-left: 4px solid #1f77b4;
-        margin: 1rem 0;
-    }
-    .inference-success {
-        background-color: #d4f1d4;
-        border-left: 3px solid #00c851;
-        padding: 0.5rem;
-        margin: 0.25rem 0;
-        font-size: 0.875rem;
-        border-radius: 0.25rem;
-    }
-    .inference-info {
-        background-color: #e8f4fd;
-        border-left: 3px solid #1f77b4;
-        padding: 0.5rem;
-        margin: 0.25rem 0;
-        font-size: 0.875rem;
-        border-radius: 0.25rem;
-    }
-    .inference-override {
-        background-color: #fff3cd;
-        border-left: 3px solid #ffc107;
-        padding: 0.5rem;
-        margin: 0.25rem 0;
-        font-size: 0.875rem;
-        border-radius: 0.25rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+def load_css():
+    """Load custom CSS from external file."""
+    try:
+        css_path = os.path.join(os.path.dirname(__file__), 'static', 'webapp.css')
+        with open(css_path, 'r', encoding='utf-8') as f:
+            css_content = f.read()
+        
+        # Include LZ-string library
+        st.markdown("""
+        <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+        """, unsafe_allow_html=True)
+        
+        # Inject custom CSS
+        st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
+        
+    except FileNotFoundError:
+        st.error("CSS file not found. Using default styling.")
+    except Exception as e:
+        st.error(f"Error loading CSS: {e}")
+
+# Load custom CSS
+load_css()
 
 
 def get_compact_config():
@@ -250,6 +220,70 @@ def decode_state_from_url():
     except Exception as e:
         st.error(f"Failed to decode URL data: {e}")
         return False
+
+
+@st.dialog("💪 The Philosophy Behind RecompTracker")
+def display_philosophy_modal():
+    """Display the Philosophy section in a modal dialog."""
+    philosophy_content = extract_philosophy_section()
+    
+    if philosophy_content:
+        # Display the content with proper markdown rendering
+        st.markdown(philosophy_content)
+        
+        # Close button
+        if st.button("Close", key="close_philosophy_modal"):
+            st.rerun()
+    else:
+        st.error("Could not load Philosophy section from README.md")
+
+
+def extract_philosophy_section():
+    """
+    Extract the Philosophy section from README.md.
+    
+    Returns:
+        str: The Philosophy section content in markdown format, or None if not found
+    """
+    try:
+        readme_path = os.path.join(os.path.dirname(__file__), 'README.md')
+        
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Find the Philosophy section
+        start_marker = "## Operationalizing Peter Attia's Medicine 3.0 Philosophy"
+        end_marker = "## Features"
+        
+        start_idx = content.find(start_marker)
+        if start_idx == -1:
+            return None
+        
+        end_idx = content.find(end_marker, start_idx)
+        if end_idx == -1:
+            # If no Features section found, take rest of the content
+            philosophy_content = content[start_idx:]
+        else:
+            philosophy_content = content[start_idx:end_idx]
+        
+        # Clean up the content - remove the main heading since we'll add our own
+        lines = philosophy_content.split('\n')
+        # Remove the main heading line and any empty lines after it
+        filtered_lines = []
+        skip_empty = True
+        for i, line in enumerate(lines):
+            if i == 0:  # Skip the main heading
+                continue
+            if skip_empty and line.strip() == '':
+                continue
+            skip_empty = False
+            filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines).strip()
+        
+    except Exception as e:
+        st.error(f"Error reading Philosophy section: {e}")
+        return None
 
 
 def shorten_url_with_tinyurl(long_url):
@@ -989,7 +1023,15 @@ def display_header():
     
     with col1:
         st.title(explanations['header_info']['title'])
-        st.markdown(explanations['header_info']['subtitle'])
+        
+        # Enhanced subtitle with philosophy teaser and clickable link
+        st.markdown(f"""{explanations['header_info']['subtitle']}
+
+**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Move beyond "normal" population averages to engineer elite percentiles for longevity.""")
+        
+        # Philosophy link as a button styled to look like a link
+        if st.button("🧠 Learn why this matters →", key="show_philosophy", help="Learn about the philosophy behind RecompTracker", type="secondary"):
+            display_philosophy_modal()
     
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)  # Add some spacing
