@@ -798,8 +798,6 @@ def run_analysis():
             'comparison_table_html': comparison_table_html
         }
         
-        st.success("Analysis completed successfully!")
-        
     except Exception as e:
         st.error(f"Analysis failed: {str(e)}")
 
