@@ -202,6 +202,11 @@ The web interface will open in your browser at `http://localhost:8501` and provi
 - Downloadable results (CSV)
 - Fake data generation for testing/demos
 
+#### Environment Variables
+
+- **`STREAMLIT_ENV=development`** - Enables development features (Load Example button, localhost URLs)
+- **`STREAMLIT_BASE_URL`** - Custom base URL for share links (overrides auto-detection)
+
 ### Command Line Interface
 
 For programmatic usage or batch processing:
