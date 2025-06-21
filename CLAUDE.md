@@ -23,10 +23,7 @@ python run_analysis.py --config my_config.json
 python run_analysis.py --help-config
 
 # Run comprehensive test suite
-python test_zscore_calculations.py
-
-# Generate Z-scores for Excel data (legacy scientific app)
-python scientific_zscore_app.py --filename="example_file.xlsx"
+python -m pytest tests/
 ```
 
 ## Architecture
@@ -39,8 +36,7 @@ python scientific_zscore_app.py --filename="example_file.xlsx"
    - Data processing and orchestration (TLM estimation, LMS data loading)
    - Plotting logic (percentile curves, visualizations, CSV export)
    - Main analysis orchestration function
-3. **scientific_zscore_app.py**: Legacy Excel-based Z-score calculator for batch processing
-4. **test_zscore_calculations.py**: Comprehensive test suite covering all calculation functions
+3. **tests/**: Comprehensive test suite covering all calculation functions
 
 ### Data Flow
 
@@ -73,7 +69,7 @@ The system uses JSON configuration files with this structure:
 
 ## Testing
 
-Run the test suite with `python test_zscore_calculations.py`. Tests cover:
+Run the test suite with `python -m pytest tests/` or `task test-all`. Tests cover:
 - Core mathematical calculations (Z-scores, T-scores, age calculations)
 - Body fat percentage accuracy validation against ground truth body composition data
 - TLM estimation algorithms
