@@ -54,7 +54,7 @@ The tool embodies Attia's rejection of population-based "normal" ranges, which r
 
 This started as a personal project to help track my own DEXA scan progress using Attia's percentile-based approach. Rather than keep it to myself, I'm sharing it in case others find it useful for their own body composition goals.
 
-**Fun fact**: This entire tool (including this text!) was [vibe coded](https://youtu.be/JeNS1ZNHQs8) using [Claude Code](https://claude.ai/code) in about a day!
+**🤖 Fun fact**: This entire tool (including this text!) was [vibe coded](https://youtu.be/JeNS1ZNHQs8) using [Claude Code](https://claude.ai/code) in about a day!
 
 **Learn More:**
 - [Peter Attia's complete approach to body composition](https://peterattiamd.com/improving-body-composition/)
