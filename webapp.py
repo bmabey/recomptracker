@@ -178,14 +178,14 @@ def expand_compact_config(compact_config):
 def get_base_url():
     """Get the base URL based on environment with smart detection."""
     # Priority 1: Custom override via environment variable
-    custom_url = os.getenv('STREAMLIT_BASE_URL')
+    custom_url = os.getenv("STREAMLIT_BASE_URL")
     if custom_url:
-        return custom_url.rstrip('/')
-    
+        return custom_url.rstrip("/")
+
     # Priority 2: Development mode - use localhost with default port
-    if os.getenv('STREAMLIT_ENV') == 'development':
+    if os.getenv("STREAMLIT_ENV") == "development":
         return "http://localhost:8501"
-    
+
     # Priority 3: Production default
     return "https://recomptracker.streamlit.app"
 
