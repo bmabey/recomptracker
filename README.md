@@ -2,6 +2,12 @@
 
 Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calculating Z-scores and percentiles for ALMI/FFMI metrics using LMS reference values, enabling data-driven pursuit of elite percentiles for longevity.
 
+## Try It Live
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://recomptracker.streamlit.app)
+
+![RecompTracker Screenshot](docs/recomptracker-screenshot.png)
+
 ## Operationalizing Peter Attia's Medicine 3.0 Philosophy
 
 This tool directly implements [Dr. Peter Attia's](https://peterattiamd.com/) **Medicine 3.0** approach to longevity and healthspan optimization. Rather than accepting "normal" population averages as healthy targets, Attia advocates for a proactive, data-driven strategy that aims for **elite percentiles** to build substantial physiological reserves against age-related decline.
