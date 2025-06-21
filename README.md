@@ -54,7 +54,7 @@ RecompTracker transforms these abstract percentiles into concrete, actionable in
 
 RecompTracker is a **longevity planning tool**. Traditional approaches focus on short-term aesthetics or performance. Attia's philosophy, operationalized here, treats muscle mass as a quantifiable asset in your "longevity bank account." Every percentage point improvement in ALMI percentile is a withdrawal from future frailty risk.
 
-The tool embodies Attia's rejection of population-based "normal" ranges, which reflect a chronically unhealthy society. Instead, it provides the data infrastructure to pursue the "elite" metrics that correlate with better healthspan outcomes—because in Attia's words, "normal" is simply a blueprint for decline.
+The tool embodies Attia's rejection of population-based "normal" ranges, which reflect a chronically unhealthy society. It is a simple application that lets you pursue the "elite" metrics that correlate with better healthspan outcomes—because in Attia's words, "normal" is simply a blueprint for decline.
 
 ### A Personal Tool, Shared
 
