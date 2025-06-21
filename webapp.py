@@ -1465,7 +1465,7 @@ def display_results():
         st.markdown(comparison_table_html, unsafe_allow_html=True)
     
     # Display results in tabs
-    tab1, tab2, tab3 = st.tabs(["🔥 ALMI Analysis", "💪 FFMI Analysis", "📈 Body Fat Analysis"])
+    tab1, tab2, tab3 = st.tabs(["💪 ALMI Analysis", "🔥 FFMI Analysis", "📈 Body Fat Analysis"])
     
     with tab1:
         # ALMI summary metrics
