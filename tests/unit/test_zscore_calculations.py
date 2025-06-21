@@ -1443,21 +1443,21 @@ class TestSuggestedGoalIntegration(unittest.TestCase):
         self.scan_history = [
             {
                 'date_str': "01/01/2024", 
-                'total_weight_lbs': 180.0,
-                'total_lean_mass_lbs': 150.0, 
-                'fat_mass_lbs': 25.0,
-                'body_fat_percentage': 14.0,
-                'arms_lean_lbs': 15.0, 
-                'legs_lean_lbs': 35.0
+                'total_weight_lbs': 170.0,
+                'total_lean_mass_lbs': 125.0, 
+                'fat_mass_lbs': 40.0,
+                'body_fat_percentage': 23.5,
+                'arms_lean_lbs': 13.0, 
+                'legs_lean_lbs': 30.0
             },
             {
                 'date_str': "07/01/2024", 
-                'total_weight_lbs': 185.0,
-                'total_lean_mass_lbs': 155.0, 
-                'fat_mass_lbs': 25.0,
-                'body_fat_percentage': 13.5,
-                'arms_lean_lbs': 16.0, 
-                'legs_lean_lbs': 36.0
+                'total_weight_lbs': 175.0,
+                'total_lean_mass_lbs': 130.0, 
+                'fat_mass_lbs': 40.0,
+                'body_fat_percentage': 22.9,
+                'arms_lean_lbs': 14.0, 
+                'legs_lean_lbs': 32.0
             }
         ]
     
