@@ -1320,6 +1320,8 @@ def display_header():
             st.markdown(explanations["header_info"]["ffmi_explanation"])
 
         st.markdown(explanations["header_info"]["percentiles_explanation"])
+        
+        st.markdown("**💡 Want to learn more?** If you're curious about why we use ALMI instead of BMI, see the **Learn why this matters** section above for the full rationale.")
 
 
 def inches_to_feet_inches_str(inches):
