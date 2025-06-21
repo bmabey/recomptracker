@@ -9,21 +9,33 @@ This is a Python-based RecompTracker tool that calculates Z-scores and percentil
 ## Common Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Setup project (recommended)
+task setup
 
-# Run main analysis with default config
-python run_analysis.py
+# Launch web application
+task webapp
+task webapp-dev  # Development mode with extra features
 
-# Run analysis with custom config
-python run_analysis.py my_config.json
-python run_analysis.py --config my_config.json
+# Run analysis
+task run                           # With example config
+task run-config -- my_config.json # With custom config
+task help-config                   # Show configuration help
 
-# Show configuration help
-python run_analysis.py --help-config
+# Testing
+task test                          # Run all tests
+task test-unit                     # Unit tests only
+task test-integration              # Integration tests only
 
-# Run comprehensive test suite
-python -m pytest tests/
+# Dependencies
+task sync                          # Sync dependencies
+task add -- package-name          # Add dependency
+task add-dev -- package-name      # Add dev dependency
+
+# Manual commands (if not using task runner)
+uv sync                            # Setup with uv
+uv run python run_analysis.py     # Run analysis
+uv run streamlit run webapp.py    # Launch webapp
+uv run python -m pytest tests/    # Run tests
 ```
 
 ## Architecture
@@ -69,7 +81,7 @@ The system uses JSON configuration files with this structure:
 
 ## Testing
 
-Run the test suite with `python -m pytest tests/` or `task test-all`. Tests cover:
+Run the test suite with `task test` (recommended) or `uv run python -m pytest tests/`. Tests cover:
 - Core mathematical calculations (Z-scores, T-scores, age calculations)
 - Body fat percentage accuracy validation against ground truth body composition data
 - TLM estimation algorithms
