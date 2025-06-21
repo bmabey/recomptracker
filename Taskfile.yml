@@ -76,6 +76,54 @@ tasks:
     cmds:
       - task test-all
 
+  lint:
+    desc: "Run linting and formatting checks"
+    cmds:
+      - uv run ruff check .
+      - uv run ruff format --check .
+
+  fix:
+    desc: "Auto-fix linting and formatting issues"
+    cmds:
+      - uv run ruff check --fix .
+      - uv run ruff format .
+
+  typecheck:
+    desc: "Run type checking with mypy"
+    cmds:
+      - uv run mypy . --ignore-missing-imports
+
+  ci:
+    desc: "Run CI pipeline locally (lint, unit tests)"
+    cmds:
+      - echo "🔍 Running linting and formatting checks..."
+      - task lint
+      - echo "🧪 Running unit tests..."
+      - task test-unit
+      - echo "✅ CI checks passed!"
+
+  ci-full:
+    desc: "Run full CI pipeline locally (lint, all tests)"
+    cmds:
+      - echo "🔍 Running linting and formatting checks..."
+      - task lint
+      - echo "🧪 Running unit tests..."
+      - task test-unit
+      - echo "🧪 Running integration tests in development mode..."
+      - STREAMLIT_ENV=development uv run python -m pytest tests/integration/ -v --tb=short
+      - echo "✅ Full CI checks passed!"
+
+  ci-strict:
+    desc: "Run strict CI pipeline including type checking"
+    cmds:
+      - echo "🔍 Running linting and formatting checks..."
+      - task lint
+      - echo "🔍 Running type checking..."
+      - task typecheck
+      - echo "🧪 Running tests..."
+      - task test
+      - echo "✅ All strict CI checks passed!"
+
   help-config:
     desc: "Show configuration help"
     cmds:

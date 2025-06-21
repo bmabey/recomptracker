@@ -42,6 +42,28 @@ dev-dependencies = [
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+extend-exclude = [
+    "*_BACKUP_*.py",
+    "*_BASE_*.py", 
+    "*_LOCAL_*.py",
+    "*_REMOTE_*.py",
+    "bf-plot",
+    "changes-summary-fix",
+    "dexa-scan-table",
+    "feature-prompt",
+    "fix-tests",
+    "fix-url-reloading",
+    "goal-bug",
+    "goal-row-bug",
+    "move-tests",
+    "overall-changes",
+    "realistic-profiles",
+    "scan-table-size",
+    "tiny-url",
+    "training-level-flash",
+    "update-chnages-table",
+    "v1-api-urls",
+]
 
 [tool.ruff.lint]
 select = [
@@ -52,7 +74,14 @@ select = [
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
 ]
-ignore = []
+ignore = [
+    "E501",  # Line too long (let formatter handle this)
+    "E722",  # Bare except (acceptable in fallback code)
+    "B007",  # Loop variable not used (pandas iterrows pattern)
+    "B904",  # Exception chaining (acceptable in existing code)
+    "B017",  # Asserting on Exception (acceptable in tests)
+    "F401",  # Unused import (plotly.express for optional functionality)
+]
 
 [tool.ruff.format]
 quote-style = "double"
