@@ -1354,7 +1354,53 @@ def plot_metric_with_table(df_results, metric_to_plot, lms_functions, goal_calcu
     # Export data table to CSV (only for ALMI to avoid duplication)
     if metric_to_plot == 'ALMI':
         csv_filename = 'almi_stats_table.csv'
-        df_results.to_csv(csv_filename, index=False)
+        
+        # Create CSV export with new table structure (main data + Changes row)
+        main_columns = [
+            'date_str', 'age_at_scan', 
+            'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
+            'almi_kg_m2', 'ffmi_kg_m2'
+        ]
+        main_names = [
+            'Date', 'Age', 
+            'Weight', 'Lean', 'Fat', 'BF%',
+            'ALMI', 'FFMI'
+        ]
+        
+        # Create main data table for CSV
+        df_csv = df_results[main_columns].copy()
+        df_csv.columns = main_names
+        
+        # Create changes row for CSV
+        last_scan_idx = len(df_results) - 1
+        first_scan_idx = 0
+        changes_data = {}
+        changes_data['Date'] = 'Changes'  # Plain text for CSV
+        # Calculate age change for CSV
+        age_change = df_results.loc[last_scan_idx, 'age_at_scan'] - df_results.loc[first_scan_idx, 'age_at_scan']
+        changes_data['Age'] = age_change
+        
+        # Map change columns
+        change_mapping = {
+            'Weight': 'weight_change_last', 'Lean': 'lean_change_last', 
+            'Fat': 'fat_change_last', 'BF%': 'bf_change_last',
+            'ALMI': 'almi_z_change_last', 'FFMI': 'ffmi_z_change_last'
+        }
+        
+        for display_col, change_col in change_mapping.items():
+            if change_col in df_results.columns:
+                change_val = df_results.loc[last_scan_idx, change_col]
+                if pd.notna(change_val):
+                    changes_data[display_col] = change_val  # Raw numeric value for CSV
+                else:
+                    changes_data[display_col] = ''
+            else:
+                changes_data[display_col] = ''
+        
+        # Add changes row and export
+        changes_row = pd.DataFrame([changes_data])
+        df_csv_with_changes = pd.concat([df_csv, changes_row], ignore_index=True)
+        df_csv_with_changes.to_csv(csv_filename, index=False)
         print(f"Table data saved as: {csv_filename}")
 
 def create_body_fat_plot(df_results, user_info, return_figure=False):
@@ -1605,7 +1651,7 @@ def create_plotly_body_fat_plot(df_results, user_info):
 
 def create_scan_comparison_table(df_results, return_html=False):
     """
-    Creates a comparison table showing first scan vs most recent scan with changes.
+    Creates a comparison table showing scan data with Changes row at bottom.
     
     Args:
         df_results (pd.DataFrame): Complete results DataFrame with scan history
@@ -1620,50 +1666,51 @@ def create_scan_comparison_table(df_results, return_html=False):
     if len(scan_data) < 1:
         return "No scan data available for comparison"
     
-    # Get first and last scans
-    first_scan = scan_data.iloc[0]
-    last_scan = scan_data.iloc[-1] if len(scan_data) > 1 else first_scan
-    
-    # Prepare data for the table
+    # Prepare data for the table with new structure
     table_data = []
+    headers = ['Date', 'Age', 'Weight', 'Lean', 'Fat', 'BF%', 'ALMI', 'FFMI']
     
-    # First scan row (no changes)
-    first_row = [
-        first_scan['date_str'],
-        f"{first_scan['total_weight_lbs']:.1f}",
-        "-",  # No change for first scan
-        f"{first_scan['total_lean_mass_lbs']:.1f}",
-        "-",  # No change for first scan
-        f"{first_scan['fat_mass_lbs']:.1f}",
-        "-",  # No change for first scan
-        f"{first_scan['body_fat_percentage']:.1f}%",
-        "-"   # No change for first scan
-    ]
-    
-    # Most recent scan row (with changes from first)
-    if len(scan_data) > 1:
-        weight_change = last_scan['weight_change_first']
-        lean_change = last_scan['lean_change_first'] 
-        fat_change = last_scan['fat_change_first']
-        bf_change = last_scan['bf_change_first']
-        
-        last_row = [
-            last_scan['date_str'],
-            f"{last_scan['total_weight_lbs']:.1f}",
-            f"{weight_change:+.1f}" if pd.notna(weight_change) else "N/A",
-            f"{last_scan['total_lean_mass_lbs']:.1f}",
-            f"{lean_change:+.1f}" if pd.notna(lean_change) else "N/A",
-            f"{last_scan['fat_mass_lbs']:.1f}",
-            f"{fat_change:+.1f}" if pd.notna(fat_change) else "N/A",
-            f"{last_scan['body_fat_percentage']:.1f}%",
-            f"{bf_change:+.1f}%" if pd.notna(bf_change) else "N/A"
+    # Add all scan rows
+    for _, scan in scan_data.iterrows():
+        row = [
+            scan['date_str'],
+            f"{scan['age_at_scan']:.1f}",
+            f"{scan['total_weight_lbs']:.1f}",
+            f"{scan['total_lean_mass_lbs']:.1f}",
+            f"{scan['fat_mass_lbs']:.1f}",
+            f"{scan['body_fat_percentage']:.1f}%",
+            f"{scan['almi_kg_m2']:.2f}",
+            f"{scan['ffmi_kg_m2']:.2f}"
         ]
-    else:
-        # Only one scan - same as first row
-        last_row = first_row.copy()
+        table_data.append(row)
     
-    headers = ['Date', 'Total Mass', 'Change', 'Lean Mass', 'Change', 'Fat Mass', 'Change', 'Body Fat %', 'Change']
-    table_data = [first_row, last_row]
+    # Add Changes row if there are multiple scans
+    if len(scan_data) > 1:
+        last_scan = scan_data.iloc[-1]
+        first_scan = scan_data.iloc[0]
+        
+        # Calculate age change
+        age_change = last_scan['age_at_scan'] - first_scan['age_at_scan']
+        changes_row = ['Changes', f"+{age_change:.1f} years"]  # Start with Changes label and age change
+        
+        # Add changes for each metric
+        for col_name in ['weight_change_first', 'lean_change_first', 'fat_change_first', 'bf_change_first']:
+            if col_name in last_scan and pd.notna(last_scan[col_name]):
+                if col_name == 'bf_change_first':
+                    changes_row.append(f"{last_scan[col_name]:+.1f}%")
+                else:
+                    changes_row.append(f"{last_scan[col_name]:+.1f}")
+            else:
+                changes_row.append("N/A")
+        
+        # Add ALMI and FFMI Z-score changes
+        for col_name in ['almi_z_change_last', 'ffmi_z_change_last']:
+            if col_name in last_scan and pd.notna(last_scan[col_name]):
+                changes_row.append(f"{last_scan[col_name]:+.2f}")
+            else:
+                changes_row.append("N/A")
+        
+        table_data.append(changes_row)
     
     if return_html:
         # Create HTML table with color coding
@@ -1678,72 +1725,113 @@ def create_scan_comparison_table(df_results, return_html=False):
         # Data rows
         html += '  <tbody>\n'
         for i, row in enumerate(table_data):
-            html += '    <tr>\n'
+            is_changes_row = (row[0] == 'Changes')
+            
+            # Add thick border before Changes row
+            if is_changes_row:
+                html += '    <tr style="border-top: 3px solid #333;">\n'
+            else:
+                html += '    <tr>\n'
+            
             for j, cell in enumerate(row):
                 # Determine cell styling based on content and position
                 style = "border: 1px solid #ddd; padding: 8px; text-align: center;"
                 
-                # Color code change cells (change columns at indices 2, 4, 6, 8) in the last row
-                if j in [2, 4, 6, 8] and i == 1:  # Change columns, last row only
-                    if cell != "-" and cell != "N/A":
-                        # Parse the change value
+                # Special styling for Changes row
+                if is_changes_row:
+                    if j == 0:  # "Changes" label
+                        style += " background-color: #f5f5f5; font-weight: bold;"
+                    elif j == 1:  # Age change - neutral white background
+                        style += " background-color: white;"
+                    elif cell != "" and cell != "N/A":
+                        # Color code changes based on column
                         try:
                             if cell.endswith('%'):
                                 change_val = float(cell.replace('%', '').replace('+', ''))
                             else:
                                 change_val = float(cell.replace('+', ''))
                             
+                            # Calculate color intensity based on magnitude (0.2 to 1.0 opacity)
+                            abs_change = abs(change_val)
+                            if j in [2, 3, 4, 5]:  # Physical metrics
+                                max_expected = 10.0 if j in [2, 3, 4] else 5.0  # Weight/lean/fat vs BF%
+                            else:  # Z-scores
+                                max_expected = 2.0
+                            
+                            intensity = min(0.2 + (abs_change / max_expected) * 0.8, 1.0)
+                            
                             # Color coding logic based on column position
-                            if j == 4:  # Lean mass change - positive is good
+                            if j == 2:  # Weight change - neutral white
+                                style += " background-color: white;"
+                            elif j == 3:  # Lean mass change - positive is good
                                 if change_val > 0:
-                                    style += " background-color: #d4edda; color: #155724;"  # Green
+                                    style += f" background-color: rgba(212, 237, 218, {intensity}); color: #155724;"  # Green
                                 elif change_val < 0:
-                                    style += " background-color: #f8d7da; color: #721c24;"  # Red
-                            elif j == 6:  # Fat mass change - negative is good (fat loss)
+                                    style += f" background-color: rgba(248, 215, 218, {intensity}); color: #721c24;"  # Red
+                            elif j == 4:  # Fat mass change - negative is good (fat loss)
                                 if change_val < 0:
-                                    style += " background-color: #d4edda; color: #155724;"  # Green
+                                    style += f" background-color: rgba(212, 237, 218, {intensity}); color: #155724;"  # Green
                                 elif change_val > 0:
-                                    style += " background-color: #f8d7da; color: #721c24;"  # Red
-                            elif j == 8:  # Body fat % change - negative is good (BF% reduction)
+                                    style += f" background-color: rgba(248, 215, 218, {intensity}); color: #721c24;"  # Red
+                            elif j == 5:  # Body fat % change - negative is good (BF% reduction)
                                 if change_val < 0:
-                                    style += " background-color: #d4edda; color: #155724;"  # Green
+                                    style += f" background-color: rgba(212, 237, 218, {intensity}); color: #155724;"  # Green
                                 elif change_val > 0:
-                                    style += " background-color: #f8d7da; color: #721c24;"  # Red
-                            # Weight change (j == 2) remains neutral - no color coding
+                                    style += f" background-color: rgba(248, 215, 218, {intensity}); color: #721c24;"  # Red
+                            elif j in [6, 7]:  # ALMI/FFMI Z-score changes - positive is good
+                                if change_val > 0:
+                                    style += f" background-color: rgba(212, 237, 218, {intensity}); color: #155724;"  # Green
+                                elif change_val < 0:
+                                    style += f" background-color: rgba(248, 215, 218, {intensity}); color: #721c24;"  # Red
                         except ValueError:
                             pass  # Keep default styling if can't parse
-                
-                # Also color code the actual values for improved visualization in the last row
-                elif j % 2 == 0 and j > 0 and i == 1:  # Value columns (even indices), last row only
-                    # Color the actual values based on corresponding changes
-                    change_cell_idx = j + 1
-                    if change_cell_idx < len(row):
-                        change_cell = row[change_cell_idx]
-                        if change_cell != "-" and change_cell != "N/A":
-                            try:
-                                if change_cell.endswith('%'):
-                                    change_val = float(change_cell.replace('%', '').replace('+', ''))
-                                else:
-                                    change_val = float(change_cell.replace('+', ''))
-                                
-                                # Apply lighter background colors to value cells
-                                if j == 3:  # Lean mass value - positive change is good
-                                    if change_val > 0:
-                                        style += " background-color: #e8f5e8;"  # Light green
-                                    elif change_val < 0:
-                                        style += " background-color: #fce8e8;"  # Light red
-                                elif j == 5:  # Fat mass value - negative change is good (fat loss)
-                                    if change_val < 0:
-                                        style += " background-color: #e8f5e8;"  # Light green
-                                    elif change_val > 0:
-                                        style += " background-color: #fce8e8;"  # Light red
-                                elif j == 7:  # Body fat % value - negative change is good (BF% reduction)
-                                    if change_val < 0:
-                                        style += " background-color: #e8f5e8;"  # Light green
-                                    elif change_val > 0:
-                                        style += " background-color: #fce8e8;"  # Light red
-                            except ValueError:
-                                pass
+                else:
+                    # Color coding for regular data rows (all rows after first scan)
+                    if i > 0 and j > 1:  # Skip first row and Date/Age columns
+                        # Calculate changes from previous row for color coding
+                        try:
+                            current_val = float(cell.replace('%', '').replace('+', '').replace('-', ''))
+                            if i == 1:  # Second row - compare to first row
+                                prev_val = float(table_data[0][j].replace('%', '').replace('+', '').replace('-', ''))
+                            else:  # Later rows - compare to previous row
+                                prev_val = float(table_data[i-1][j].replace('%', '').replace('+', '').replace('-', ''))
+                            
+                            change_val = current_val - prev_val
+                            abs_change = abs(change_val)
+                            
+                            # Calculate intensity
+                            if j in [2, 3, 4, 5]:  # Physical metrics
+                                max_expected = 5.0 if j in [2, 3, 4] else 2.5  # Weight/lean/fat vs BF%
+                            else:  # Z-scores/indices
+                                max_expected = 1.0
+                            
+                            intensity = min(0.1 + (abs_change / max_expected) * 0.4, 0.5)  # Lighter for data rows
+                            
+                            # Apply color coding
+                            if j == 2:  # Weight - neutral
+                                style += " background-color: white;"
+                            elif j == 3:  # Lean mass - positive is good
+                                if change_val > 0.1:
+                                    style += f" background-color: rgba(212, 237, 218, {intensity});"
+                                elif change_val < -0.1:
+                                    style += f" background-color: rgba(248, 215, 218, {intensity});"
+                            elif j == 4:  # Fat mass - negative is good
+                                if change_val < -0.1:
+                                    style += f" background-color: rgba(212, 237, 218, {intensity});"
+                                elif change_val > 0.1:
+                                    style += f" background-color: rgba(248, 215, 218, {intensity});"
+                            elif j == 5:  # Body fat % - negative is good
+                                if change_val < -0.1:
+                                    style += f" background-color: rgba(212, 237, 218, {intensity});"
+                                elif change_val > 0.1:
+                                    style += f" background-color: rgba(248, 215, 218, {intensity});"
+                            elif j in [6, 7]:  # ALMI/FFMI - positive is good
+                                if change_val > 0.05:
+                                    style += f" background-color: rgba(212, 237, 218, {intensity});"
+                                elif change_val < -0.05:
+                                    style += f" background-color: rgba(248, 215, 218, {intensity});"
+                        except (ValueError, IndexError):
+                            pass  # Keep default styling if can't parse
                 
                 html += f'      <td style="{style}">{cell}</td>\n'
             html += '    </tr>\n'
@@ -1754,12 +1842,33 @@ def create_scan_comparison_table(df_results, return_html=False):
         # Return plain text table for CLI
         try:
             from tabulate import tabulate
-            return tabulate(table_data, headers=headers, tablefmt='pipe')
+            table_output = tabulate(table_data, headers=headers, tablefmt='pipe')
+            
+            # Add thick border before Changes row
+            lines = table_output.split('\n')
+            changes_line_idx = None
+            for i, line in enumerate(lines):
+                if 'Changes' in line and '|' in line:
+                    changes_line_idx = i
+                    break
+            
+            if changes_line_idx:
+                # Insert thick border line before Changes row
+                separator_line = lines[1]  # Use header separator format
+                thick_border = separator_line.replace('-', '=')  # Make it thicker
+                lines.insert(changes_line_idx, thick_border)
+            
+            return '\n'.join(lines)
         except ImportError:
             # Fallback to simple formatting
             header_str = ' | '.join(f"{h:>12}" for h in headers)
             separator = '-' * len(header_str)
-            rows = [' | '.join(f"{cell:>12}" for cell in row) for row in table_data]
+            thick_separator = '=' * len(header_str)
+            rows = []
+            for row in table_data:
+                if row[0] == 'Changes':
+                    rows.append(thick_separator)  # Add thick separator before Changes
+                rows.append(' | '.join(f"{cell:>12}" for cell in row))
             return f"{header_str}\n{separator}\n" + "\n".join(rows)
 
 
@@ -2329,47 +2438,97 @@ def run_analysis(config_path='example_config.json', suggest_goals=False, target_
             
             # Step 6: Print Final Table
             print("\n--- Final Comprehensive Data Table ---")
-            # Select columns for display
-            display_columns = [
+            
+            # Split columns into main data and changes
+            main_columns = [
                 'date_str', 'age_at_scan', 
                 'total_weight_lbs', 'total_lean_mass_lbs', 'fat_mass_lbs', 'body_fat_percentage',
-                'almi_kg_m2', 'ffmi_kg_m2',
+                'almi_kg_m2', 'ffmi_kg_m2'
+            ]
+            main_names = [
+                'Date', 'Age', 
+                'Weight', 'Lean', 'Fat', 'BF%',
+                'ALMI', 'FFMI'
+            ]
+            
+            # Change columns for the bottom row
+            change_columns = [
                 'weight_change_last', 'lean_change_last', 'fat_change_last', 'bf_change_last',
                 'weight_change_first', 'lean_change_first', 'fat_change_first', 'bf_change_first',
                 'almi_z_change_last', 'ffmi_z_change_last', 'almi_pct_change_last', 'ffmi_pct_change_last'
             ]
-            display_names = [
-                'Date', 'Age', 
-                'Weight', 'Lean', 'Fat', 'BF%',
-                'ALMI', 'FFMI',
+            change_names = [
                 'ΔW_L', 'ΔL_L', 'ΔF_L', 'ΔBF_L',
                 'ΔW_F', 'ΔL_F', 'ΔF_F', 'ΔBF_F',
                 'ΔALMI_Z_L', 'ΔFFMI_Z_L', 'ΔALMI_%_L', 'ΔFFMI_%_L'
             ]
-                
-            df_display = df_results[display_columns].copy()
-            df_display.columns = display_names
             
-            # Format numeric columns with appropriate precision
+            # Create main data table
+            df_display = df_results[main_columns].copy()
+            df_display.columns = main_names
+            
+            # Format main data columns
             for col in df_display.columns:
+                if col in ['Date']:
+                    continue  # Skip string columns
                 if df_display[col].dtype == 'float64':
-                    if 'Δ' in col and ('Z' in col or '%' in col):
-                        # Z-scores and percentile changes - more precision
-                        df_display[col] = df_display[col].apply(lambda x: f"{x:+.2f}" if pd.notna(x) else "N/A")
-                    elif 'Δ' in col:
-                        # Other changes - show with +/- sign
-                        df_display[col] = df_display[col].apply(lambda x: f"{x:+.1f}" if pd.notna(x) else "N/A")
+                    df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+            
+            # Create changes row - use the last scan's changes
+            last_scan_idx = len(df_results) - 1
+            changes_data = {}
+            changes_data['Date'] = '**Changes**'  # Bold text for date column
+            changes_data['Age'] = ''  # Empty for non-applicable columns
+            
+            # Map change columns to display positions
+            change_mapping = {
+                'Weight': 'weight_change_last', 'Lean': 'lean_change_last', 
+                'Fat': 'fat_change_last', 'BF%': 'bf_change_last',
+                'ALMI': 'almi_z_change_last', 'FFMI': 'ffmi_z_change_last'
+            }
+            
+            for display_col, change_col in change_mapping.items():
+                if change_col in df_results.columns:
+                    change_val = df_results.loc[last_scan_idx, change_col]
+                    if pd.notna(change_val):
+                        if 'z_change' in change_col:
+                            changes_data[display_col] = f"{change_val:+.2f}"
+                        else:
+                            changes_data[display_col] = f"{change_val:+.1f}"
                     else:
-                        # Regular values
-                        df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                        changes_data[display_col] = "N/A"
+                else:
+                    changes_data[display_col] = ""
+            
+            # Convert changes to DataFrame and append
+            changes_row = pd.DataFrame([changes_data])
+            df_display_with_changes = pd.concat([df_display, changes_row], ignore_index=True)
             
             # Use tabulate for better formatting
             try:
                 from tabulate import tabulate
-                print(tabulate(df_display, headers='keys', tablefmt='pipe', showindex=False))
+                table_output = tabulate(df_display_with_changes, headers='keys', tablefmt='pipe', showindex=False)
+                
+                # Split table into lines and add thick border before Changes row
+                lines = table_output.split('\n')
+                # Find the line with "Changes" (should be second to last line before final border)
+                changes_line_idx = None
+                for i, line in enumerate(lines):
+                    if '**Changes**' in line:
+                        changes_line_idx = i
+                        break
+                
+                if changes_line_idx:
+                    # Insert thick border line before Changes row
+                    separator_line = lines[1]  # Use header separator format
+                    thick_border = separator_line.replace('-', '=')  # Make it thicker
+                    lines.insert(changes_line_idx, thick_border)
+                
+                print('\n'.join(lines))
+                
             except ImportError:
                 # Fallback to pandas display if tabulate not available
-                print(df_display.to_string(index=False))
+                print(df_display_with_changes.to_string(index=False))
             
             return 0
         
