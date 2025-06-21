@@ -94,6 +94,9 @@ __Citation__: Ofenheimer, A, Breyer‐Kohansal, R, Hartl, S, et al. Reference ch
 
 
 
+### Data Source
+The LMS reference data files used by this tool were obtained from: https://github.com/FlorianKrach/scientific-LMS-zscore-app
+
 ## Requirements
 
 - Python 3.9+ (recommended: 3.11 or 3.13)
@@ -109,7 +112,7 @@ Use the provided setup script that automatically detects your Python environment
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd bodymetrics
+cd recomptracker
 
 # Run automated setup
 task setup
