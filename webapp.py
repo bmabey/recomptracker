@@ -1070,12 +1070,29 @@ def display_user_profile_form():
     col1, col2 = st.columns(2)
     
     with col1:
-        birth_date = st.text_input(
-            "Birth Date (MM/DD/YYYY)",
-            value=st.session_state.user_info.get('birth_date', ''),
-            help="Enter your birth date to calculate age for percentile comparisons"
+        # Handle birth date conversion between date object and string
+        birth_date_str = st.session_state.user_info.get('birth_date', '')
+        birth_date_obj = None
+        
+        # Convert string to date object for the date input
+        if birth_date_str and isinstance(birth_date_str, str) and birth_date_str.strip():
+            try:
+                birth_date_obj = pd.to_datetime(birth_date_str, format='%m/%d/%Y').date()
+            except (ValueError, TypeError):
+                birth_date_obj = None
+        
+        birth_date_input = st.date_input(
+            "Birth Date",
+            value=birth_date_obj,
+            help="Select your birth date to calculate age for percentile comparisons",
+            format="MM/DD/YYYY"
         )
-        st.session_state.user_info['birth_date'] = birth_date
+        
+        # Convert date object back to string for storage
+        if birth_date_input:
+            st.session_state.user_info['birth_date'] = birth_date_input.strftime('%m/%d/%Y')
+        else:
+            st.session_state.user_info['birth_date'] = ''
         
         height_input = st.text_input(
             "Height (x'y\" or inches)",
@@ -1244,19 +1261,24 @@ def display_scan_history_form():
     # Convert session state to DataFrame for data editor
     df = pd.DataFrame(st.session_state.scan_history)
     
+    # Convert date strings to datetime objects for DateColumn compatibility
+    if not df.empty and 'date' in df.columns:
+        # Use pandas to_datetime for better compatibility with Streamlit
+        df['date'] = pd.to_datetime(df['date'], format='%m/%d/%Y', errors='coerce')
+    
     # Get tooltips for help text
     tooltips = get_metric_explanations()['tooltips']
     
     # Configure column types and validation
     column_config = {
-        "date": st.column_config.TextColumn(
-            "Date (MM/DD/YYYY)",
+        "date": st.column_config.DateColumn(
+            "Date",
             help="Date of the DEXA scan",
             required=True,
-            validate=r"^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}$"
+            format="MM/DD/YYYY"
         ),
         "total_weight_lbs": st.column_config.NumberColumn(
-            "Total Weight (lbs)",
+            "Weight (lbs)",
             help="Total body weight from DEXA scan",
             min_value=0.0,
             step=0.1,
@@ -1264,7 +1286,7 @@ def display_scan_history_form():
             required=True
         ),
         "total_lean_mass_lbs": st.column_config.NumberColumn(
-            "Total Lean Mass (lbs)",
+            "Lean Mass (lbs)",
             help=tooltips['lean_mass'],
             min_value=0.0,
             step=0.1,
@@ -1289,7 +1311,7 @@ def display_scan_history_form():
             required=True
         ),
         "arms_lean_lbs": st.column_config.NumberColumn(
-            "Arms Lean Mass (lbs)",
+            "Arms Lean (lbs)",
             help=tooltips['arms_lean'],
             min_value=0.0,
             step=0.1,
@@ -1297,7 +1319,7 @@ def display_scan_history_form():
             required=True
         ),
         "legs_lean_lbs": st.column_config.NumberColumn(
-            "Legs Lean Mass (lbs)",
+            "Legs Lean (lbs)",
             help=tooltips['legs_lean'],
             min_value=0.0,
             step=0.1,
@@ -1318,6 +1340,17 @@ def display_scan_history_form():
     
     # Update session state with edited data, but limit to 20 scans
     new_scan_history = edited_df.to_dict('records')
+    
+    # Convert datetime objects to MM/DD/YYYY string format for compatibility
+    for scan in new_scan_history:
+        if (scan.get('date') and 
+            hasattr(scan['date'], 'strftime') and 
+            not pd.isna(scan.get('date'))):
+            # Convert datetime object to string
+            scan['date'] = scan['date'].strftime('%m/%d/%Y')
+        else:
+            # Handle NaT/None/empty dates
+            scan['date'] = ''
     
     # Count meaningful scans (those with actual data)
     meaningful_scans = [scan for scan in new_scan_history if 
