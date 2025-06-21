@@ -222,7 +222,7 @@ def decode_state_from_url():
         return False
 
 
-@st.dialog("💪 The Philosophy Behind RecompTracker")
+@st.dialog("💪 The Philosophy Behind RecompTracker", width="large")
 def display_philosophy_modal():
     """Display the Philosophy section in a modal dialog."""
     philosophy_content = extract_philosophy_section()

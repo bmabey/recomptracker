@@ -46,15 +46,15 @@ RecompTracker transforms these abstract percentiles into concrete, actionable in
 
 ### Beyond Traditional Fitness: A Longevity Investment Strategy
 
-This isn't a typical fitness app—it's a **longevity planning tool**. Traditional approaches focus on short-term aesthetics or performance. Attia's philosophy, operationalized here, treats muscle mass as a quantifiable asset in your "longevity bank account." Every percentage point improvement in ALMI percentile is a withdrawal from future frailty risk.
+RecompTracker is a **longevity planning tool**. Traditional approaches focus on short-term aesthetics or performance. Attia's philosophy, operationalized here, treats muscle mass as a quantifiable asset in your "longevity bank account." Every percentage point improvement in ALMI percentile is a withdrawal from future frailty risk.
 
 The tool embodies Attia's rejection of population-based "normal" ranges, which reflect a chronically unhealthy society. Instead, it provides the data infrastructure to pursue the "elite" metrics that correlate with better healthspan outcomes—because in Attia's words, "normal" is simply a blueprint for decline.
 
-### Democratizing Precision Longevity
+### A Personal Tool, Shared
 
-What was once available only to Attia's high-net-worth patients is now accessible to anyone with DEXA scan data. RecompTracker democratizes the quantified, data-driven approach to healthspan optimization that defines Medicine 3.0, giving users the same analytical framework used in precision longevity medicine.
+This started as a personal project to help track my own DEXA scan progress using Attia's percentile-based approach. Rather than keep it to myself, I'm sharing it in case others find it useful for their own body composition goals.
 
-This is how you move from hoping to age well to **engineering** a robust, functional future.
+**Fun fact**: This entire tool (including this text!) was [vibe coded](https://youtu.be/JeNS1ZNHQs8) using [Claude Code](https://claude.ai/code) in about a day!
 
 **Learn More:**
 - [Peter Attia's complete approach to body composition](https://peterattiamd.com/improving-body-composition/)
