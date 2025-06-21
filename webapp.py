@@ -1018,23 +1018,25 @@ def display_header():
     """Display the application header with explanations."""
     explanations = get_metric_explanations()
     
-    # Header with title and share button
-    col1, col2 = st.columns([0.85, 0.15])
+    # Compact three-column header layout
+    col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
     
     with col1:
         st.title(explanations['header_info']['title'])
         
-        # Enhanced subtitle with philosophy teaser and clickable link
-        st.markdown(f"""{explanations['header_info']['subtitle']}
-
-**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Move beyond "normal" population averages to engineer elite percentiles for longevity.""")
+        # Condensed subtitle with inline philosophy teaser
+        st.markdown(f"""{explanations['header_info']['subtitle']} 
         
-        # Philosophy link as a button styled to look like a link
-        if st.button("🧠 Learn why this matters →", key="show_philosophy", help="Learn about the philosophy behind RecompTracker", type="secondary"):
-            display_philosophy_modal()
+**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Move beyond "normal" population averages to engineer elite percentiles for longevity.""")
     
     with col2:
-        st.markdown("<br>", unsafe_allow_html=True)  # Add some spacing
+        st.markdown("<br><br>", unsafe_allow_html=True)  # Align with title
+        # Philosophy button
+        if st.button("🧠 Learn why this matters →", key="show_philosophy", help="Learn about the philosophy behind RecompTracker", type="secondary", use_container_width=True):
+            display_philosophy_modal()
+    
+    with col3:
+        st.markdown("<br><br>", unsafe_allow_html=True)  # Align with title
         display_share_button()
     
     # Metric explanations in expandable sections
