@@ -2,6 +2,46 @@
 
 A Python tool that calculates Z-scores and percentiles for body composition metrics (ALMI, FFMI) using LMS reference values from the LEAD cohort. The system processes DEXA scan history with actual body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
 
+## Operationalizing Peter Attia's Medicine 3.0 Philosophy
+
+This tool directly implements Dr. Peter Attia's revolutionary **Medicine 3.0** approach to longevity and healthspan optimization. Rather than accepting "normal" population averages as healthy targets, Attia advocates for a proactive, data-driven strategy that aims for **elite percentiles** to build substantial physiological reserves against age-related decline.
+
+### The Strategic Imperative: Building a Buffer Against Inevitable Decline
+
+Attia's core insight is profound yet simple: **if you aspire to "kick ass" at 85, you can't afford to be average at 50**. With muscle mass declining 1-2% annually after age 50, and strength declining even faster at 4% per year, being "normal" today means being frail tomorrow. The solution is to build such a substantial buffer of muscle mass that even after decades of predictable decline, you never cross the threshold into frailty and dysfunction.
+
+### Why ALMI is the Ultimate Longevity Metric
+
+Attia emphasizes ALMI (Appendicular Lean Mass Index) as the "purer" measure of skeletal muscle compared to FFMI, because it isolates the metabolically active tissue in your arms and legs that responds to training. This isn't just about aesthetics—it's about engineering three critical pillars of healthspan:
+
+1. **Metabolic Resilience**: Muscle is your body's primary glucose disposal site. Higher ALMI directly translates to better insulin sensitivity and protection against metabolic diseases
+2. **Functional Reserve**: Starting with elite muscle mass ensures you maintain independence and physical capability deep into old age
+3. **Strength Foundation**: While strength beats muscle mass for longevity prediction, muscle provides the biological substrate required to generate that strength
+
+### From Philosophy to Action: Evidence-Based Goal Setting
+
+Attia's recommendations are precise and ambitious:
+- **Baseline Goal**: Achieve >75th percentile ALMI (supported by mortality data showing significant longevity benefits)
+- **Aspirational Goal**: Target 90th-97th percentile (his personal standard for maximum healthspan engineering)
+
+RecompTracker transforms these abstract percentiles into concrete, actionable intelligence:
+- **Precise Targeting**: Know exactly where you stand relative to your age/sex cohort using validated LMS reference data
+- **Goal Engineering**: Calculate the exact changes in weight, lean mass, and fat mass needed to reach your target percentile
+- **Progress Quantification**: Track your percentile improvements over time, not just absolute numbers
+- **Future Planning**: Reverse-engineer your current requirements based on desired function at advanced ages
+
+### Beyond Traditional Fitness: A Longevity Investment Strategy
+
+This isn't a typical fitness app—it's a **longevity investment calculator**. Traditional approaches focus on short-term aesthetics or performance. Attia's philosophy, operationalized here, treats muscle mass as a quantifiable asset in your "longevity bank account." Every percentage point improvement in ALMI percentile is a withdrawal from future frailty risk.
+
+The tool embodies Attia's rejection of population-based "normal" ranges, which reflect a chronically unhealthy society. Instead, it provides the data infrastructure to pursue the "elite" metrics that correlate with exceptional healthspan—because in Attia's words, "normal" is simply a blueprint for decline.
+
+### Democratizing Precision Longevity
+
+What was once available only to Attia's high-net-worth patients is now accessible to anyone with DEXA scan data. RecompTracker democratizes the quantified, engineering approach to healthspan optimization that defines Medicine 3.0, giving users the same analytical framework used in elite longevity medicine.
+
+This is how you move from hoping to age well to **engineering** a robust, functional future.
+
 ## Features
 
 ### Core Analysis
