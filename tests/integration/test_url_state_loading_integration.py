@@ -363,7 +363,7 @@ class TestWebAppURLIntegration:
         assert len(at.selectbox) >= 1, "Should have selectbox fields"
         
         # Check that birth date input is present
-        birth_date_inputs = [inp for inp in at.text_input if "Birth Date" in inp.label]
+        birth_date_inputs = [inp for inp in at.date_input if "Birth Date" in inp.label]
         assert len(birth_date_inputs) > 0, "Should have birth date input"
         
         # Verify buttons are present

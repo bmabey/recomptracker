@@ -93,8 +93,9 @@ class TestWebAppIntegration:
         
         # Verify that user info is populated
         # Check that birth date input has the expected value (index 0)
-        birth_date_input = at.text_input[0]
-        assert birth_date_input.value == example_config_data["user_info"]["birth_date"], \
+        birth_date_input = at.date_input[0]
+        birth_date_str = birth_date_input.value.strftime('%m/%d/%Y') if birth_date_input.value else ''
+        assert birth_date_str == example_config_data["user_info"]["birth_date"], \
             f"Birth date should be {example_config_data['user_info']['birth_date']}"
         
         # Check gender selection (index 0)
@@ -102,8 +103,8 @@ class TestWebAppIntegration:
         assert gender_selectbox.value == example_config_data["user_info"]["gender"], \
             f"Gender should be {example_config_data['user_info']['gender']}"
         
-        # Check height input (text input index 1, since birth_date is index 0)
-        height_input = at.text_input[1]
+        # Check height input (text input index 0, since birth_date is now date_input)
+        height_input = at.text_input[0]
         # Height is stored as text in display format, need to check the parsed value
         # The display format converts inches to feet'inches format
         expected_height = example_config_data["user_info"]["height_in"]
