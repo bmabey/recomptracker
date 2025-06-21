@@ -1,7 +1,7 @@
 [project]
 name = "recomptracker"
 version = "0.1.0"
-description = "Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calculating Z-scores and percentiles for ALMI/FFMI metrics using LMS reference values, enabling data-driven pursuit of elite percentiles for longevity"
+description = "Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calculating Z-scores and percentiles for ALMI/FFMI metrics using LMS reference values, helping you build your muscle buffer against inevitable decline"
 authors = [
     {name = "Ben Mabey", email = "ben@benmabey.com"}
 ]
