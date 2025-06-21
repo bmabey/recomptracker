@@ -287,8 +287,41 @@ def display_philosophy_modal():
     philosophy_content = extract_philosophy_section()
 
     if philosophy_content:
-        # Display the content with proper markdown rendering
-        st.markdown(philosophy_content)
+        # Parse the content to make the ALMI vs BMI section expandable
+        lines = philosophy_content.split('\n')
+        
+        # Find the start and end of the ALMI vs BMI section
+        almi_section_start = -1
+        almi_section_end = -1
+        
+        for i, line in enumerate(lines):
+            if "### Why ALMI Over BMI: A Better Metric for Body Composition" in line:
+                almi_section_start = i
+            elif almi_section_start != -1 and line.startswith("### ") and "Why ALMI Over BMI" not in line:
+                almi_section_end = i
+                break
+        
+        if almi_section_start != -1:
+            # Display content before ALMI section
+            before_almi = '\n'.join(lines[:almi_section_start])
+            if before_almi.strip():
+                st.markdown(before_almi)
+            
+            # Display ALMI section in an expander
+            almi_section_end = almi_section_end if almi_section_end != -1 else len(lines)
+            almi_content = '\n'.join(lines[almi_section_start+1:almi_section_end])
+            
+            with st.expander("📊 Why ALMI Over BMI: A Better Metric for Body Composition", expanded=False):
+                st.markdown(almi_content)
+            
+            # Display content after ALMI section
+            if almi_section_end < len(lines):
+                after_almi = '\n'.join(lines[almi_section_end:])
+                if after_almi.strip():
+                    st.markdown(after_almi)
+        else:
+            # Fallback: display all content normally if parsing fails
+            st.markdown(philosophy_content)
 
         # Close button
         if st.button("Close", key="close_philosophy_modal"):
