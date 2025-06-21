@@ -1215,8 +1215,17 @@ def create_goal_row(goal_params, user_info, processed_data, lms_functions, metri
             # Backwards compatibility field names for tests
             'alm_to_add_kg': alm_change_needed_kg,
             'estimated_tlm_gain_kg': tlm_change_needed_kg,
-            'tlm_to_add_kg': tlm_change_needed_kg
+            'tlm_to_add_kg': tlm_change_needed_kg,
+            # Test expected field names (for field name consistency)
+            'target_z': target_z,
+            'suggested': goal_params.get('suggested', False)
         }
+        
+        # Add metric-specific target field name
+        if metric == 'almi':
+            goal_calculations['target_almi'] = target_metric_value
+        else:  # ffmi
+            goal_calculations['target_ffmi'] = target_metric_value
         
         return goal_row, goal_calculations
         
