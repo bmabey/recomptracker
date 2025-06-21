@@ -1534,7 +1534,7 @@ def display_user_profile_form():
     col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
     with col1:
-        if st.button("🎲 Fake Data"):
+        if st.button("🎲 Fake Data", help="Generate a fake user profile and scan history for testing"):
             fake_profile = generate_fake_profile()
             # Generate fake scans first (needs numeric height_in)
             fake_scans = generate_fake_scans(fake_profile)
