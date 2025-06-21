@@ -335,7 +335,7 @@ def display_tscore_modal():
     """Display T-score explanation in a modal dialog."""
     # TL;DR section
     st.info(
-        "**TL;DR**: T-scores compare your muscle mass to peak young adults (ages 20-30) rather than your age group. This is experimental and for fun - stick with percentiles for actual goal-setting."
+        "**TL;DR**: T-scores compare your muscle mass to peak young adults (ages 20-30) rather than your age group. Click 'Add T-score Overlay' in the chart above to see the colored zones and ranges. This is experimental and for fun - stick with percentiles for actual goal-setting."
     )
 
     # Main explanation
@@ -1244,7 +1244,7 @@ def display_header():
 
         # Philosophy teaser without subtitle
         st.markdown(
-            """**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Move beyond "normal" population averages to engineer elite percentiles for longevity."""
+            """**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Build your muscle buffer against inevitable decline."""
         )
 
     with col2:

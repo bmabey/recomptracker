@@ -1,6 +1,6 @@
 # RecompTracker
 
-Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calculating Z-scores and percentiles for ALMI/FFMI metrics using LMS reference values, enabling data-driven pursuit of elite percentiles for longevity.
+Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calculating Z-scores and percentiles for ALMI/FFMI metrics using LMS reference values, helping you build your muscle buffer against inevitable decline.
 
 ## Try It Live
 
@@ -10,7 +10,7 @@ Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calcu
 
 ## Operationalizing Peter Attia's Medicine 3.0 Philosophy
 
-This tool directly implements [Dr. Peter Attia's](https://peterattiamd.com/) **Medicine 3.0** approach to longevity and healthspan optimization. Rather than accepting "normal" population averages as healthy targets, Attia advocates for a proactive, data-driven strategy that aims for **elite percentiles** to build substantial physiological reserves against age-related decline.
+This tool directly implements [Dr. Peter Attia's](https://peterattiamd.com/) **Medicine 3.0** approach to longevity and healthspan optimization. Rather than accepting "normal" population averages as healthy targets, Attia advocates for a proactive, data-driven strategy that **builds your muscle buffer** against age-related decline.
 
 ### The Strategic Imperative: Building a Buffer Against Inevitable Decline
 
