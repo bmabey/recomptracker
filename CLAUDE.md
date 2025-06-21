@@ -21,15 +21,28 @@ task run                           # With example config
 task run-config -- my_config.json # With custom config
 task help-config                   # Show configuration help
 
+# Code Quality (IMPORTANT: Run these before committing!)
+task fix                           # Auto-fix linting and formatting issues
+task lint                          # Check linting and formatting
+task typecheck                     # Run type checking with mypy
+task ci                            # Run CI pipeline locally (lint + unit tests)
+task ci-full                       # Full CI pipeline (lint + all tests)
+task ci-strict                     # Strict CI (lint + typecheck + all tests)
+
 # Testing
 task test                          # Run all tests
 task test-unit                     # Unit tests only
 task test-integration              # Integration tests only
+task test-webapp                   # Webapp integration tests only
 
 # Dependencies
 task sync                          # Sync dependencies
 task add -- package-name          # Add dependency
 task add-dev -- package-name      # Add dev dependency
+
+# Maintenance
+task clean                         # Clean generated files (*.png, *.csv)
+task clean-env                     # Remove virtual environments
 
 # Manual commands (if not using task runner)
 uv sync                            # Setup with uv
@@ -37,6 +50,19 @@ uv run python run_analysis.py     # Run analysis
 uv run streamlit run webapp.py    # Launch webapp
 uv run python -m pytest tests/    # Run tests
 ```
+
+## Development Workflow
+
+**CRITICAL**: Always run code quality checks before committing:
+
+1. **Make changes** to code
+2. **Auto-fix issues**: `task fix` 
+3. **Verify quality**: `task lint`
+4. **Run tests**: `task test-unit` (at minimum)
+5. **Full CI check**: `task ci-full` (recommended)
+6. **Commit changes** only after all checks pass
+
+For major changes, use `task ci-strict` to include type checking.
 
 ## Architecture
 
