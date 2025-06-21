@@ -175,6 +175,21 @@ def expand_compact_config(compact_config):
     return user_info, scan_history, almi_goal, ffmi_goal, height_display
 
 
+def get_base_url():
+    """Get the base URL based on environment with smart detection."""
+    # Priority 1: Custom override via environment variable
+    custom_url = os.getenv('STREAMLIT_BASE_URL')
+    if custom_url:
+        return custom_url.rstrip('/')
+    
+    # Priority 2: Development mode - use JavaScript detection
+    if os.getenv('STREAMLIT_ENV') == 'development':
+        return None  # Will be handled by JavaScript client-side
+    
+    # Priority 3: Production default
+    return "https://recomptracker.streamlit.app"
+
+
 def encode_state_to_url():
     """Generate a shareable URL with the current state encoded."""
     try:
@@ -185,13 +200,38 @@ def encode_state_to_url():
         json_str = json.dumps(compact_config, separators=(",", ":"))
         encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
 
-        # Create the shareable URL
-        base_url = (
-            "http://localhost:8501"  # This would be the actual domain in production
-        )
-        share_url = f"{base_url}?data={urllib.parse.quote(encoded_data)}"
-
-        return share_url
+        # Get base URL based on environment
+        base_url = get_base_url()
+        
+        if base_url is None:
+            # Development mode - use JavaScript to get current URL
+            encoded_data_js_safe = urllib.parse.quote(encoded_data)
+            js_code = f"""
+            <script>
+            function copyDevShareUrl() {{
+                const baseUrl = window.location.origin;
+                const shareUrl = baseUrl + '?data={encoded_data_js_safe}';
+                navigator.clipboard.writeText(shareUrl).then(() => {{
+                    // Show success feedback
+                    const button = document.querySelector('[data-testid="baseButton-secondary"]');
+                    if (button) {{
+                        const originalText = button.textContent;
+                        button.textContent = '✅ Copied!';
+                        setTimeout(() => {{
+                            button.textContent = originalText;
+                        }}, 2000);
+                    }}
+                }});
+                return false;
+            }}
+            </script>
+            """
+            st.markdown(js_code, unsafe_allow_html=True)
+            return "javascript:copyDevShareUrl()"  # Special return value for dev mode
+        else:
+            # Production or custom URL
+            share_url = f"{base_url}?data={urllib.parse.quote(encoded_data)}"
+            return share_url
 
     except Exception as e:
         st.error(f"Failed to generate share URL: {e}")
@@ -1053,24 +1093,36 @@ def display_share_button():
                     )
 
             with col2:
-                # Determine which URL to display
-                if st.session_state.shortened_url:
-                    display_url = st.session_state.shortened_url
-                    url_label = "Shortened URL:"
-                    url_help = "This is your shortened TinyURL - copy and share it!"
+                # Handle development mode special case
+                if st.session_state.share_url == "javascript:copyDevShareUrl()":
+                    # Development mode - show copy button instead of URL field
+                    if st.button(
+                        "📋 Copy Share URL", 
+                        key="copy_dev_url",
+                        help="Click to copy the shareable URL (automatically detects correct port)",
+                        use_container_width=True
+                    ):
+                        # The JavaScript function will handle the copying
+                        pass
                 else:
-                    display_url = st.session_state.share_url
-                    url_label = "Full URL:"
-                    url_help = "Click in the field and press Ctrl+A then Ctrl+C (or Cmd+A, Cmd+C on Mac) to copy"
+                    # Production/custom URL mode - show normal URL field
+                    if st.session_state.shortened_url:
+                        display_url = st.session_state.shortened_url
+                        url_label = "Shortened URL:"
+                        url_help = "This is your shortened TinyURL - copy and share it!"
+                    else:
+                        display_url = st.session_state.share_url
+                        url_label = "Full URL:"
+                        url_help = "Click in the field and press Ctrl+A then Ctrl+C (or Cmd+A, Cmd+C on Mac) to copy"
 
-                # Display the URL input
-                st.text_input(
-                    url_label,
-                    value=display_url,
-                    key="share_url_display",
-                    help=url_help,
-                    label_visibility="collapsed",
-                )
+                    # Display the URL input
+                    st.text_input(
+                        url_label,
+                        value=display_url,
+                        key="share_url_display",
+                        help=url_help,
+                        label_visibility="collapsed",
+                    )
 
 
 def reset_all_data():
