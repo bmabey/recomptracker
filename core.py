@@ -1703,12 +1703,11 @@ def create_scan_comparison_table(df_results, return_html=False):
             else:
                 changes_row.append("N/A")
         
-        # Add ALMI and FFMI Z-score changes
-        for col_name in ['almi_z_change_last', 'ffmi_z_change_last']:
-            if col_name in last_scan and pd.notna(last_scan[col_name]):
-                changes_row.append(f"{last_scan[col_name]:+.2f}")
-            else:
-                changes_row.append("N/A")
+        # Add ALMI and FFMI changes (from first scan to last scan)
+        almi_change = last_scan['almi_kg_m2'] - first_scan['almi_kg_m2']
+        ffmi_change = last_scan['ffmi_kg_m2'] - first_scan['ffmi_kg_m2']
+        changes_row.append(f"{almi_change:+.2f}")
+        changes_row.append(f"{ffmi_change:+.2f}")
         
         table_data.append(changes_row)
     
@@ -1755,7 +1754,9 @@ def create_scan_comparison_table(df_results, return_html=False):
                             abs_change = abs(change_val)
                             if j in [2, 3, 4, 5]:  # Physical metrics
                                 max_expected = 10.0 if j in [2, 3, 4] else 5.0  # Weight/lean/fat vs BF%
-                            else:  # Z-scores
+                            elif j in [6, 7]:  # ALMI/FFMI metric changes (kg/m²)
+                                max_expected = 2.0  # Reasonable max for ALMI/FFMI changes in kg/m²
+                            else:  # Other metrics
                                 max_expected = 2.0
                             
                             intensity = min(0.2 + (abs_change / max_expected) * 0.8, 1.0)
@@ -1778,7 +1779,7 @@ def create_scan_comparison_table(df_results, return_html=False):
                                     style += f" background-color: rgba(212, 237, 218, {intensity}); color: #155724;"  # Green
                                 elif change_val > 0:
                                     style += f" background-color: rgba(248, 215, 218, {intensity}); color: #721c24;"  # Red
-                            elif j in [6, 7]:  # ALMI/FFMI Z-score changes - positive is good
+                            elif j in [6, 7]:  # ALMI/FFMI metric changes - positive is good
                                 if change_val > 0:
                                     style += f" background-color: rgba(212, 237, 218, {intensity}); color: #155724;"  # Green
                                 elif change_val < 0:
