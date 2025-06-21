@@ -306,8 +306,8 @@ This implementation demonstrates how to bridge the gap between **statistical par
 The key insight is that **LMS parameters describe distributions, not populations**. To get population statistics, you need to sample from those distributions and calculate empirical values - exactly what our Monte Carlo approach accomplishes.
 
 ### Implementation Files
-- [`core.py:273-353`](https://github.com/benmabey/bodymetrics/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/core.py#L273-L353): New `calculate_tscore_reference_values()` function
-- [`tests/unit/test_zscore_calculations.py:2155-2297`](https://github.com/benmabey/bodymetrics/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/tests/unit/test_zscore_calculations.py#L2155-L2297): Comprehensive T-score test suite
-- [`webapp.py:1854-1867, 2008-2021`](https://github.com/benmabey/bodymetrics/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/webapp.py#L1854-L1867): Web interface integration with dual-mode plotting
+- [`core.py:273-353`](https://github.com/bmabey/recomptracker/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/core.py#L273-L353): New `calculate_tscore_reference_values()` function
+- [`tests/unit/test_zscore_calculations.py:2155-2297`](https://github.com/bmabey/recomptracker/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/tests/unit/test_zscore_calculations.py#L2155-L2297): Comprehensive T-score test suite
+- [`webapp.py:1854-1867, 2008-2021`](https://github.com/bmabey/recomptracker/blob/d1d537b94ccf4fc83ae2db4101758425dee281dd/webapp.py#L1854-L1867): Web interface integration with dual-mode plotting
 
 This approach now provides the realistic T-score reference values needed for meaningful body composition analysis in the longevity and healthspan optimization context.
