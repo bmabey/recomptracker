@@ -1560,10 +1560,10 @@ def display_results():
         ]
         
         # Check which columns exist in the dataframe
-        available_almi_columns = [col for col in almi_columns if col in df_results.columns]
-        available_almi_names = [almi_names[i] for i, col in enumerate(almi_columns) if col in df_results.columns]
+        available_almi_columns = [col for col in almi_columns if col in scan_data.columns]
+        available_almi_names = [almi_names[i] for i, col in enumerate(almi_columns) if col in scan_data.columns]
         
-        df_almi = df_results[available_almi_columns].copy()
+        df_almi = scan_data[available_almi_columns].copy()
         df_almi.columns = available_almi_names
         
         # Format numeric columns
@@ -1673,10 +1673,10 @@ def display_results():
         ]
         
         # Check which columns exist in the dataframe
-        available_ffmi_columns = [col for col in ffmi_columns if col in df_results.columns]
-        available_ffmi_names = [ffmi_names[i] for i, col in enumerate(ffmi_columns) if col in df_results.columns]
+        available_ffmi_columns = [col for col in ffmi_columns if col in scan_data.columns]
+        available_ffmi_names = [ffmi_names[i] for i, col in enumerate(ffmi_columns) if col in scan_data.columns]
         
-        df_ffmi = df_results[available_ffmi_columns].copy()
+        df_ffmi = scan_data[available_ffmi_columns].copy()
         df_ffmi.columns = available_ffmi_names
         
         # Format numeric columns
@@ -1786,15 +1786,15 @@ def display_results():
         ]
         
         # Add change columns if they exist
-        if 'bf_change_last' in df_results.columns:
+        if 'bf_change_last' in scan_data.columns:
             bf_columns.extend(['bf_change_last', 'bf_change_first'])
             bf_names.extend(['Change (Last)', 'Change (First)'])
         
         # Check which columns exist in the dataframe
-        available_bf_columns = [col for col in bf_columns if col in df_results.columns]
-        available_bf_names = [bf_names[i] for i, col in enumerate(bf_columns) if col in df_results.columns]
+        available_bf_columns = [col for col in bf_columns if col in scan_data.columns]
+        available_bf_names = [bf_names[i] for i, col in enumerate(bf_columns) if col in scan_data.columns]
         
-        df_bf = df_results[available_bf_columns].copy()
+        df_bf = scan_data[available_bf_columns].copy()
         df_bf.columns = available_bf_names
         
         # Format numeric columns
