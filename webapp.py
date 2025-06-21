@@ -1024,10 +1024,8 @@ def display_header():
     with col1:
         st.title(explanations['header_info']['title'])
         
-        # Condensed subtitle with inline philosophy teaser
-        st.markdown(f"""{explanations['header_info']['subtitle']} 
-        
-**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Move beyond "normal" population averages to engineer elite percentiles for longevity.""")
+        # Philosophy teaser without subtitle
+        st.markdown("""**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Move beyond "normal" population averages to engineer elite percentiles for longevity.""")
     
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)  # Align with title
