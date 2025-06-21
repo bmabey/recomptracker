@@ -2217,7 +2217,8 @@ def create_plotly_dual_mode_plot(
             (-4, -2, "#FF6B6B", "Well Below Peak"),
             (-2, -1, "#FFA500", "Below Peak"),
             (-1, 0, "#FFD700", "Approaching Peak"),
-            (0, 4, "#90EE90", "Peak Zone"),
+            (0, 2, "#90EE90", "Peak Zone"),
+            (2, 4, "#228B22", "Elite Zone"),
         ]
 
     # Filter data for actual scans (not goal rows)
@@ -2532,7 +2533,7 @@ def create_plotly_dual_mode_plot(
         # Add informative annotation for T-score overlay only (ALMI only)
         annotations=[
             {
-                "text": "<b>T-score Overlay:</b> Compare to PEAK young adult muscle mass (ages 20-30). T ≥ 0 = Peak Zone, T < -2 = Well Below Peak.",
+                "text": "<b>T-score Overlay:</b> Compare to PEAK young adult muscle mass (ages 20-30). T ≥ +2 = Elite Zone, T ≥ 0 = Peak Zone, T < -2 = Well Below Peak.",
                 "xref": "paper",
                 "yref": "paper",
                 "x": 0.02,

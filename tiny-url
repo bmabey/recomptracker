@@ -1,0 +1,22 @@
+Think hard.
+
+For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially.
+
+If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task.
+
+Please write a high quality, general purpose solution. Implement a solution that works correctly for all valid inputs, not just the test cases. Do not hard-code values or create solutions that only work for specific test inputs. Instead, implement the actual logic that solves the problem generally.
+
+Focus on understanding the problem requirements and implementing the correct algorithm. Tests are there to verify correctness, not to define the solution. Provide a principled implementation that follows best practices and software design principles.
+
+If the task is unreasonable or infeasible, or if any of the tests are incorrect, please tell me. The solution should be robust, maintainable, and extendable.
+
+
+This is the feature I want you to add:
+
+Right now the app allows users to click a link button and see the URL state so they can copy it. Once they do that I would like them also to have the option to have the URL shortened using tinyurl.
+
+So the flow would be like:
+Click the link icon
+Click the "Shorten URL" link and then have the tinyurl appear in teh input so they can copy it.
+
+Once the URL state with additional action on the page then the input box with the URL should disappear, thus requiring them to go throught the same flow again. This will prevent users from copying stale tinyurls that don't capture the most up to date state of the app.

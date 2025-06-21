@@ -1,0 +1,51 @@
+Think hard.
+
+For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially.
+
+If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task.
+
+Please write a high quality, general purpose solution. Implement a solution that works correctly for all valid inputs, not just the test cases. Do not hard-code values or create solutions that only work for specific test inputs. Instead, implement the actual logic that solves the problem generally.
+
+Focus on understanding the problem requirements and implementing the correct algorithm. Tests are there to verify correctness, not to define the solution. Provide a principled implementation that follows best practices and software design principles.
+
+If the task is unreasonable or infeasible, or if any of the tests are incorrect, please tell me. The solution should be robust, maintainable, and extendable.
+
+
+**Feature spec – Dual ALMI scoring with auto-calculated T-score range**
+
+**Motivation**
+Users need two complementary views of muscle mass:
+
+* **Age-matched (Z-score / percentile)** – “How do I compare with peers my age?”
+* **Peak-reference (T-score)** – “How far am I from young-adult peak muscle?”
+  Clear presentation of both helps identify risk thresholds, set progress targets, and interpret trends.
+
+**Static CLI report (Matplotlib)**
+
+1. Generate **two separate plots** and save them as distinct image files:
+
+   * *Plot A – Percentile view*: percentile splines + filled-circle scan markers.
+   * *Plot B – T-score view*: horizontal T-score risk bands, grid lines, open-square scan markers, right-hand T-score axis, and a small inset “thermometer” showing the latest T-score.
+2. In Plot B, colour risk zones (≥ 0 green, –1 yellow, –2 orange, < –2 red).
+3. Use identical x-axis (age) and y-axis (ALMI kg · m⁻²) ranges so the two images align visually in reports.
+
+**Interactive web dashboard (Plotly)**
+
+* Toggle button with two modes:
+
+  * **Percentile mode** – percentile splines + circle markers.
+  * **T-score mode** – horizontal T-score grid lines, shaded risk bands, square-open markers, right-hand T-score axis.
+* Hover on any scan always shows age, ALMI, Z-score, and computed T-score.
+
+**Data requirement**
+
+* Automatically derive T-score reference from the dataset in `data/`:
+
+  * Filter to healthy adults aged 20-30 y (same DXA model).
+  * Compute mean (μₚₑₐₖ) and SD (σₚₑₐₖ) of ALMI per sex.
+  * Use μₚₑₐₖ and σₚₑₐₖ to calculate T-scores, position risk bands, and label the right-hand axis.
+  * Recalculate on each run if the dataset is updated.
+
+**Outcome**
+Letting users instantly grasp their position relative to peers and to peak muscle. The live dashboard provides the same insight interactively, with current T-score thresholds always derived from the resident population data.
+

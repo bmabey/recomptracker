@@ -2232,9 +2232,10 @@ class TestTScoreCalculations(unittest.TestCase):
         # Use realistic male reference values
         male_mu, male_sigma = calculate_tscore_reference_values(0)
 
-        # Test realistic ALMI values and their T-score peak zones
+        # Test realistic ALMI values and their T-score peak zones (now with Elite Zone)
         test_values = [
-            (male_mu + 2 * male_sigma, "Peak Zone"),  # Well above peak
+            (male_mu + 2.5 * male_sigma, "Elite Zone"),  # Elite level
+            (male_mu + 1.5 * male_sigma, "Peak Zone"),  # Above peak but not elite
             (male_mu + 0.5 * male_sigma, "Peak Zone"),  # Above peak
             (male_mu - 0.5 * male_sigma, "Approaching Peak"),  # Below peak
             (male_mu - 1.5 * male_sigma, "Below Peak"),  # Low
@@ -2244,11 +2245,18 @@ class TestTScoreCalculations(unittest.TestCase):
         for almi_value, expected_zone in test_values:
             t_score = calculate_t_score(almi_value, male_mu, male_sigma)
 
-            # Verify T-score is in expected range for peak zone
-            if "Peak Zone" in expected_zone:
+            # Verify T-score is in expected range for each zone
+            if "Elite Zone" in expected_zone:
+                self.assertGreaterEqual(
+                    t_score,
+                    2.0,
+                    f"ALMI {almi_value:.2f} should be in Elite Zone (≥+2.0)",
+                )
+            elif "Peak Zone" in expected_zone:
                 self.assertGreaterEqual(
                     t_score, 0, f"ALMI {almi_value:.2f} should be in Peak Zone (≥0)"
                 )
+                self.assertLess(t_score, 2.0, f"ALMI {almi_value:.2f} should be < +2.0")
             elif "Approaching Peak" in expected_zone:
                 self.assertGreaterEqual(
                     t_score, -1.0, f"ALMI {almi_value:.2f} should be ≥ -1.0"
