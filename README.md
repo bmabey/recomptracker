@@ -199,13 +199,6 @@ The analysis generates:
 - **CSV export**: `almi_stats_table.csv` with comprehensive body composition tracking
 - **Enhanced table**: 20+ columns including changes since last/first scan and goal progress
 
-### Legacy Excel Processing
-
-For batch processing Excel files (legacy scientific app):
-
-```bash
-python scientific_zscore_app.py --filename="example_file.xlsx"
-```
 
 
 ## Citation
