@@ -1,6 +1,6 @@
 # RecompTracker
 
-A Python tool that calculates Z-scores and percentiles for body composition metrics (ALMI, FFMI) using LMS reference values from the LEAD cohort. The system processes DEXA scan history with actual body fat percentages and generates comprehensive visualizations with percentile curves, change tracking, and actionable goal analysis.
+Operationalizes Peter Attia's Medicine 3.0 approach to body composition by calculating Z-scores and percentiles for ALMI/FFMI metrics using LMS reference values, enabling data-driven pursuit of elite percentiles for longevity.
 
 ## Operationalizing Peter Attia's Medicine 3.0 Philosophy
 
@@ -99,76 +99,100 @@ The LMS reference data files used by this tool were obtained from: https://githu
 
 ## Requirements
 
-- Python 3.9+ (recommended: 3.11 or 3.13)
-- Dependencies listed in requirements.txt
-- pyenv (optional but recommended for Python version management)
+- Python 3.9+ (recommended: 3.11 or 3.12)
+- [uv](https://docs.astral.sh/uv/) (fast Python package manager)
 
 ## Setup
 
-### Option 1: Automated Setup (Recommended)
+### Quick Start (Recommended)
 
-Use the provided setup script that automatically detects your Python environment:
+The easiest way to get started is using the task runner:
+
+```bash
+# Install prerequisites
+brew install go-task/tap/go-task  # macOS
+# or: sudo snap install task --classic  # Linux
+
+# Clone and setup
+git clone <repository-url>
+cd recomptracker
+
+# One-command setup
+task setup
+
+# Launch the webapp
+task webapp
+```
+
+### Manual Setup
+
+<details>
+<summary>Click to expand manual setup options</summary>
+
+#### Option 1: Using uv (Modern)
+
+```bash
+# Install uv (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Or: brew install uv
+
+# Clone and setup
+git clone <repository-url>
+cd recomptracker
+uv sync
+
+# Run the application
+uv run streamlit run webapp.py
+```
+
+#### Option 2: Using pip (Legacy)
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd recomptracker
 
-# Run automated setup
-task setup
-```
-
-The setup script will automatically:
-- Detect pyenv, pipenv, poetry, or use standard venv
-- Install compatible package versions
-- Set up the virtual environment
-
-### Option 2: Manual Setup
-
-If you prefer manual setup or don't have `task` installed:
-
-```bash
-# Install task runner (macOS with Homebrew)
-brew install go-task/tap/go-task
-
-# Or use the setup script directly
-./setup_env.sh
-
-# Or manual venv setup
+# Create virtual environment
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### Option 3: Using Specific Tools
-
-```bash
-# Using pyenv + venv (recommended)
-task pyenv-setup
-
-# Using pipenv
-task pipenv-setup
-
-# Using standard venv
-task venv-setup
-```
+</details>
 
 ## Usage
 
 ### Web Interface (Recommended)
 
-Launch the interactive web application for an intuitive analysis experience:
+Launch the interactive web application using the task runner:
 
 ```bash
-# Activate environment (if not using pipenv/poetry)
-source venv/bin/activate
-
-# Launch web application
-streamlit run webapp.py
+# Launch webapp
+task webapp
 
 # For development (shows Load Example button)
-STREAMLIT_ENV=development streamlit run webapp.py
+task webapp-dev
+
+# Run tests
+task test
 ```
+
+<details>
+<summary>Manual commands (click to expand)</summary>
+
+```bash
+# With uv
+uv run streamlit run webapp.py
+STREAMLIT_ENV=development uv run streamlit run webapp.py
+
+# Legacy method
+source venv/bin/activate
+streamlit run webapp.py
+```
+
+</details>
 
 The web interface will open in your browser at `http://localhost:8501` and provides:
 - Interactive data input forms with real-time validation
@@ -178,47 +202,45 @@ The web interface will open in your browser at `http://localhost:8501` and provi
 - Downloadable results (CSV)
 - Fake data generation for testing/demos
 
-**Environment Variables:**
-- `STREAMLIT_ENV=development` - Shows development features like the "Load Example" button
-
 ### Command Line Interface
 
 For programmatic usage or batch processing:
 
 ```bash
-# Activate environment (if not using pipenv/poetry)
-source venv/bin/activate
+# Using task runner (recommended)
+task run                           # Run with example config
+task run-config -- my_config.json # Run with custom config
+task help-config                   # Show configuration help
 
-# View configuration help
-python run_analysis.py --help-config
-
-# Run analysis with example config
-python run_analysis.py example_config.json
-
-# Run with custom config
-python run_analysis.py my_config.json
+# Manual commands
+uv run python run_analysis.py example_config.json
+uv run python run_analysis.py --help-config
 ```
 
-### Using Task Runner
+### All Available Tasks
 
 ```bash
-# Launch web application
-task webapp
+# Setup and dependencies
+task setup                         # One-command project setup
+task sync                          # Sync dependencies with uv
+task add -- package-name          # Add a dependency
+task add-dev -- package-name      # Add a dev dependency
 
-# Run CLI with example config
-task run
+# Running the application
+task webapp                        # Launch web interface
+task webapp-dev                    # Launch in development mode
+task run                           # CLI with example config
+task run-config -- my_config.json # CLI with custom config
 
-# Run CLI with custom config
-task run-config -- my_config.json
+# Testing and quality
+task test                          # Run all tests
+task test-unit                     # Run unit tests only
+task test-integration              # Run integration tests only
 
-# Run tests
-task test
-
-# View configuration help
-task help-config
-
-# Clean generated files
-task clean
+# Utilities
+task help-config                   # Show configuration help
+task clean                         # Clean generated files
+task clean-env                     # Clean virtual environments
 ```
 
 ### Configuration Format

@@ -2,63 +2,66 @@ version: '3'
 
 tasks:
   setup:
-    desc: "Set up virtual environment and install dependencies"
+    desc: "Set up project with uv (recommended)"
+    cmds:
+      - uv sync
+      - echo "Environment ready! Use 'uv run' to execute commands"
+
+  setup-legacy:
+    desc: "Legacy setup with pip/venv"
     cmds:
       - chmod +x setup_env.sh
       - ./setup_env.sh
 
-  pipenv-setup:
-    desc: "Set up using pipenv specifically"
+  sync:
+    desc: "Sync dependencies with uv"
     cmds:
-      - pipenv install -r requirements.txt
-      - echo "Environment ready! Run 'task pipenv-shell' to activate"
+      - uv sync
 
-  pipenv-shell:
-    desc: "Activate pipenv shell"
+  add:
+    desc: "Add a dependency (usage: task add -- package-name)"
     cmds:
-      - pipenv shell
+      - uv add {{.CLI_ARGS}}
 
-  venv-setup:
-    desc: "Set up using standard venv"
+  add-dev:
+    desc: "Add a dev dependency (usage: task add-dev -- package-name)"
     cmds:
-      - python3 -m venv venv
-      - source venv/bin/activate && pip install -r requirements.txt
-      - echo "Environment ready! Run 'source venv/bin/activate' to activate"
-
-  install:
-    desc: "Install dependencies in current environment"
-    cmds:
-      - pip install -r requirements.txt
+      - uv add --dev {{.CLI_ARGS}}
 
   webapp:
     desc: "Launch Streamlit web application"
     cmds:
-      - streamlit run webapp.py
+      - uv run streamlit run webapp.py
+
+  webapp-dev:
+    desc: "Launch webapp in development mode"
+    cmds:
+      - STREAMLIT_ENV=development uv run streamlit run webapp.py
 
   run:
     desc: "Run CLI analysis with example config"
     cmds:
-      - python run_analysis.py example_config.json
+      - uv run python run_analysis.py example_config.json
 
   run-config:
     desc: "Run CLI analysis with custom config (usage: task run-config -- config.json)"
     cmds:
-      - python run_analysis.py {{.CLI_ARGS}}
+      - uv run python run_analysis.py {{.CLI_ARGS}}
 
   test-unit:
     desc: "Run unit tests with pytest"
     cmds:
-      - python -m pytest tests/unit/ -v
+      - uv run python -m pytest tests/unit/ -v
 
   test-integration:
     desc: "Run integration tests with pytest"
     cmds:
-      - python -m pytest tests/integration/ -v --tb=short
+      - uv run python -m pytest tests/integration/ -v --tb=short
 
   test-webapp:
     desc: "Run Streamlit webapp integration tests with pytest"
     cmds:
-      - python -m pytest tests/integration/test_webapp_integration.py -v --tb=short
+      - uv run python -m pytest tests/integration/test_webapp_integration.py -v --tb=short
 
   test-all:
     desc: "Run all tests in the project"
@@ -68,10 +71,15 @@ tasks:
       - echo "Running integration tests..."
       - task test-integration
 
+  test:
+    desc: "Run all tests (alias for test-all)"
+    cmds:
+      - task test-all
+
   help-config:
     desc: "Show configuration help"
     cmds:
-      - python run_analysis.py --help-config
+      - uv run python run_analysis.py --help-config
 
   clean:
     desc: "Clean up generated files"
@@ -79,7 +87,31 @@ tasks:
       - rm -f *.png *.csv
 
   clean-env:
-    desc: "Remove virtual environments"
+    desc: "Remove virtual environments and uv cache"
     cmds:
-      - rm -rf venv
-      - pipenv --rm || true
+      - rm -rf venv .venv
+      - uv cache clean
+
+  # Legacy tasks for backward compatibility
+  pipenv-setup:
+    desc: "Legacy: Set up using pipenv specifically"
+    cmds:
+      - pipenv install -r requirements.txt
+      - echo "Environment ready! Run 'task pipenv-shell' to activate"
+
+  pipenv-shell:
+    desc: "Legacy: Activate pipenv shell"
+    cmds:
+      - pipenv shell
+
+  venv-setup:
+    desc: "Legacy: Set up using standard venv"
+    cmds:
+      - python3 -m venv venv
+      - source venv/bin/activate && pip install -r requirements.txt
+      - echo "Environment ready! Run 'source venv/bin/activate' to activate"
+
+  install:
+    desc: "Legacy: Install dependencies in current environment"
+    cmds:
+      - pip install -r requirements.txt
