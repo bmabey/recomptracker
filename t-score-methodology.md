@@ -183,8 +183,10 @@ With proper reference values, we can now implement meaningful peak muscle mass z
 ```python
 def get_tscore_peak_zone(t_score):
     """Convert T-score to peak muscle mass zone classification."""
-    if t_score >= 0:
-        return "Peak Zone (T ≥ 0)", "#90EE90"      # Green
+    if t_score >= 2.0:
+        return "Elite Zone (T ≥ +2.0)", "#228B22"     # Dark Green
+    elif t_score >= 0:
+        return "Peak Zone (0 ≤ T < +2.0)", "#90EE90"    # Light Green
     elif t_score >= -1.0:
         return "Approaching Peak (-1.0 ≤ T < 0)", "#FFD700"    # Yellow  
     elif t_score >= -2.0:
@@ -192,6 +194,14 @@ def get_tscore_peak_zone(t_score):
     else:
         return "Well Below Peak (T < -2.0)", "#FF6B6B"     # Red
 ```
+
+### Elite Zone Definition
+
+The **Elite Zone** (T ≥ +2.0) represents exceptional muscle mass - the top ~2.3% of young adults at their peak. This zone:
+- Provides motivation for high performers
+- Identifies potential athletic/genetic outliers  
+- Distinguishes "exceptional" from merely "good" muscle mass
+- Offers a meaningful achievement level beyond basic health recommendations
 
 ## Performance Considerations
 
