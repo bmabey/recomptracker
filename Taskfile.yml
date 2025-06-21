@@ -7,11 +7,6 @@ tasks:
       - uv sync
       - echo "Environment ready! Use 'uv run' to execute commands"
 
-  setup-legacy:
-    desc: "Legacy setup with pip/venv"
-    cmds:
-      - chmod +x setup_env.sh
-      - ./setup_env.sh
 
   sync:
     desc: "Sync dependencies with uv"
