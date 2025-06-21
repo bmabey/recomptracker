@@ -643,6 +643,8 @@ def initialize_session_state():
         # Try to load state from URL
         if decode_state_from_url():
             st.session_state.url_loaded = True
+            # Mark that we should trigger analysis after initialization
+            st.session_state.url_loaded_needs_analysis = True
             # Don't return early - we still need to initialize other attributes
     
     # Always initialize essential attributes if not already set
@@ -680,6 +682,9 @@ def initialize_session_state():
     
     if 'shortening_error' not in st.session_state:
         st.session_state.shortening_error = None
+    
+    if 'url_loaded_needs_analysis' not in st.session_state:
+        st.session_state.url_loaded_needs_analysis = False
 
 
 def validate_form_data():
@@ -1829,6 +1834,21 @@ def display_results():
 def main():
     """Main application function."""
     initialize_session_state()
+    
+    # Auto-run analysis if URL was loaded with valid data
+    if st.session_state.get('url_loaded_needs_analysis', False):
+        # Check if we have valid data for analysis
+        if (st.session_state.user_info.get('birth_date') and 
+            st.session_state.user_info.get('gender') and 
+            len(st.session_state.scan_history) > 0 and
+            any(scan.get('date') for scan in st.session_state.scan_history)):
+            
+            errors = validate_form_data()
+            if not errors:
+                run_analysis()
+        
+        # Clear the flag so we don't run analysis again on subsequent reruns
+        st.session_state.url_loaded_needs_analysis = False
     
     # Auto-update URL when state changes
     auto_update_url()
