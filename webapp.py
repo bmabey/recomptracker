@@ -383,6 +383,52 @@ def display_tscore_modal():
         st.rerun()
 
 
+@st.dialog("Goal Setting Guide", width="large")
+def display_goals_modal():
+    """Display Goals explanation in a modal dialog."""
+    # TL;DR section
+    st.info(
+        "**TL;DR:** Set an ALMI percentile goal (75th-90th recommended). FFMI goals are available if you're curious, but ALMI is the primary metric Attia focuses on for longevity planning."
+    )
+
+    # Attia's Recommendations
+    st.markdown("### 🎯 Attia's Recommendations")
+    st.markdown("""
+    - **Baseline Goal:** 75th percentile ALMI (supported by mortality data showing significant longevity benefits)
+    - **Aspirational Goal:** 90th-97th percentile ALMI (Attia's personal standard for optimal healthspan)
+    """)
+
+    # Expandable sections
+    with st.expander("🏋️ Training Level Detection", expanded=False):
+        st.markdown("""
+        If you leave training level blank, the app automatically infers it from your scan progression:
+        - **Novice:** Rapid lean mass gains (>0.5 kg/month) typical of early training
+        - **Intermediate:** Moderate gains (0.25-0.5 kg/month) showing consistent progress
+        - **Advanced:** Slow gains (<0.25 kg/month) reflecting training maturity
+        - Single scan defaults to novice for conservative goal-setting
+        """)
+
+    with st.expander("📅 Target Age Calculation", expanded=False):
+        st.markdown("""
+        When you set target age to "?" or leave it blank, the app calculates a realistic timeframe based on:
+        - Your current ALMI percentile and progression rate
+        - Your training level (detected or specified) and associated lean mass gain rates
+        - Conservative age-adjusted estimates to ensure achievable goals
+        """)
+
+    with st.expander("⚖️ Total Lean Mass Estimation", expanded=False):
+        st.markdown("""
+        The app calculates how much total lean mass you need by:
+        - Using your personal ALM/TLM (Appendicular/Total Lean Mass) ratio from your scan history
+        - If you have only one scan, it uses population-based ratios from the reference data
+        - This accounts for the fact that not all lean mass gain goes to your arms and legs
+        """)
+
+    # Close button
+    if st.button("Close", key="close_goals_modal"):
+        st.rerun()
+
+
 def extract_philosophy_section():
     """
     Extract the Philosophy section from README.md.
@@ -1777,6 +1823,16 @@ def display_scan_history_form():
 def display_goals_form():
     """Display the goals input form."""
     st.subheader("🎯 Goals")
+
+    # Add Goals explanation modal button
+    if st.button(
+        "ℹ️ Learn about Goals and Recommendations →",
+        key="goals_info_modal",
+        help="Understand goal setting methodology and recommendations",
+        type="secondary",
+        use_container_width=True,
+    ):
+        display_goals_modal()
 
     col1, col2 = st.columns(2)
 
