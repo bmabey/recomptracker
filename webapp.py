@@ -387,6 +387,13 @@ def display_tscore_modal():
         Think of T-scores as a "fun fact" overlay rather than clinical guidance - your primary focus should remain on improving within your age and gender demographic using the standard percentile system.
         """)
 
+    with st.expander("🔬 Technical Implementation"):
+        st.markdown("""
+        For the curious, detailed information about how we calculate T-score reference values using Monte Carlo sampling from LMS distributions can be found in our [T-Score Methodology Documentation](https://github.com/benmabey/bodymetrics/blob/master/docs/t-score-methodology.md).
+        
+        This covers the technical challenges we solved, including why naive approaches fail and how we generate realistic population statistics from LMS parameters.
+        """)
+
     # Close button
     if st.button("Close", key="close_tscore_modal"):
         st.rerun()
