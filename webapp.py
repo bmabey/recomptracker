@@ -297,6 +297,59 @@ def display_philosophy_modal():
         st.error("Could not load Philosophy section from README.md")
 
 
+@st.dialog("What are T-scores?", width="large")
+def display_tscore_modal():
+    """Display T-score explanation in a modal dialog."""
+    # TL;DR section
+    st.info(
+        "**TL;DR**: T-scores compare your muscle mass to peak young adults (ages 20-30) rather than your age group. This is experimental and for fun - stick with percentiles for actual goal-setting."
+    )
+
+    # Main explanation
+    st.markdown("### 📊 What are T-scores?")
+    st.markdown("""
+    T-scores are a standardized measurement that compares your value to a "peak reference population" - typically healthy young adults aged 20-30. T-scores tell you how many standard deviations you are from the peak values typically seen in young adulthood.
+    """)
+
+    st.markdown("### 🦴 T-scores in Bone Density vs. Muscle Mass")
+    st.markdown("""
+    T-scores are **commonly used** for bone density analysis, where they help diagnose osteoporosis and fracture risk. The World Health Organization officially defines osteoporosis as a bone density T-score of -2.5 or lower.
+
+    For muscle mass and ALMI, T-scores are **much less standard**. While some research has explored T-score approaches for sarcopenia (muscle loss) assessment, there are no official clinical guidelines or widely accepted thresholds like there are for bone density.
+    """)
+
+    st.markdown("### 💪 What T-scores Mean for Your Muscle Mass")
+    st.markdown("""
+    In simple terms: **T-scores show how your current muscle mass compares to what you might have had in your physical prime.**
+
+    - **T-score of 0**: Your muscle mass matches the average healthy 25-year-old
+    - **T-score of +2**: You have exceptional muscle mass - better than 97% of young adults at their peak
+    - **T-score of -2**: Your muscle mass is significantly below typical young adult levels
+    """)
+
+    with st.expander("🎯 Our T-score Zones (Experimental)"):
+        st.markdown("""
+        We've created 5 experimental zones that are **not based on clinical standards**:
+
+        - **Elite Zone** (T ≥ +2.0): Exceptional muscle mass
+        - **Peak Zone** (0 ≤ T < +2.0): Excellent muscle mass
+        - **Approaching Peak** (-1.0 ≤ T < 0): Good muscle mass
+        - **Below Peak** (-2.0 ≤ T < -1.0): Below optimal
+        - **Well Below Peak** (T < -2.0): Significantly below optimal
+        """)
+
+    with st.expander("⚠️ Important Disclaimer"):
+        st.markdown("""
+        **Age-appropriate percentiles remain the recommended approach** for actual goal-setting and health assessment. T-scores are provided as an experimental feature for those interested in comparing against peak young adult muscle mass.
+
+        Think of T-scores as a "fun fact" overlay rather than clinical guidance - your primary focus should remain on improving within your age and gender demographic using the standard percentile system.
+        """)
+
+    # Close button
+    if st.button("Close", key="close_tscore_modal"):
+        st.rerun()
+
+
 def extract_philosophy_section():
     """
     Extract the Philosophy section from README.md.
@@ -1856,6 +1909,17 @@ def display_results():
                     user_info["gender_code"]
                 )
 
+                # Add T-score explanation modal button above the plot
+                if almi_mu_peak is not None and almi_sigma_peak is not None:
+                    if st.button(
+                        "ℹ️ Learn about T-scores and peak zones →",
+                        key="tscore_info_modal",
+                        help="Understand T-score methodology and zone classifications",
+                        type="secondary",
+                        use_container_width=True,
+                    ):
+                        display_tscore_modal()
+
                 # Create dual-mode plot with toggle functionality
                 almi_fig = create_plotly_dual_mode_plot(
                     df_results,
@@ -1867,81 +1931,7 @@ def display_results():
                 )
                 st.plotly_chart(almi_fig, use_container_width=True)
 
-                # Add T-score explanation modal button
-                col1, col2, col3 = st.columns([1, 1, 8])
-                with col1:
-                    if st.button(
-                        "ℹ️ T-score Info",
-                        key="tscore_info_modal",
-                        help="Learn about T-scores and peak zones",
-                    ):
-                        st.session_state.show_tscore_modal = True
 
-                # T-score explanation modal
-                if st.session_state.get("show_tscore_modal", False):
-                    with st.container():
-                        st.markdown("---")
-                        col1, col2, col3 = st.columns([1, 6, 1])
-                        with col2:
-                            st.markdown("### T-Score Overlay Explanation")
-
-                            # TL;DR section
-                            st.info(
-                                "**TL;DR**: T-scores compare your muscle mass to peak young adults (ages 20-30) rather than your age group. This is experimental and for fun - stick with percentiles for actual goal-setting."
-                            )
-
-                            # Main explanation
-                            with st.expander("📊 What are T-scores?", expanded=True):
-                                st.markdown("""
-                                T-scores are a standardized measurement that compares your value to a "peak reference population" - typically healthy young adults aged 20-30. T-scores tell you how many standard deviations you are from the peak values typically seen in young adulthood.
-                                """)
-
-                            with st.expander(
-                                "🦴 T-scores in Bone Density vs. Muscle Mass"
-                            ):
-                                st.markdown("""
-                                T-scores are **commonly used** for bone density analysis, where they help diagnose osteoporosis and fracture risk. The World Health Organization officially defines osteoporosis as a bone density T-score of -2.5 or lower.
-
-                                For muscle mass and ALMI, T-scores are **much less standard**. While some research has explored T-score approaches for sarcopenia (muscle loss) assessment, there are no official clinical guidelines or widely accepted thresholds like there are for bone density.
-                                """)
-
-                            with st.expander(
-                                "💪 What T-scores Mean for Your Muscle Mass"
-                            ):
-                                st.markdown("""
-                                In simple terms: **T-scores show how your current muscle mass compares to what you might have had in your physical prime.**
-
-                                - **T-score of 0**: Your muscle mass matches the average healthy 25-year-old
-                                - **T-score of +2**: You have exceptional muscle mass - better than 97% of young adults at their peak
-                                - **T-score of -2**: Your muscle mass is significantly below typical young adult levels
-                                """)
-
-                            with st.expander("🎯 Our T-score Zones (Experimental)"):
-                                st.markdown("""
-                                We've created 5 experimental zones that are **not based on clinical standards**:
-
-                                - **Elite Zone** (T ≥ +2.0): Exceptional muscle mass
-                                - **Peak Zone** (0 ≤ T < +2.0): Excellent muscle mass
-                                - **Near Peak** (-1.0 ≤ T < 0): Good muscle mass
-                                - **Below Peak** (-2.0 ≤ T < -1.0): Below optimal
-                                - **Well Below Peak** (T < -2.0): Significantly below optimal
-                                """)
-
-                            with st.expander("⚠️ Important Disclaimer"):
-                                st.markdown("""
-                                **Age-appropriate percentiles remain the recommended approach** for actual goal-setting and health assessment. T-scores are provided as an experimental feature for those interested in comparing against peak young adult muscle mass.
-
-                                Think of T-scores as a "fun fact" overlay rather than clinical guidance - your primary focus should remain on improving within your age and gender demographic using the standard percentile system.
-                                """)
-
-                            # Close button
-                            st.markdown("---")
-                            col1, col2, col3 = st.columns([3, 2, 3])
-                            with col2:
-                                if st.button("Close", key="close_tscore_modal"):
-                                    st.session_state.show_tscore_modal = False
-                                    st.rerun()
-                        st.markdown("---")
             else:
                 st.error("Could not load LMS data for plotting")
         except Exception as e:
