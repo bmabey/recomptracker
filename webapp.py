@@ -182,11 +182,34 @@ def get_base_url():
     if custom_url:
         return custom_url.rstrip("/")
 
-    # Priority 2: Development mode - use localhost with default port
-    if os.getenv("STREAMLIT_ENV") == "development":
+    # Priority 2: Check for explicit development environment
+    streamlit_env = os.getenv("STREAMLIT_ENV", "").lower()
+    if streamlit_env == "development":
         return "http://localhost:8501"
 
-    # Priority 3: Production default
+    # Priority 3: Check for production environment indicators
+    # Streamlit Cloud sets these environment variables
+    if (
+        os.getenv("STREAMLIT_SHARING_MODE")
+        or os.getenv("STREAMLIT_SERVER_PORT")
+        or "streamlit.app" in os.getenv("HOSTNAME", "")
+    ):
+        return "https://recomptracker.streamlit.app"
+
+    # Priority 4: Check if we're running locally but STREAMLIT_ENV wasn't set
+    # This handles cases where someone runs locally without setting the env var
+    hostname = os.getenv("HOSTNAME", "").lower()
+    if (
+        "localhost" in hostname
+        or hostname.startswith("127.0.0.1")
+        or hostname == ""
+        or os.getenv("USER") in ["runner", "github"]
+    ):  # CI environments
+        # If no clear production indicators, and we might be local, default to production
+        # This is safer than assuming localhost
+        pass
+
+    # Priority 5: Default to production (safer assumption)
     return "https://recomptracker.streamlit.app"
 
 
