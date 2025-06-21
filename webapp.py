@@ -1249,39 +1249,41 @@ def display_user_profile_form():
             st.rerun()
     
     with col2:
-        if st.button("📋 Load Example"):
-            try:
-                config = load_config_json('example_config.json', quiet=True)
-                user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(config)
-                
-                st.session_state.user_info = {
-                    'birth_date': config['user_info']['birth_date'],
-                    'height_in': config['user_info']['height_in'],
-                    'gender': config['user_info']['gender'],
-                    'training_level': user_info.get('training_level', '')
-                }
-                
-                # Set height display format for example data
-                height_inches = config['user_info']['height_in']
-                st.session_state.height_display = inches_to_feet_inches_str(height_inches)
-                
-                # Clean up scan history - remove date_str fields that are not needed for UI
-                cleaned_scan_history = []
-                for scan in scan_history:
-                    clean_scan = scan.copy()
-                    if 'date_str' in clean_scan:
-                        del clean_scan['date_str']
-                    cleaned_scan_history.append(clean_scan)
-                
-                st.session_state.scan_history = cleaned_scan_history
-                if almi_goal:
-                    st.session_state.almi_goal = almi_goal
-                if ffmi_goal:
-                    st.session_state.ffmi_goal = ffmi_goal
-                run_analysis()
-                st.rerun()
-            except Exception as e:
-                st.error(f"Could not load example config: {e}")
+        # Only show Load Example button in development environment
+        if os.getenv('STREAMLIT_ENV') == 'development':
+            if st.button("📋 Load Example"):
+                try:
+                    config = load_config_json('example_config.json', quiet=True)
+                    user_info, scan_history, almi_goal, ffmi_goal = extract_data_from_config(config)
+                    
+                    st.session_state.user_info = {
+                        'birth_date': config['user_info']['birth_date'],
+                        'height_in': config['user_info']['height_in'],
+                        'gender': config['user_info']['gender'],
+                        'training_level': user_info.get('training_level', '')
+                    }
+                    
+                    # Set height display format for example data
+                    height_inches = config['user_info']['height_in']
+                    st.session_state.height_display = inches_to_feet_inches_str(height_inches)
+                    
+                    # Clean up scan history - remove date_str fields that are not needed for UI
+                    cleaned_scan_history = []
+                    for scan in scan_history:
+                        clean_scan = scan.copy()
+                        if 'date_str' in clean_scan:
+                            del clean_scan['date_str']
+                        cleaned_scan_history.append(clean_scan)
+                    
+                    st.session_state.scan_history = cleaned_scan_history
+                    if almi_goal:
+                        st.session_state.almi_goal = almi_goal
+                    if ffmi_goal:
+                        st.session_state.ffmi_goal = ffmi_goal
+                    run_analysis()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Could not load example config: {e}")
     
     with col3:
         # Initialize confirmation state if not exists

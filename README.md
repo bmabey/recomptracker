@@ -162,6 +162,9 @@ source venv/bin/activate
 
 # Launch web application
 streamlit run webapp.py
+
+# For development (shows Load Example button)
+STREAMLIT_ENV=development streamlit run webapp.py
 ```
 
 The web interface will open in your browser at `http://localhost:8501` and provides:
@@ -171,6 +174,9 @@ The web interface will open in your browser at `http://localhost:8501` and provi
 - Live analysis updates and visualizations
 - Downloadable results (CSV)
 - Fake data generation for testing/demos
+
+**Environment Variables:**
+- `STREAMLIT_ENV=development` - Shows development features like the "Load Example" button
 
 ### Command Line Interface
 
