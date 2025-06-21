@@ -236,6 +236,12 @@ task run-config -- my_config.json # CLI with custom config
 task test                          # Run all tests
 task test-unit                     # Run unit tests only
 task test-integration              # Run integration tests only
+task lint                          # Run linting and formatting checks
+task fix                           # Auto-fix linting and formatting issues
+task typecheck                     # Run type checking with mypy (optional)
+task ci                            # Run CI pipeline locally (lint + unit tests)
+task ci-full                       # Run full CI pipeline (lint + all tests)
+task ci-strict                     # Run strict CI with type checking
 
 # Utilities
 task help-config                   # Show configuration help

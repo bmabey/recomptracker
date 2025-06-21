@@ -3,20 +3,20 @@
 RecompTracker - Main CLI Script
 
 This is the main entry point for RecompTracker body composition analysis. It provides
-a comprehensive command-line interface with helpful error messages and 
+a comprehensive command-line interface with helpful error messages and
 delegates the core analysis logic to the core module.
 """
 
-import sys
-import os
 import argparse
+import os
+
 from core import run_analysis
 
 
 def main():
     """Main CLI function with comprehensive argument parsing."""
     parser = argparse.ArgumentParser(
-        description='RecompTracker with Intelligent TLM Estimation',
+        description="RecompTracker with Intelligent TLM Estimation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -67,74 +67,77 @@ Notes:
   - training_level: If not specified, automatically detected from scan progression
   - target_age: Use "?" or null for automatic timeframe calculation
   - Suggested goals use conservative progression rates based on demographics and training level
-        """
+        """,
     )
-    
+
     parser.add_argument(
-        'config_file',
-        nargs='?',
-        default='example_config.json',
-        help='Path to JSON configuration file (default: example_config.json)'
+        "config_file",
+        nargs="?",
+        default="example_config.json",
+        help="Path to JSON configuration file (default: example_config.json)",
     )
-    
+
     parser.add_argument(
-        '--config', '-c',
-        dest='config_file_alt',
-        help='Alternative way to specify config file path'
+        "--config",
+        "-c",
+        dest="config_file_alt",
+        help="Alternative way to specify config file path",
     )
-    
+
     parser.add_argument(
-        '--suggest-goals', '-s',
-        action='store_true',
-        help='Generate suggested goals for reaching 90th percentile with realistic timeframes'
+        "--suggest-goals",
+        "-s",
+        action="store_true",
+        help="Generate suggested goals for reaching 90th percentile with realistic timeframes",
     )
-    
+
     parser.add_argument(
-        '--target-percentile', '-p',
+        "--target-percentile",
+        "-p",
         type=float,
         default=0.90,
-        help='Target percentile for suggested goals (default: 0.90 for 90th percentile)'
+        help="Target percentile for suggested goals (default: 0.90 for 90th percentile)",
     )
-    
+
     parser.add_argument(
-        '--help-config',
-        action='store_true',
-        help='Show detailed help about the JSON configuration format'
+        "--help-config",
+        action="store_true",
+        help="Show detailed help about the JSON configuration format",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.help_config:
         show_config_help()
         return 0
-    
+
     # Determine which config file to use
     config_file = args.config_file_alt if args.config_file_alt else args.config_file
-    
+
     # Validate config file exists
     if not os.path.exists(config_file):
         print(f"Error: Configuration file not found: {config_file}")
         print()
-        
+
         # Suggest creating example config if it doesn't exist
-        if config_file == 'example_config.json':
+        if config_file == "example_config.json":
             print("The example configuration file is missing.")
             print("Please ensure example_config.json exists in the current directory.")
         else:
             print("Please check the file path and try again.")
-            
+
         print()
         print("Run with --help-config to see the expected JSON format.")
         return 1
-    
+
     # Run the analysis using core module
     try:
         exit_code = run_analysis(
             config_path=config_file,
             suggest_goals=args.suggest_goals,
-            target_percentile=args.target_percentile
+            target_percentile=args.target_percentile,
         )
-        
+
         if exit_code == 0:
             print()
             print("Analysis completed successfully!")
@@ -143,9 +146,9 @@ Notes:
             print("  - ffmi_plot.png        (FFMI percentile curves)")
             print("  - bf_plot.png          (Body fat percentage over time)")
             print("  - almi_stats_table.csv (Comprehensive data table)")
-        
+
         return exit_code
-        
+
     except KeyboardInterrupt:
         print("\nAnalysis interrupted by user.")
         return 1
@@ -192,7 +195,7 @@ scan_history:
   - Array of DEXA scan results (at least 1 required)
   - date: Scan date in MM/DD/YYYY format
   - total_lean_mass_lbs: Total lean mass in pounds (≥0)
-  - arms_lean_lbs: Arms lean mass in pounds (≥0) 
+  - arms_lean_lbs: Arms lean mass in pounds (≥0)
   - legs_lean_lbs: Legs lean mass in pounds (≥0)
 
 goals (optional):
@@ -248,5 +251,5 @@ Notes:
     print(help_text)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     exit(main())
