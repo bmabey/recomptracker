@@ -270,6 +270,88 @@ def calculate_t_score(value, young_adult_median, young_adult_sd):
     return (value - young_adult_median) / young_adult_sd
 
 
+def calculate_tscore_reference_values(gender_code):
+    """
+    Calculate T-score reference values (mean and SD) from young adults aged 20-30.
+
+    This function derives T-score reference values by sampling from the LMS distribution
+    for young adults (ages 20-30) to estimate the actual population mean and standard deviation.
+    The approach:
+    1. Use LMS parameters for ages 20-30 to generate simulated population samples
+    2. Calculate empirical mean and standard deviation from these samples
+    3. Return values suitable for T-score calculation
+
+    Args:
+        gender_code (int): 0 for male, 1 for female
+
+    Returns:
+        tuple: (mu_peak, sigma_peak) - mean and standard deviation for young adults,
+               or (NaN, NaN) if calculation fails
+    """
+    try:
+        # Load ALMI LMS data for the specified gender
+        data_file = f"data/adults_LMS_appendicular_LMI_gender{gender_code}.csv"
+
+        if not os.path.exists(data_file):
+            print(f"Warning: T-score reference data not found: {data_file}")
+            return np.nan, np.nan
+
+        df = pd.read_csv(data_file)
+
+        # Filter to young adult age range (20-30 years) - peak muscle mass period
+        young_adult_data = df[(df["age"] >= 20) & (df["age"] <= 30)]
+
+        if len(young_adult_data) == 0:
+            print("Warning: No young adult data found in age range 20-30")
+            return np.nan, np.nan
+
+        # For T-score calculation, we need to estimate the actual population variance
+        # from the LMS distribution. We'll sample from the distribution at multiple ages
+        # and combine to get empirical population statistics.
+
+        all_samples = []
+        n_samples_per_age = 1000  # Sample size per age year
+
+        for _, row in young_adult_data.iterrows():
+            L, M, S = row["lambda"], row["mu"], row["sigma"]
+
+            # Generate samples from the LMS distribution for this age
+            # Use percentile sampling approach for robustness
+            percentiles = np.linspace(0.01, 0.99, n_samples_per_age)
+            z_scores = stats.norm.ppf(percentiles)
+
+            # Convert Z-scores to ALMI values using LMS transformation
+            samples = []
+            for z in z_scores:
+                almi_value = get_value_from_zscore(z, L, M, S)
+                if not pd.isna(almi_value) and almi_value > 0:
+                    samples.append(almi_value)
+
+            all_samples.extend(samples)
+
+        if len(all_samples) == 0:
+            print("Warning: No valid samples generated from LMS distribution")
+            return np.nan, np.nan
+
+        # Calculate empirical population statistics
+        mu_peak = np.mean(all_samples)
+        sigma_peak = np.std(all_samples, ddof=1)  # Sample standard deviation
+
+        # Sanity check the results
+        if sigma_peak == 0:
+            print("Warning: Zero standard deviation in simulated population")
+            return mu_peak, np.nan
+
+        if sigma_peak < 0.1:
+            print("Warning: Suspiciously low standard deviation in T-score reference")
+
+        return mu_peak, sigma_peak
+
+    except Exception as e:
+        print(f"Error calculating T-score reference values: {e}")
+        return np.nan, np.nan
+
+
 def calculate_z_percentile(value, age, L_func, M_func, S_func):
     """
     Calculates the Z-score and percentile for a given value at a specific age.
@@ -934,6 +1016,12 @@ def process_scans_and_goal(
     """
     print("Processing scan history and goals...")
 
+    # Calculate T-score reference values for this gender
+    almi_mu_peak, almi_sigma_peak = calculate_tscore_reference_values(
+        user_info["gender_code"]
+    )
+    print(f"ALMI T-score reference: μ={almi_mu_peak:.3f}, σ={almi_sigma_peak:.3f}")
+
     # Convert scan history to DataFrame and sort by date
     df = pd.DataFrame(scan_history)
 
@@ -989,6 +1077,12 @@ def process_scans_and_goal(
             lms_functions["lmi_S"],
         )
 
+        # Calculate T-scores using young adult reference values
+        almi_t_score = calculate_t_score(almi_kg_m2, almi_mu_peak, almi_sigma_peak)
+        # For FFMI T-score, we use same reference values as ALMI for now
+        # In future, we could calculate separate FFMI reference values
+        ffmi_t_score = calculate_t_score(ffmi_kg_m2, almi_mu_peak, almi_sigma_peak)
+
         # Store all calculated values
         result = {
             "date_str": scan[scan_date_key],
@@ -1007,8 +1101,10 @@ def process_scans_and_goal(
             "ffmi_kg_m2": ffmi_kg_m2,
             "almi_z_score": almi_z,
             "almi_percentile": almi_percentile * 100,
+            "almi_t_score": almi_t_score,
             "ffmi_z_score": ffmi_z,
             "ffmi_percentile": ffmi_percentile * 100,
+            "ffmi_t_score": ffmi_t_score,
         }
         results.append(result)
 
@@ -1025,6 +1121,8 @@ def process_scans_and_goal(
             processed_data.loc[i, "bf_change_last"] = np.nan
             processed_data.loc[i, "almi_z_change_last"] = np.nan
             processed_data.loc[i, "ffmi_z_change_last"] = np.nan
+            processed_data.loc[i, "almi_t_change_last"] = np.nan
+            processed_data.loc[i, "ffmi_t_change_last"] = np.nan
             processed_data.loc[i, "almi_pct_change_last"] = np.nan
             processed_data.loc[i, "ffmi_pct_change_last"] = np.nan
         else:
@@ -1054,6 +1152,14 @@ def process_scans_and_goal(
                 processed_data.loc[i, "ffmi_z_score"]
                 - processed_data.loc[prev_idx, "ffmi_z_score"]
             )
+            processed_data.loc[i, "almi_t_change_last"] = (
+                processed_data.loc[i, "almi_t_score"]
+                - processed_data.loc[prev_idx, "almi_t_score"]
+            )
+            processed_data.loc[i, "ffmi_t_change_last"] = (
+                processed_data.loc[i, "ffmi_t_score"]
+                - processed_data.loc[prev_idx, "ffmi_t_score"]
+            )
             processed_data.loc[i, "almi_pct_change_last"] = (
                 processed_data.loc[i, "almi_percentile"]
                 - processed_data.loc[prev_idx, "almi_percentile"]
@@ -1069,6 +1175,8 @@ def process_scans_and_goal(
             processed_data.loc[i, "lean_change_first"] = 0
             processed_data.loc[i, "fat_change_first"] = 0
             processed_data.loc[i, "bf_change_first"] = 0
+            processed_data.loc[i, "almi_t_change_first"] = 0
+            processed_data.loc[i, "ffmi_t_change_first"] = 0
         else:
             processed_data.loc[i, "weight_change_first"] = (
                 processed_data.loc[i, "total_weight_lbs"]
@@ -1085,6 +1193,14 @@ def process_scans_and_goal(
             processed_data.loc[i, "bf_change_first"] = (
                 processed_data.loc[i, "body_fat_percentage"]
                 - processed_data.loc[0, "body_fat_percentage"]
+            )
+            processed_data.loc[i, "almi_t_change_first"] = (
+                processed_data.loc[i, "almi_t_score"]
+                - processed_data.loc[0, "almi_t_score"]
+            )
+            processed_data.loc[i, "ffmi_t_change_first"] = (
+                processed_data.loc[i, "ffmi_t_score"]
+                - processed_data.loc[0, "ffmi_t_score"]
             )
 
     # Process goals and add goal rows if specified
@@ -1981,6 +2097,662 @@ def create_plotly_body_fat_plot(df_results, user_info):
     return fig
 
 
+def create_plotly_dual_mode_plot(
+    df_results,
+    metric_to_plot,
+    lms_functions,
+    goal_calculations,
+    almi_mu_peak=None,
+    almi_sigma_peak=None,
+):
+    """
+    Creates interactive Plotly plots with optional T-score toggle overlay for ALMI.
+
+    This function generates visualizations that:
+    - Always show percentile curves to maintain consistent y-axis range
+    - Keep same markers and data points in both modes
+    - Add T-score information as overlay layers when toggled (ALMI only)
+    - Use consistent legend font sizes to avoid jarring transitions
+    - Toggle is additive: T-score mode adds layers without removing percentiles
+
+    Args:
+        df_results (pd.DataFrame): Complete results DataFrame with scan history and goals
+        metric_to_plot (str): Either 'ALMI' or 'FFMI'
+        lms_functions (dict): Dictionary containing LMS interpolation functions
+        goal_calculations (dict): Goal calculation results
+        almi_mu_peak (float, optional): Young adult reference mean for T-score calculation (ALMI only)
+        almi_sigma_peak (float, optional): Young adult reference SD for T-score calculation (ALMI only)
+
+    Returns:
+        plotly.graph_objects.Figure: Interactive plotly figure with optional T-score toggle
+    """
+    import plotly.graph_objects as go
+    import scipy.stats as stats
+    from plotly.subplots import make_subplots
+
+    # Define age range for curves
+    age_range = np.linspace(18, 80, 100)
+
+    # Select appropriate LMS functions and labels
+    if metric_to_plot == "ALMI":
+        L_func = lms_functions["almi_L"]
+        M_func = lms_functions["almi_M"]
+        S_func = lms_functions["almi_S"]
+        y_column = "almi_kg_m2"
+        y_label = "ALMI (kg/m²)"
+        plot_title = "Appendicular Lean Mass Index (ALMI)"
+        t_score_column = "almi_t_score"
+        z_score_column = "almi_z_score"
+        percentile_column = "almi_percentile"
+    else:  # FFMI
+        L_func = lms_functions["lmi_L"]
+        M_func = lms_functions["lmi_M"]
+        S_func = lms_functions["lmi_S"]
+        y_column = "ffmi_kg_m2"
+        y_label = "FFMI (kg/m²)"
+        plot_title = "Fat-Free Mass Index (FFMI)"
+        t_score_column = "ffmi_t_score"
+        z_score_column = "ffmi_z_score"
+        percentile_column = "ffmi_percentile"
+
+    # Create figure (no secondary y-axis needed for seamless approach)
+    fig = go.Figure()
+
+    # Define percentiles and colors - these ALWAYS stay visible
+    percentiles = [0.03, 0.10, 0.25, 0.50, 0.75, 0.90, 0.97]
+    percentile_labels = ["3rd", "10th", "25th", "50th", "75th", "90th", "97th"]
+    colors = [
+        "#FF6B6B",
+        "#4ECDC4",
+        "#45B7D1",
+        "#96CEB4",
+        "#FECCA7",
+        "#DDA0DD",
+        "#FFB347",
+    ]
+
+    # Add percentile curves (ALWAYS visible for consistent axis range)
+    for i, (percentile, label, color) in enumerate(
+        zip(percentiles, percentile_labels, colors)
+    ):
+        z_score = stats.norm.ppf(percentile)
+        curve_values = []
+
+        for age in age_range:
+            try:
+                L_val = L_func(age)
+                M_val = M_func(age)
+                S_val = S_func(age)
+                from core import get_value_from_zscore
+
+                value = get_value_from_zscore(z_score, L_val, M_val, S_val)
+                curve_values.append(value)
+            except:
+                curve_values.append(None)
+
+        fig.add_trace(
+            go.Scatter(
+                x=age_range,
+                y=curve_values,
+                mode="lines",
+                name=f"{label} percentile",
+                line={"color": color, "width": 2},
+                hovertemplate=f"{label} percentile<br>Age: %{{x:.1f}} years<br>{y_label}: %{{y:.2f}}<extra></extra>",
+                visible=True,  # Always visible for consistent axis range
+                legendgroup="percentiles",
+            )
+        )
+
+    # Define T-score zones for ALMI only (after goal marker)
+    # T-scores compare to peak young adult muscle mass (ages 20-30)
+    t_score_bands = []
+    enable_tscore = (
+        metric_to_plot == "ALMI"
+        and almi_mu_peak is not None
+        and almi_sigma_peak is not None
+    )
+
+    if enable_tscore:
+        t_score_bands = [
+            (-4, -2, "#FF6B6B", "Well Below Peak"),
+            (-2, -1, "#FFA500", "Below Peak"),
+            (-1, 0, "#FFD700", "Approaching Peak"),
+            (0, 4, "#90EE90", "Peak Zone"),
+        ]
+
+    # Filter data for actual scans (not goal rows)
+    scan_data = df_results[~df_results["date_str"].str.contains("Goal", na=False)]
+
+    # Add actual data points with comprehensive hover information
+    if len(scan_data) > 0:
+        # Create hover text with both Z-scores and T-scores
+        hover_text = []
+        for _, scan in scan_data.iterrows():
+            hover_info = [
+                f"<b>Scan Date:</b> {scan['date_str']}",
+                f"<b>Age:</b> {scan['age_at_scan']:.1f} years",
+                f"<b>{y_label}:</b> {scan[y_column]:.2f}",
+                f"<b>Z-Score:</b> {scan[z_score_column]:.2f}",
+                f"<b>Percentile:</b> {scan[percentile_column]:.1f}%",
+                f"<b>T-Score:</b> {scan[t_score_column]:.2f}",
+                "",
+                f"<b>Weight:</b> {scan['total_weight_lbs']:.1f} lbs",
+                f"<b>Lean Mass:</b> {scan['total_lean_mass_lbs']:.1f} lbs",
+                f"<b>Fat Mass:</b> {scan['fat_mass_lbs']:.1f} lbs",
+                f"<b>Body Fat:</b> {scan['body_fat_percentage']:.1f}%",
+            ]
+            hover_text.append("<br>".join(hover_info))
+
+        # Add scan points (same markers for both modes)
+        fig.add_trace(
+            go.Scatter(
+                x=scan_data["age_at_scan"],
+                y=scan_data[y_column],
+                mode="markers",
+                name="Your Scans",
+                marker={
+                    "color": "red",
+                    "size": 12,
+                    "line": {"color": "black", "width": 1},
+                },
+                hovertemplate="%{text}<extra></extra>",
+                text=hover_text,
+                visible=True,  # Always visible - same markers in both modes
+                legendgroup="scans",
+            )
+        )
+
+        # Connect points with lines if multiple scans
+        if len(scan_data) > 1:
+            fig.add_trace(
+                go.Scatter(
+                    x=scan_data["age_at_scan"],
+                    y=scan_data[y_column],
+                    mode="lines",
+                    name="Progression",
+                    line={"color": "red", "width": 2},
+                    opacity=0.7,
+                    showlegend=False,
+                    hoverinfo="skip",
+                    visible=True,  # Always visible - same line in both modes
+                    legendgroup="progression",
+                )
+            )
+
+    # Add goal if available (similar implementation for both modes)
+    goal_key = metric_to_plot.lower()
+    if goal_key in goal_calculations:
+        goal_calc = goal_calculations[goal_key]
+        goal_age = goal_calc["target_age"]
+        goal_value = goal_calc["target_metric_value"]
+        goal_percentile = goal_calc["target_percentile"]
+
+        # Build comprehensive goal hover information
+        goal_z_score = goal_calc.get("target_z_score", 0)
+        goal_t_score = calculate_t_score(goal_value, almi_mu_peak, almi_sigma_peak)
+        target_body_comp = goal_calc.get("target_body_composition", {})
+
+        goal_hover_text = "<br>".join(
+            [
+                f"<b>🎯 {metric_to_plot} Goal</b>",
+                f"<b>Target Age:</b> {goal_age:.1f} years",
+                f"<b>Target {y_label}:</b> {goal_value:.2f}",
+                f"<b>Target Z-Score:</b> {goal_z_score:.2f}",
+                f"<b>Target Percentile:</b> {goal_percentile * 100:.0f}%",
+                f"<b>Target T-Score:</b> {goal_t_score:.2f}",
+                "",
+                "<b>Target Body Composition:</b>",
+                f"<b>Weight:</b> {target_body_comp.get('weight_lbs', 0):.1f} lbs",
+                f"<b>Lean Mass:</b> {target_body_comp.get('lean_mass_lbs', 0):.1f} lbs",
+                f"<b>Fat Mass:</b> {target_body_comp.get('fat_mass_lbs', 0):.1f} lbs",
+                f"<b>Body Fat:</b> {target_body_comp.get('body_fat_percentage', 0):.1f}%",
+            ]
+        )
+
+        # Goal marker (same for both modes)
+        fig.add_trace(
+            go.Scatter(
+                x=[goal_age],
+                y=[goal_value],
+                mode="markers",
+                name="Goal",
+                marker={
+                    "color": "gold",
+                    "size": 15,
+                    "symbol": "star",
+                    "line": {"color": "black", "width": 1},
+                },
+                hovertemplate="%{text}<extra></extra>",
+                text=[goal_hover_text],
+                visible=True,  # Always visible - same marker in both modes
+                legendgroup="goal",
+            )
+        )
+
+    # Add T-score zones AFTER goal marker (ALMI only - so they appear below goal in legend)
+    if enable_tscore:
+        for t_min, t_max, color, label in t_score_bands:
+            # Convert T-scores to metric values for band boundaries
+            metric_min = almi_mu_peak + t_min * almi_sigma_peak
+            metric_max = almi_mu_peak + t_max * almi_sigma_peak
+
+            # Create filled area for peak zone band
+            band_y = [metric_min, metric_max, metric_max, metric_min, metric_min]
+            band_x = [18, 18, 80, 80, 18]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=band_x,
+                    y=band_y,
+                    fill="toself",
+                    fillcolor=color,
+                    opacity=0.3,
+                    line={"width": 0},
+                    name=label,
+                    hoverinfo="skip",
+                    visible=False,  # Hidden by default, shown when T-score toggle is on
+                    legendgroup="tscores",
+                )
+            )
+
+        # Add T-score grid lines AFTER goal marker (ALMI only - hidden by default)
+        for t_score in range(-3, 4):
+            metric_value = almi_mu_peak + t_score * almi_sigma_peak
+            fig.add_trace(
+                go.Scatter(
+                    x=[18, 80],
+                    y=[metric_value, metric_value],
+                    mode="lines",
+                    line={"color": "gray", "dash": "dash", "width": 1},
+                    opacity=0.5,
+                    name=f"T-score {t_score}",
+                    hoverinfo="skip",
+                    visible=False,  # Hidden by default, shown when T-score toggle is on
+                    showlegend=False,
+                )
+            )
+
+    # Calculate fixed y-axis range that works for both percentiles and T-score overlays
+    # This ensures seamless toggle without axis range changes
+
+    # Get range from percentile curves (3rd to 97th percentile at age range)
+    percentile_y_values = []
+    for percentile in [0.03, 0.97]:  # Min and max percentiles
+        z_score = stats.norm.ppf(percentile)
+        for age in [20, 30, 40, 50, 60, 70]:  # Sample ages
+            try:
+                L_val = L_func(age)
+                M_val = M_func(age)
+                S_val = S_func(age)
+                value = get_value_from_zscore(z_score, L_val, M_val, S_val)
+                if not pd.isna(value):
+                    percentile_y_values.append(value)
+            except:
+                continue
+
+    # Get range from T-score bands (ALMI only)
+    t_score_y_values = []
+    if enable_tscore:
+        for t_score in [-3, 3]:  # Reasonable T-score range
+            metric_value = almi_mu_peak + t_score * almi_sigma_peak
+            t_score_y_values.append(metric_value)
+
+    # Get range from actual scan data
+    scan_y_values = []
+    if len(scan_data) > 0:
+        scan_y_values = scan_data[y_column].dropna().tolist()
+
+    # Get range from goal data
+    goal_y_values = []
+    if goal_key in goal_calculations:
+        goal_y_values = [goal_calculations[goal_key]["target_metric_value"]]
+
+    # Combine all y-values and calculate fixed range with padding
+    all_y_values = (
+        percentile_y_values + t_score_y_values + scan_y_values + goal_y_values
+    )
+    if all_y_values:
+        y_min = min(all_y_values)
+        y_max = max(all_y_values)
+        y_padding = (y_max - y_min) * 0.1  # 10% padding
+        fixed_y_min = y_min - y_padding
+        fixed_y_max = y_max + y_padding
+    else:
+        # Fallback range if no data
+        fixed_y_min = 4.0
+        fixed_y_max = 12.0
+
+    # Customize layout
+    fig.update_layout(
+        title={
+            "text": f"{plot_title} - Interactive Analysis",
+            "font": {"size": 16, "family": "Arial", "color": "black"},
+            "x": 0,
+        },
+        xaxis={
+            "title": {"text": "Age (years)", "font": {"size": 14}},
+            "tickfont": {"size": 12},
+            "gridcolor": "lightgray",
+            "gridwidth": 0.5,
+            "range": [18, 80],
+        },
+        yaxis={
+            "title": {"text": y_label, "font": {"size": 14}},
+            "tickfont": {"size": 12},
+            "gridcolor": "lightgray",
+            "gridwidth": 0.5,
+            "range": [fixed_y_min, fixed_y_max],  # Fixed range for seamless toggle
+        },
+        legend={
+            "orientation": "v",
+            "yanchor": "top",
+            "y": 1,
+            "xanchor": "left",
+            "x": 1.02,
+            "font": {"size": 10},
+        },
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        hovermode="closest",
+        hoverlabel={"bgcolor": "white", "bordercolor": "black", "font_size": 12},
+        height=650
+        if enable_tscore
+        else 600,  # Increased height only if T-score annotations needed
+        margin={
+            "r": 150,
+            "b": 100 if enable_tscore else 50,
+        },  # Added bottom margin only if T-score annotations needed
+        # Add single toggle button for T-score overlay (ALMI only)
+        updatemenus=[
+            {
+                "buttons": [
+                    {
+                        "label": "Add T-score Overlay",
+                        "method": "update",
+                        "args": [
+                            {
+                                "visible": [True]
+                                * len(percentiles)  # percentile curves stay visible
+                                + [True]  # scan points stay the same
+                                + (
+                                    [True] if len(scan_data) > 1 else []
+                                )  # progression line stays the same
+                                + (
+                                    [True] if goal_key in goal_calculations else []
+                                )  # goal marker stays the same
+                                + [True]
+                                * len(
+                                    t_score_bands
+                                )  # T-score bands shown (now after goal)
+                                + [True] * 7  # T-score grid lines shown
+                            },
+                            {
+                                "annotations[0].visible": True,  # Show T-score explanation
+                            }
+                            if enable_tscore
+                            else {},
+                        ],
+                        "args2": [
+                            {
+                                "visible": [True]
+                                * len(percentiles)  # percentile curves stay visible
+                                + [True]  # scan points stay the same
+                                + (
+                                    [True] if len(scan_data) > 1 else []
+                                )  # progression line stays the same
+                                + (
+                                    [True] if goal_key in goal_calculations else []
+                                )  # goal marker stays the same
+                                + [False]
+                                * len(
+                                    t_score_bands
+                                )  # T-score bands hidden (now after goal)
+                                + [False] * 7  # T-score grid lines hidden
+                            },
+                            {
+                                "annotations[0].visible": False,  # Hide T-score explanation
+                            }
+                            if enable_tscore
+                            else {},
+                        ],
+                    },
+                ],
+                "active": 0,  # Start with T-score overlay off (uses args2 by default)
+                "direction": "down",
+                "showactive": False,  # Don't show active state styling
+                "x": 0.01,
+                "xanchor": "left",
+                "y": 1.05,
+                "yanchor": "top",
+                "type": "buttons",
+            }
+        ]
+        if enable_tscore
+        else [],  # Only show toggle button for ALMI
+        # Add informative annotation for T-score overlay only (ALMI only)
+        annotations=[
+            {
+                "text": "<b>T-score Overlay:</b> Compare to PEAK young adult muscle mass (ages 20-30). T ≥ 0 = Peak Zone, T < -2 = Well Below Peak.",
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0.02,
+                "y": -0.12,
+                "xanchor": "left",
+                "yanchor": "top",
+                "showarrow": False,
+                "font": {"size": 11, "color": "darkgreen"},
+                "bgcolor": "rgba(240, 255, 240, 0.8)",
+                "bordercolor": "lightgreen",
+                "borderwidth": 1,
+                "visible": False,  # Hidden by default, shown when T-score mode is active
+            },
+        ]
+        if enable_tscore
+        else [],  # Only show annotation for ALMI
+    )
+
+    return fig
+
+
+def create_tscore_plot(
+    df_results, metric_to_plot, almi_mu_peak, almi_sigma_peak, return_figure=False
+):
+    """
+    Creates T-score plot showing horizontal risk bands and T-score axis.
+
+    This function generates T-score visualizations that include:
+    - Horizontal T-score risk bands (≥0 green, -1 yellow, -2 orange, <-2 red)
+    - Grid lines at T-score intervals
+    - Open square markers for scan data points
+    - Right-hand T-score axis
+    - Small thermometer inset showing latest T-score
+
+    Args:
+        df_results (pd.DataFrame): Complete results DataFrame with scan history
+        metric_to_plot (str): Either 'ALMI' or 'FFMI'
+        almi_mu_peak (float): Young adult reference mean for T-score calculation
+        almi_sigma_peak (float): Young adult reference SD for T-score calculation
+        return_figure (bool): If True, returns matplotlib figure object instead of saving
+
+    Returns:
+        matplotlib.figure.Figure or None: Figure object if return_figure=True, None otherwise
+    """
+    if not return_figure:
+        print(f"Generating T-score plot for {metric_to_plot}...")
+
+    # Set up the plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Get y-column and labels
+    if metric_to_plot == "ALMI":
+        y_column = "almi_kg_m2"
+        y_label = "ALMI (kg/m²)"
+        plot_title = "Appendicular Lean Mass Index (ALMI) T-scores"
+    else:  # FFMI
+        y_column = "ffmi_kg_m2"
+        y_label = "FFMI (kg/m²)"
+        plot_title = "Fat-Free Mass Index (FFMI) T-scores"
+
+    # Calculate ALMI range for T-score bands
+    min_almi = 4.0  # Reasonable minimum for plotting
+    max_almi = 12.0  # Reasonable maximum for plotting
+
+    # Create horizontal T-score risk bands
+    t_score_bands = [
+        (-4, -2, "#FF6B6B", "Severe Risk (T < -2.0)"),
+        (-2, -1, "#FFA500", "Moderate Risk (-2.0 ≤ T < -1.0)"),
+        (-1, 0, "#FFD700", "Mild Risk (-1.0 ≤ T < 0)"),
+        (0, 4, "#90EE90", "Normal (T ≥ 0)"),
+    ]
+
+    # Draw T-score bands as horizontal stripes
+    for t_min, t_max, color, label in t_score_bands:
+        # Convert T-scores to ALMI values for band boundaries
+        almi_min = almi_mu_peak + t_min * almi_sigma_peak
+        almi_max = almi_mu_peak + t_max * almi_sigma_peak
+
+        # Clip to plotting range
+        almi_min = max(almi_min, min_almi)
+        almi_max = min(almi_max, max_almi)
+
+        ax.axhspan(almi_min, almi_max, alpha=0.3, color=color, label=label)
+
+    # Add horizontal grid lines at T-score intervals
+    for t_score in range(-3, 4):
+        almi_value = almi_mu_peak + t_score * almi_sigma_peak
+        if min_almi <= almi_value <= max_almi:
+            ax.axhline(
+                y=almi_value, color="gray", linestyle="--", alpha=0.5, linewidth=1
+            )
+
+    # Filter data for actual scans (not goal rows)
+    scan_data = df_results[~df_results["date_str"].str.contains("Goal", na=False)]
+
+    # Plot actual data points with open squares
+    if len(scan_data) > 0:
+        ax.scatter(
+            scan_data["age_at_scan"],
+            scan_data[y_column],
+            marker="s",  # Square markers
+            facecolors="none",  # Open squares
+            edgecolors="red",
+            s=120,
+            linewidth=2,
+            zorder=5,
+            label="Your scans",
+        )
+
+        # Connect points with lines if multiple scans
+        if len(scan_data) > 1:
+            ax.plot(
+                scan_data["age_at_scan"],
+                scan_data[y_column],
+                color="red",
+                linewidth=2,
+                alpha=0.7,
+                zorder=4,
+            )
+
+    # Set up main y-axis (ALMI values)
+    ax.set_xlabel("Age (years)", fontsize=12)
+    ax.set_ylabel(y_label, fontsize=12)
+    ax.set_title(plot_title, fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(min_almi, max_almi)
+    ax.set_xlim(18, 80)
+
+    # Create right-hand T-score axis
+    ax2 = ax.twinx()
+
+    # Calculate T-score values for the y-axis
+    y_ticks = ax.get_yticks()
+    t_score_ticks = [(y - almi_mu_peak) / almi_sigma_peak for y in y_ticks]
+    ax2.set_yticks(y_ticks)
+    ax2.set_yticklabels([f"{t:.1f}" for t in t_score_ticks])
+    ax2.set_ylabel("T-score", fontsize=12)
+    ax2.set_ylim(ax.get_ylim())
+
+    # Add thermometer inset showing latest T-score
+    if len(scan_data) > 0:
+        latest_scan = scan_data.iloc[-1]
+        latest_t_score = latest_scan[f"{metric_to_plot.lower()}_t_score"]
+
+        # Create inset axes for thermometer
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+        inset_ax = inset_axes(
+            ax,
+            width="8%",
+            height="25%",
+            loc="upper right",
+            bbox_to_anchor=(0.95, 0.95, 1, 1),
+            bbox_transform=ax.transAxes,
+        )
+
+        # Draw thermometer
+        t_range = np.linspace(-3, 2, 100)
+        colors = []
+        for t in t_range:
+            if t < -2:
+                colors.append("#FF6B6B")  # Red
+            elif t < -1:
+                colors.append("#FFA500")  # Orange
+            elif t < 0:
+                colors.append("#FFD700")  # Yellow
+            else:
+                colors.append("#90EE90")  # Green
+
+        # Plot thermometer background
+        for i, (t, color) in enumerate(zip(t_range[:-1], colors[:-1])):
+            inset_ax.barh(
+                t,  # y position
+                1,  # width
+                height=t_range[1] - t_range[0],
+                left=0,  # x position
+                color=color,
+                alpha=0.7,
+                edgecolor="none",
+            )
+
+        # Add current T-score marker
+        inset_ax.barh(
+            latest_t_score - 0.05,  # y position
+            1.2,  # width
+            height=0.1,
+            left=0,  # x position
+            color="black",
+            alpha=0.8,
+        )
+        inset_ax.text(
+            1.3,
+            latest_t_score,
+            f"{latest_t_score:.1f}",
+            va="center",
+            fontweight="bold",
+            fontsize=10,
+        )
+
+        inset_ax.set_xlim(0, 2)
+        inset_ax.set_ylim(-3, 2)
+        inset_ax.set_xticks([])
+        inset_ax.set_yticks([-2, -1, 0, 1])
+        inset_ax.set_title("Current\nT-score", fontsize=8)
+
+    # Add legend
+    ax.legend(loc="upper left", fontsize=10)
+
+    plt.tight_layout()
+
+    if return_figure:
+        return fig
+    else:
+        # Save the plot
+        filename = f"{metric_to_plot.lower()}_tscore_plot.png"
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+        print(f"T-score plot saved as {filename}")
+        plt.show()
+
+
 # ---------------------------------------------------------------------------
 # COMPARISON TABLE FUNCTIONS
 # ---------------------------------------------------------------------------
@@ -2765,6 +3537,11 @@ def run_analysis_from_data(user_info, scan_history, almi_goal=None, ffmi_goal=No
         user_info, scan_history, almi_goal, ffmi_goal, lms_functions
     )
 
+    # Get T-score reference values for plotting
+    almi_mu_peak, almi_sigma_peak = calculate_tscore_reference_values(
+        user_info["gender_code"]
+    )
+
     # Generate plots
     almi_fig = create_metric_plot(
         df_results, "ALMI", lms_functions, goal_calculations, return_figure=True
@@ -2772,8 +3549,21 @@ def run_analysis_from_data(user_info, scan_history, almi_goal=None, ffmi_goal=No
     ffmi_fig = create_metric_plot(
         df_results, "FFMI", lms_functions, goal_calculations, return_figure=True
     )
+    # Generate T-score plots
+    almi_tscore_fig = create_tscore_plot(
+        df_results, "ALMI", almi_mu_peak, almi_sigma_peak, return_figure=True
+    )
+    ffmi_tscore_fig = create_tscore_plot(
+        df_results, "FFMI", almi_mu_peak, almi_sigma_peak, return_figure=True
+    )
     bf_fig = create_body_fat_plot(df_results, user_info, return_figure=True)
-    figures = {"ALMI": almi_fig, "FFMI": ffmi_fig, "BODY_FAT": bf_fig}
+    figures = {
+        "ALMI": almi_fig,
+        "FFMI": ffmi_fig,
+        "ALMI_TSCORE": almi_tscore_fig,
+        "FFMI_TSCORE": ffmi_tscore_fig,
+        "BODY_FAT": bf_fig,
+    }
 
     # Generate comparison table for web interface
     comparison_table_html = create_scan_comparison_table(df_results, return_html=True)

@@ -30,6 +30,8 @@ import streamlit.components.v1 as components
 
 # Import core analysis functions
 from core import (
+    calculate_tscore_reference_values,
+    create_plotly_dual_mode_plot,
     detect_training_level_from_scans,
     extract_data_from_config,
     generate_fake_profile,
@@ -1849,8 +1851,19 @@ def display_results():
             ) = load_lms_data("LMI", user_info["gender_code"])
 
             if all(lms_functions_local.values()):
-                almi_fig = create_plotly_metric_plot(
-                    df_results, "ALMI", lms_functions_local, goal_calculations
+                # Calculate T-score reference values
+                almi_mu_peak, almi_sigma_peak = calculate_tscore_reference_values(
+                    user_info["gender_code"]
+                )
+
+                # Create dual-mode plot with toggle functionality
+                almi_fig = create_plotly_dual_mode_plot(
+                    df_results,
+                    "ALMI",
+                    lms_functions_local,
+                    goal_calculations,
+                    almi_mu_peak,
+                    almi_sigma_peak,
                 )
                 st.plotly_chart(almi_fig, use_container_width=True)
             else:
@@ -1996,8 +2009,19 @@ def display_results():
             ) = load_lms_data("LMI", user_info["gender_code"])
 
             if all(lms_functions_local.values()):
-                ffmi_fig = create_plotly_metric_plot(
-                    df_results, "FFMI", lms_functions_local, goal_calculations
+                # Calculate T-score reference values
+                almi_mu_peak, almi_sigma_peak = calculate_tscore_reference_values(
+                    user_info["gender_code"]
+                )
+
+                # Create dual-mode plot with toggle functionality
+                ffmi_fig = create_plotly_dual_mode_plot(
+                    df_results,
+                    "FFMI",
+                    lms_functions_local,
+                    goal_calculations,
+                    almi_mu_peak,
+                    almi_sigma_peak,
                 )
                 st.plotly_chart(ffmi_fig, use_container_width=True)
             else:

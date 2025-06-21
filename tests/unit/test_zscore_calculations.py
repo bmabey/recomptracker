@@ -19,6 +19,7 @@ from core import (
     calculate_age_precise,
     calculate_suggested_goal,
     calculate_t_score,
+    calculate_tscore_reference_values,
     compute_zscore,
     detect_training_level_from_scans,
     determine_training_level,
@@ -2149,6 +2150,172 @@ class TestBodyFatPercentageAccuracy(unittest.TestCase):
                 load_config_json(temp_invalid_path2)
         finally:
             os.unlink(temp_invalid_path2)
+
+
+class TestTScoreCalculations(unittest.TestCase):
+    """
+    Test suite for T-score calculation functions.
+
+    T-scores compare an individual's measurement to the peak reference
+    values typically seen in young adults (ages 20-30), which is the
+    "peak bone mass" approach used in bone density analysis but applied
+    to muscle mass metrics.
+    """
+
+    def test_tscore_reference_values_calculation(self):
+        """Test that T-score reference values are calculated correctly."""
+        # Test male reference values
+        male_mu, male_sigma = calculate_tscore_reference_values(0)
+
+        # Should return valid numeric values
+        self.assertFalse(
+            np.isnan(male_mu), "Male T-score reference mean should be valid"
+        )
+        self.assertFalse(
+            np.isnan(male_sigma), "Male T-score reference SD should be valid"
+        )
+
+        # Male ALMI values should be in reasonable range (6-12 kg/m²)
+        self.assertGreater(male_mu, 6.0, "Male reference mean too low")
+        self.assertLess(male_mu, 12.0, "Male reference mean too high")
+
+        # Standard deviation should be reasonable (0.5-2.0 kg/m²)
+        self.assertGreater(male_sigma, 0.5, "Male reference SD too low")
+        self.assertLess(male_sigma, 2.0, "Male reference SD too high")
+
+        # Test female reference values
+        female_mu, female_sigma = calculate_tscore_reference_values(1)
+
+        # Should return valid numeric values
+        self.assertFalse(
+            np.isnan(female_mu), "Female T-score reference mean should be valid"
+        )
+        self.assertFalse(
+            np.isnan(female_sigma), "Female T-score reference SD should be valid"
+        )
+
+        # Female ALMI values should be lower than male (4-8 kg/m²)
+        self.assertGreater(female_mu, 4.0, "Female reference mean too low")
+        self.assertLess(female_mu, 8.0, "Female reference mean too high")
+        self.assertLess(female_mu, male_mu, "Female mean should be lower than male")
+
+        # Standard deviation should be reasonable
+        self.assertGreater(female_sigma, 0.3, "Female reference SD too low")
+        self.assertLess(female_sigma, 1.5, "Female reference SD too high")
+
+    def test_tscore_calculation_logic(self):
+        """Test T-score calculation with known reference values."""
+        # Use realistic reference values
+        mu_peak = 8.5  # kg/m²
+        sigma_peak = 1.0  # kg/m²
+
+        # Test T-score calculation
+        test_cases = [
+            (8.5, 0.0),  # At reference mean → T-score = 0
+            (9.5, 1.0),  # One SD above → T-score = +1
+            (7.5, -1.0),  # One SD below → T-score = -1
+            (10.5, 2.0),  # Two SDs above → T-score = +2
+            (6.5, -2.0),  # Two SDs below → T-score = -2
+        ]
+
+        for almi_value, expected_tscore in test_cases:
+            calculated_tscore = calculate_t_score(almi_value, mu_peak, sigma_peak)
+            self.assertAlmostEqual(
+                calculated_tscore,
+                expected_tscore,
+                places=6,
+                msg=f"T-score calculation failed for ALMI {almi_value}",
+            )
+
+    def test_tscore_peak_zone_stratification(self):
+        """Test T-score peak muscle mass zone boundaries."""
+        # Use realistic male reference values
+        male_mu, male_sigma = calculate_tscore_reference_values(0)
+
+        # Test realistic ALMI values and their T-score peak zones
+        test_values = [
+            (male_mu + 2 * male_sigma, "Peak Zone"),  # Well above peak
+            (male_mu + 0.5 * male_sigma, "Peak Zone"),  # Above peak
+            (male_mu - 0.5 * male_sigma, "Approaching Peak"),  # Below peak
+            (male_mu - 1.5 * male_sigma, "Below Peak"),  # Low
+            (male_mu - 2.5 * male_sigma, "Well Below Peak"),  # Very low
+        ]
+
+        for almi_value, expected_zone in test_values:
+            t_score = calculate_t_score(almi_value, male_mu, male_sigma)
+
+            # Verify T-score is in expected range for peak zone
+            if "Peak Zone" in expected_zone:
+                self.assertGreaterEqual(
+                    t_score, 0, f"ALMI {almi_value:.2f} should be in Peak Zone (≥0)"
+                )
+            elif "Approaching Peak" in expected_zone:
+                self.assertGreaterEqual(
+                    t_score, -1.0, f"ALMI {almi_value:.2f} should be ≥ -1.0"
+                )
+                self.assertLess(t_score, 0, f"ALMI {almi_value:.2f} should be < 0")
+            elif "Below Peak" in expected_zone and "Well Below" not in expected_zone:
+                self.assertGreaterEqual(
+                    t_score, -2.0, f"ALMI {almi_value:.2f} should be ≥ -2.0"
+                )
+                self.assertLess(
+                    t_score, -1.0, f"ALMI {almi_value:.2f} should be < -1.0"
+                )
+            elif "Well Below Peak" in expected_zone:
+                self.assertLess(
+                    t_score, -2.0, f"ALMI {almi_value:.2f} should be < -2.0"
+                )
+
+    def test_tscore_gender_differences(self):
+        """Test that T-score reference values show expected gender differences."""
+        male_mu, male_sigma = calculate_tscore_reference_values(0)
+        female_mu, female_sigma = calculate_tscore_reference_values(1)
+
+        # Males should have higher ALMI reference values than females
+        self.assertGreater(
+            male_mu, female_mu, "Male reference mean should be higher than female"
+        )
+
+        # Both should have reasonable, non-zero standard deviations
+        self.assertGreater(male_sigma, 0.1, "Male SD should be substantial")
+        self.assertGreater(female_sigma, 0.1, "Female SD should be substantial")
+
+        # Standard deviations should be in similar range (within factor of 2)
+        ratio = max(male_sigma, female_sigma) / min(male_sigma, female_sigma)
+        self.assertLess(ratio, 2.0, "Gender SD differences should be reasonable")
+
+    def test_tscore_edge_cases(self):
+        """Test T-score calculation edge cases."""
+        mu_peak = 8.0
+        sigma_peak = 1.0
+
+        # Test with zero SD (should return NaN)
+        result = calculate_t_score(8.0, mu_peak, 0.0)
+        self.assertTrue(np.isnan(result), "Zero SD should return NaN")
+
+        # Test with NaN inputs
+        result = calculate_t_score(np.nan, mu_peak, sigma_peak)
+        self.assertTrue(np.isnan(result), "NaN value should return NaN")
+
+        result = calculate_t_score(8.0, np.nan, sigma_peak)
+        self.assertTrue(np.isnan(result), "NaN mean should return NaN")
+
+        result = calculate_t_score(8.0, mu_peak, np.nan)
+        self.assertTrue(np.isnan(result), "NaN SD should return NaN")
+
+    def test_tscore_consistency_with_zscore(self):
+        """Test that T-scores and Z-scores are conceptually consistent."""
+        # Load some LMS data for comparison
+        male_mu, male_sigma = calculate_tscore_reference_values(0)
+
+        # For a person at the young adult average, T-score should be ~0
+        # while their Z-score will vary depending on their current age
+        almi_at_peak = male_mu  # This should give T-score ≈ 0
+
+        t_score = calculate_t_score(almi_at_peak, male_mu, male_sigma)
+        self.assertAlmostEqual(
+            t_score, 0.0, places=2, msg="ALMI at peak reference should give T-score ≈ 0"
+        )
 
 
 if __name__ == "__main__":
