@@ -358,14 +358,14 @@ class TestGoalDetection(unittest.TestCase):
         high_almi_state = engine._create_initial_state(
             self.user_profile.scan_history[0]
         )
-        high_almi_state.almi = 11.2  # Should be >75th percentile for males
+        high_almi_state.almi = 9.3  # Should be >75th percentile for 43-year-old male
 
         goal_achieved = engine._goal_achieved(high_almi_state)
         self.assertTrue(goal_achieved, "High ALMI should achieve 75th percentile goal")
 
         # Create state with low ALMI (should not achieve goal)
         low_almi_state = engine._create_initial_state(self.user_profile.scan_history[0])
-        low_almi_state.almi = 9.5  # Should be <75th percentile
+        low_almi_state.almi = 8.9  # Should be <75th percentile for 43-year-old male
 
         goal_achieved = engine._goal_achieved(low_almi_state)
         self.assertFalse(
@@ -391,14 +391,14 @@ class TestGoalDetection(unittest.TestCase):
         high_ffmi_state = engine._create_initial_state(
             self.user_profile.scan_history[0]
         )
-        high_ffmi_state.ffmi = 21.5  # Should be >90th percentile for males
+        high_ffmi_state.ffmi = 21.2  # Should be >90th percentile for 43-year-old male
 
         goal_achieved = engine._goal_achieved(high_ffmi_state)
         self.assertTrue(goal_achieved, "High FFMI should achieve 90th percentile goal")
 
         # Create state with low FFMI (should not achieve goal)
         low_ffmi_state = engine._create_initial_state(self.user_profile.scan_history[0])
-        low_ffmi_state.ffmi = 18.5  # Should be <90th percentile
+        low_ffmi_state.ffmi = 19.9  # Should be <90th percentile for 43-year-old male
 
         goal_achieved = engine._goal_achieved(low_ffmi_state)
         self.assertFalse(
@@ -490,8 +490,8 @@ class TestCannedProfiles(unittest.TestCase):
                     "total_lean_mass_lbs": 140.0,
                     "fat_mass_lbs": 60.0,
                     "body_fat_percentage": 30.0,  # High BF
-                    "arms_lean_lbs": 20.0,
-                    "legs_lean_lbs": 50.0,
+                    "arms_lean_lbs": 18.0,  # Adjusted for realistic 60th percentile ALMI
+                    "legs_lean_lbs": 42.0,  # Adjusted for realistic 60th percentile ALMI
                 }
             ],
         )
@@ -589,8 +589,8 @@ class TestCannedProfiles(unittest.TestCase):
                     "total_lean_mass_lbs": 145.0,
                     "fat_mass_lbs": 35.0,
                     "body_fat_percentage": 19.4,  # Good BF
-                    "arms_lean_lbs": 22.0,
-                    "legs_lean_lbs": 50.0,
+                    "arms_lean_lbs": 20.0,  # Adjusted for realistic 70th percentile ALMI
+                    "legs_lean_lbs": 46.0,  # Adjusted for realistic 70th percentile ALMI
                 }
             ],
         )
@@ -970,8 +970,8 @@ class TestDataStructures(unittest.TestCase):
                     "total_lean_mass_lbs": 130.0,
                     "fat_mass_lbs": 40.0,
                     "body_fat_percentage": 23.5,
-                    "arms_lean_lbs": 18.0,
-                    "legs_lean_lbs": 45.0,
+                    "arms_lean_lbs": 17.5,  # Adjusted for realistic 65th percentile ALMI
+                    "legs_lean_lbs": 40.5,  # Adjusted for realistic 65th percentile ALMI
                 }
             ],
         )

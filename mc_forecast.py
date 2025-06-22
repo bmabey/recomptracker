@@ -24,6 +24,9 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+# Import cached percentile calculation from core
+from core import calculate_percentile_cached
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -425,93 +428,36 @@ class MonteCarloEngine:
         return current_percentile >= self.config.goal_config.target_percentile
 
     def _estimate_almi_percentile(self, almi: float) -> float:
-        """Estimate ALMI percentile (simplified for testing)"""
-        # This is a placeholder - would use actual LMS curves
-        # Very conservative approximation to ensure realistic testing goals
+        """Calculate ALMI percentile using real LMS curves with caching"""
         gender = self.config.user_profile.gender
-
-        if gender == "male":
-            # Male ALMI rough percentiles (very conservative ranges for testing)
-            if almi < 6.0:
-                return 0.05
-            elif almi < 7.0:
-                return 0.15
-            elif almi < 8.0:
-                return 0.25
-            elif almi < 9.0:
-                return 0.35
-            elif almi < 10.0:
-                return 0.50
-            elif almi < 11.0:
-                return 0.65
-            elif almi < 12.0:
-                return 0.75
-            elif almi < 13.0:
-                return 0.85
-            elif almi < 14.0:
-                return 0.92
-            elif almi < 15.0:
-                return 0.96
-            else:
-                return 0.98
-        else:  # female
-            # Female ALMI rough percentiles (very conservative ranges for testing)
-            if almi < 4.5:
-                return 0.05
-            elif almi < 5.5:
-                return 0.15
-            elif almi < 6.0:
-                return 0.25
-            elif almi < 6.5:
-                return 0.35
-            elif almi < 7.0:
-                return 0.50
-            elif almi < 7.5:
-                return 0.65
-            elif almi < 8.0:
-                return 0.75
-            elif almi < 8.5:
-                return 0.85
-            elif almi < 9.0:
-                return 0.92
-            elif almi < 9.5:
-                return 0.96
-            else:
-                return 0.98
+        gender_code = 0 if gender == "male" else 1
+        
+        # Use cached percentile calculation from core
+        percentile = calculate_percentile_cached(
+            value=almi,
+            age=self.current_age,
+            metric="appendicular_LMI",
+            gender_code=gender_code
+        )
+        
+        # Return 0.5 as fallback if calculation fails
+        return percentile if not np.isnan(percentile) else 0.5
 
     def _estimate_ffmi_percentile(self, ffmi: float) -> float:
-        """Estimate FFMI percentile (simplified for testing)"""
-        # This is a placeholder - would use actual LMS curves
+        """Calculate FFMI percentile using real LMS curves with caching"""
         gender = self.config.user_profile.gender
-
-        if gender == "male":
-            # Male FFMI rough percentiles
-            if ffmi < 17:
-                return 0.10
-            elif ffmi < 18:
-                return 0.25
-            elif ffmi < 19:
-                return 0.50
-            elif ffmi < 20:
-                return 0.75
-            elif ffmi < 21:
-                return 0.90
-            else:
-                return 0.95
-        else:  # female
-            # Female FFMI rough percentiles
-            if ffmi < 14:
-                return 0.10
-            elif ffmi < 15:
-                return 0.25
-            elif ffmi < 16:
-                return 0.50
-            elif ffmi < 17:
-                return 0.75
-            elif ffmi < 18:
-                return 0.90
-            else:
-                return 0.95
+        gender_code = 0 if gender == "male" else 1
+        
+        # Use cached percentile calculation from core
+        percentile = calculate_percentile_cached(
+            value=ffmi,
+            age=self.current_age,
+            metric="LMI",
+            gender_code=gender_code
+        )
+        
+        # Return 0.5 as fallback if calculation fails
+        return percentile if not np.isnan(percentile) else 0.5
 
     def _calculate_current_age(self) -> float:
         """Calculate user's current age from birth date"""

@@ -12,6 +12,7 @@ Sections:
 - Plotting logic
 """
 
+import functools
 import json
 import os
 from datetime import datetime
@@ -384,6 +385,37 @@ def calculate_z_percentile(value, age, L_func, M_func, S_func):
         return z_score, percentile
     except (ValueError, TypeError):
         return np.nan, np.nan
+
+
+@functools.lru_cache(maxsize=1024)
+def calculate_percentile_cached(value, age, metric, gender_code, data_path="./data/"):
+    """
+    Calculates percentile for a given value with caching for performance.
+    
+    This is a high-level function that loads LMS data and calculates percentiles
+    with automatic caching of both LMS data and percentile calculations.
+    Optimized for Monte Carlo simulations with repeated calculations.
+
+    Args:
+        value (float): The measured value (e.g., ALMI, FFMI).
+        age (float): The age in decimal years.
+        metric (str): Either 'appendicular_LMI' for ALMI or 'LMI' for FFMI.
+        gender_code (int): 0 for male, 1 for female.
+        data_path (str): Path to the directory containing LMS CSV files.
+
+    Returns:
+        float: The percentile (0.0 to 1.0), or NaN if calculation fails.
+    """
+    # Load cached LMS data
+    L_func, M_func, S_func = load_lms_data(metric, gender_code, data_path)
+    
+    if L_func is None:
+        return np.nan
+    
+    # Calculate Z-score and percentile using existing logic
+    z_score, percentile = calculate_z_percentile(value, age, L_func, M_func, S_func)
+    
+    return percentile
 
 
 # ---------------------------------------------------------------------------
@@ -1027,9 +1059,13 @@ def get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info):
     return population_ratio
 
 
+@functools.lru_cache(maxsize=8)
 def load_lms_data(metric, gender_code, data_path="./data/"):
     """
     Loads LMS reference data and creates interpolation functions.
+    
+    This function is cached to avoid repeated file I/O operations.
+    Cache stores up to 8 combinations (2 metrics × 2 genders × 2 paths typically).
 
     Args:
         metric (str): Either 'appendicular_LMI' for ALMI or 'LMI' for FFMI.
