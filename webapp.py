@@ -1983,7 +1983,7 @@ def display_scan_history_form():
 
     # Display existing scans table if any
     if meaningful_scans:
-        st.markdown("*All values in pounds except Body Fat %*")
+        st.markdown("*All values in pounds except Body Fat (shown as %)*")
 
         # Create custom table layout with integrated edit and remove buttons
         # Header row - cleaner headers without repetitive (lbs)
@@ -1998,13 +1998,13 @@ def display_scan_history_form():
         with cols[3]:
             st.markdown("**Fat Mass**")
         with cols[4]:
-            st.markdown("**Body Fat %**")
+            st.markdown("**Body Fat**")
         with cols[5]:
             st.markdown("**Arms Lean**")
         with cols[6]:
             st.markdown("**Legs Lean**")
         with cols[7]:
-            st.markdown("**Actions**")
+            st.markdown("")
 
         # Data rows
         for i, scan in enumerate(meaningful_scans):
