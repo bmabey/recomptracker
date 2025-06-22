@@ -200,11 +200,11 @@ class MonteCarloEngine:
                         sequence_completed = True
                         from shared_models import PhaseConfig
 
-                        # If goal not achieved, continue with slow bulk to make progress
+                        # If goal not achieved, continue with moderate bulk to make progress
                         if not self._goal_achieved(current_state):
-                            # Continue bulking at conservative rate to achieve goal
-                            conservative_bulk_rate = self.rate_calculator.get_bulk_rate(
-                                self.config.training_level, "conservative"
+                            # Continue bulking at moderate rate to achieve goal more efficiently
+                            moderate_bulk_rate = self.rate_calculator.get_bulk_rate(
+                                self.config.training_level, "moderate"
                             )
                             current_phase_config = PhaseConfig(
                                 phase_type=PhaseType.BULK,
@@ -212,8 +212,8 @@ class MonteCarloEngine:
                                 + 10,  # Allow reasonable BF increase
                                 min_duration_weeks=1,
                                 max_duration_weeks=9999,  # No limit for goal pursuit
-                                rate_pct_per_week=conservative_bulk_rate,
-                                rationale="Conservative bulk to achieve goal after sequence completion",
+                                rate_pct_per_week=moderate_bulk_rate,
+                                rationale="Moderate bulk to achieve goal after sequence completion",
                             )
                         else:
                             # Goal achieved, true maintenance
@@ -233,7 +233,7 @@ class MonteCarloEngine:
                                 )
                             else:
                                 print(
-                                    f"Debug trajectory {run_idx}: Switched to conservative bulk mode (goal not achieved)"
+                                    f"Debug trajectory {run_idx}: Switched to moderate bulk mode (goal not achieved)"
                                 )
 
             # Simulate one week of progress using sophisticated rate calculation
