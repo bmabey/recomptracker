@@ -25,6 +25,14 @@ from scipy import stats
 # Import cached percentile calculation from core
 from core import calculate_percentile_cached
 
+# Import phase planning components
+from phase_planning import (
+    PhaseTemplateEngine,
+    PhaseTransitionManager,
+    PhaseValidationEngine,
+    RateCalculator,
+)
+
 # Import shared dataclasses and enums
 from shared_models import (
     BF_THRESHOLDS,
@@ -33,6 +41,8 @@ from shared_models import (
     TRAINING_VARIANCE,
     CheckpointData,
     GoalConfig,
+    PhaseConfig,
+    PhaseSequence,
     PhaseType,
     SimulationConfig,
     SimulationResults,
@@ -51,7 +61,7 @@ class MonteCarloEngine:
     """Core Monte Carlo simulation engine"""
 
     def __init__(self, config: SimulationConfig):
-        """Initialize engine with configuration"""
+        """Initialize engine with configuration and phase planning components"""
         self.config = config
         self.rng = np.random.RandomState(config.random_seed)
 
@@ -65,7 +75,27 @@ class MonteCarloEngine:
         # Calculate maximum duration (age-based or override)
         self.max_duration_weeks = self._calculate_max_duration_weeks()
 
-        logger.info(f"Initialized Monte Carlo engine for {config.run_count} runs")
+        # Initialize phase planning components
+        self.rate_calculator = RateCalculator()
+        self.template_engine = PhaseTemplateEngine(self.rate_calculator)
+        self.transition_manager = PhaseTransitionManager(self.rate_calculator)
+
+        # Generate phase sequence if not provided
+        if config.phase_sequence is None:
+            self.phase_sequence = self.template_engine.generate_sequence(
+                config.template, config.user_profile
+            )
+            # Validate the generated sequence
+            PhaseValidationEngine.validate_sequence(
+                self.phase_sequence, config.user_profile.gender
+            )
+        else:
+            self.phase_sequence = config.phase_sequence
+
+        logger.info(
+            f"Initialized Monte Carlo engine for {config.run_count} runs with "
+            f"{self.phase_sequence.template.value} template ({len(self.phase_sequence.phases)} phases)"
+        )
 
     def run_simulation(self) -> SimulationResults:
         """Execute full Monte Carlo simulation"""
@@ -93,14 +123,19 @@ class MonteCarloEngine:
         return results
 
     def _run_single_trajectory(self, run_idx: int) -> List[SimulationState]:
-        """Run a single Monte Carlo trajectory"""
+        """Run a single Monte Carlo trajectory using sophisticated phase planning"""
 
         # Initialize starting state from latest scan
         latest_scan = self.config.user_profile.scan_history[-1]
         current_state = self._create_initial_state(latest_scan)
 
         trajectory = [current_state]
-        current_phase = self._determine_initial_phase(current_state)
+
+        # Initialize phase tracking using sophisticated system
+        current_phase_idx = 0
+        current_phase_config = self.phase_sequence.phases[current_phase_idx]
+        weeks_in_current_phase = 0
+        sequence_completed = False
 
         # Use age-based maximum duration
         max_weeks = self.max_duration_weeks
@@ -112,6 +147,10 @@ class MonteCarloEngine:
             print(
                 f"Debug trajectory {run_idx}: initial_state.almi={current_state.almi:.2f}"
             )
+            print(
+                f"Debug trajectory {run_idx}: Starting phase: {current_phase_config.phase_type.value} "
+                f"(target BF: {current_phase_config.target_bf_pct}%)"
+            )
 
         for week in range(1, max_weeks + 1):
             # Check if goal achieved
@@ -122,16 +161,84 @@ class MonteCarloEngine:
                     )
                 break
 
-            if run_idx == 0 and week <= 3:  # Debug first few weeks
-                print(f"Debug trajectory {run_idx}: Week {week}, continuing simulation")
+            # Increment phase duration counter
+            weeks_in_current_phase += 1
 
-            # Check for phase transition
-            if self._should_transition_phase(current_state, current_phase, week):
-                current_phase = self._get_next_phase(current_phase, current_state)
+            # Check for sophisticated phase transition only if sequence not completed
+            if not sequence_completed:
+                should_transition = self.transition_manager.should_transition(
+                    current_state.body_fat_pct,
+                    current_phase_config.phase_type,
+                    current_phase_config,
+                    weeks_in_current_phase,
+                    self.config.user_profile.gender,
+                )
 
-            # Simulate one week of progress
-            next_state = self._simulate_week_progress(
-                current_state, current_phase, week, run_idx
+                if should_transition:
+                    next_phase_config = self.transition_manager.get_next_phase_config(
+                        current_phase_config,
+                        self.config.user_profile,
+                        self.phase_sequence,
+                    )
+
+                    if next_phase_config is not None:
+                        if run_idx == 0:
+                            print(
+                                f"Debug trajectory {run_idx}: Phase transition at week {week}: "
+                                f"{current_phase_config.phase_type.value} -> {next_phase_config.phase_type.value}"
+                            )
+                        current_phase_config = next_phase_config
+                        current_phase_idx += 1
+                        weeks_in_current_phase = 0
+                    else:
+                        if run_idx == 0:
+                            print(
+                                f"Debug trajectory {run_idx}: Phase sequence completed at week {week}"
+                            )
+
+                        # Mark sequence as completed and check if goal achieved
+                        sequence_completed = True
+                        from shared_models import PhaseConfig
+
+                        # If goal not achieved, continue with slow bulk to make progress
+                        if not self._goal_achieved(current_state):
+                            # Continue bulking at conservative rate to achieve goal
+                            conservative_bulk_rate = self.rate_calculator.get_bulk_rate(
+                                self.config.training_level, "conservative"
+                            )
+                            current_phase_config = PhaseConfig(
+                                phase_type=PhaseType.BULK,
+                                target_bf_pct=current_state.body_fat_pct
+                                + 10,  # Allow reasonable BF increase
+                                min_duration_weeks=1,
+                                max_duration_weeks=9999,  # No limit for goal pursuit
+                                rate_pct_per_week=conservative_bulk_rate,
+                                rationale="Conservative bulk to achieve goal after sequence completion",
+                            )
+                        else:
+                            # Goal achieved, true maintenance
+                            current_phase_config = PhaseConfig(
+                                phase_type=PhaseType.MAINTENANCE,
+                                target_bf_pct=current_state.body_fat_pct,  # Stay at current BF
+                                min_duration_weeks=1,
+                                max_duration_weeks=9999,  # No limit for maintenance
+                                rate_pct_per_week=0.0,  # No weight change
+                                rationale="Maintenance after goal achievement",
+                            )
+                        weeks_in_current_phase = 0
+                        if run_idx == 0:
+                            if current_phase_config.phase_type == PhaseType.MAINTENANCE:
+                                print(
+                                    f"Debug trajectory {run_idx}: Switched to maintenance mode (goal achieved)"
+                                )
+                            else:
+                                print(
+                                    f"Debug trajectory {run_idx}: Switched to conservative bulk mode (goal not achieved)"
+                                )
+
+            # Simulate one week of progress using sophisticated rate calculation
+            next_state = self._simulate_week_progress_advanced(
+                current_state, current_phase_config, week, run_idx
             )
 
             trajectory.append(next_state)
@@ -305,6 +412,104 @@ class MonteCarloEngine:
             fat_mass_lbs=new_fat,
             body_fat_pct=new_bf_pct,
             phase=phase,
+            almi=new_almi,
+            ffmi=new_ffmi,
+        )
+
+    def _simulate_week_progress_advanced(
+        self,
+        current_state: SimulationState,
+        phase_config: PhaseConfig,
+        week: int,
+        run_idx: int,
+    ) -> SimulationState:
+        """
+        Simulate one week of body composition changes using sophisticated rate calculator.
+
+        This method uses the research-backed rate calculator and phase configuration
+        to provide more accurate and evidence-based body composition changes.
+        """
+
+        # Get sophisticated rate calculation
+        if phase_config.phase_type == PhaseType.BULK:
+            base_rate = self.rate_calculator.get_bulk_rate(
+                self.config.training_level, "moderate"
+            )
+        elif phase_config.phase_type == PhaseType.CUT:
+            base_rate = self.rate_calculator.get_cut_rate("moderate")
+        else:  # MAINTENANCE
+            base_rate = 0
+
+        # Apply age adjustment
+        age_adjusted_rate = self.rate_calculator.apply_age_adjustment(
+            base_rate, self.current_age
+        )
+
+        # Calculate absolute weight change using body weight scaling
+        if phase_config.phase_type != PhaseType.MAINTENANCE:
+            abs_weight_change = self.rate_calculator.apply_body_weight_scaling(
+                age_adjusted_rate, current_state.weight_lbs
+            )
+
+            # Apply direction (negative for cutting)
+            if phase_config.phase_type == PhaseType.CUT:
+                abs_weight_change = -abs_weight_change
+        else:
+            abs_weight_change = 0
+
+        # Add variance using the sophisticated variance factor
+        weight_noise = self.rng.normal(0, abs(abs_weight_change) * self.variance_factor)
+        weight_change_lbs = abs_weight_change + weight_noise
+
+        # Calculate P-ratio using sophisticated calculator
+        p_ratio = self.rate_calculator.get_p_ratio(
+            phase_config.phase_type,
+            current_state.body_fat_pct,
+            self.config.user_profile.gender,
+        )
+
+        # Apply P-ratio variance
+        p_ratio_noise = self.rng.normal(0, 0.05)  # ±5% P-ratio variance
+        actual_p_ratio = np.clip(p_ratio + p_ratio_noise, 0.1, 0.8)
+
+        # Calculate lean vs fat changes
+        if weight_change_lbs >= 0:  # Weight gain
+            lean_change_lbs = weight_change_lbs * actual_p_ratio
+            fat_change_lbs = weight_change_lbs * (1 - actual_p_ratio)
+        else:  # Weight loss
+            lean_change_lbs = weight_change_lbs * actual_p_ratio  # Negative (loss)
+            fat_change_lbs = weight_change_lbs * (1 - actual_p_ratio)  # Negative (loss)
+
+        # Calculate new state
+        new_weight = current_state.weight_lbs + weight_change_lbs
+        new_lean = current_state.lean_mass_lbs + lean_change_lbs
+        new_fat = current_state.fat_mass_lbs + fat_change_lbs
+        new_bf_pct = (new_fat / new_weight) * 100
+
+        # Recalculate ALMI/FFMI maintaining ALM/TLM ratio
+        latest_scan = self.config.user_profile.scan_history[-1]
+
+        # Handle both dict and ScanData object formats
+        if hasattr(latest_scan, "arms_lean_lbs"):  # ScanData object
+            initial_alm = latest_scan.arms_lean_lbs + latest_scan.legs_lean_lbs
+            initial_tlm = latest_scan.total_lean_mass_lbs
+        else:  # dict format
+            initial_alm = latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
+            initial_tlm = latest_scan["total_lean_mass_lbs"]
+
+        alm_ratio = initial_alm / initial_tlm
+
+        new_alm_kg = new_lean * 0.453592 * alm_ratio
+        new_almi = new_alm_kg / (self.height_m**2)
+        new_ffmi = (new_lean * 0.453592) / (self.height_m**2)
+
+        return SimulationState(
+            week=week,
+            weight_lbs=new_weight,
+            lean_mass_lbs=new_lean,
+            fat_mass_lbs=new_fat,
+            body_fat_pct=new_bf_pct,
+            phase=phase_config.phase_type,
             almi=new_almi,
             ffmi=new_ffmi,
         )

@@ -148,6 +148,58 @@ class GoalConfig:
 
 
 @dataclass
+class PhaseConfig:
+    """
+    Research-backed phase configuration with validation.
+
+    Based on:
+    - Minimum duration research: 8 weeks cutting (Garthe et al., 2011),
+      12 weeks bulking (muscle protein synthesis adaptation)
+    - Maximum duration: 52 weeks for lifestyle sustainability
+    - Rate calculations: MacroFactor evidence-based recommendations
+    """
+
+    phase_type: PhaseType
+    target_bf_pct: float
+    min_duration_weeks: int
+    max_duration_weeks: int
+    rate_pct_per_week: float
+    rationale: str  # Research-backed explanation for this configuration
+
+
+@dataclass
+class PhaseSequence:
+    """
+    Complete template-driven phase sequence with research rationale.
+
+    Based on MacroFactor decision tree and Stronger By Science flexible approach.
+    """
+
+    template: TemplateType
+    phases: List["PhaseConfig"]
+    rationale: str
+    expected_duration_weeks: int
+    safety_validated: bool
+
+
+@dataclass
+class PhaseTransition:
+    """
+    Phase transition definition with research-backed triggers.
+
+    Based on:
+    - Body fat research for sustainable ranges (Helms et al., 2014)
+    - Adaptation timelines from training periodization research
+    """
+
+    from_phase: PhaseType
+    to_phase: PhaseType
+    trigger_condition: str
+    target_metrics: Dict[str, float]
+    minimum_duration_met: bool
+
+
+@dataclass
 class SimulationState:
     """State of a single simulation at a specific time point"""
 
@@ -185,6 +237,7 @@ class SimulationConfig:
     training_level: TrainingLevel
     template: TemplateType
     variance_factor: float
+    phase_sequence: Optional["PhaseSequence"] = None  # Auto-generated if None
     random_seed: Optional[int] = None
     run_count: int = 2000
     max_duration_weeks: Optional[int] = None  # Override age-based default
