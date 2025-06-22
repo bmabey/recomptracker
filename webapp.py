@@ -81,6 +81,22 @@ def load_css():
 load_css()
 
 
+def get_birth_date_range():
+    """Calculate valid birth date range based on LMS dataset age limits."""
+    from datetime import date, timedelta
+
+    today = date.today()
+
+    # LMS dataset covers ages 18-82, add buffer for 15-85 years
+    max_age = 85  # oldest allowed user
+    min_age = 15  # youngest allowed user
+
+    min_birth_date = today - timedelta(days=max_age * 365.25)  # ~85 years ago
+    max_birth_date = today - timedelta(days=min_age * 365.25)  # ~15 years ago
+
+    return min_birth_date, max_birth_date
+
+
 def get_compact_config():
     """Convert current session state to compact JSON format."""
     compact = {
@@ -1448,9 +1464,14 @@ def display_user_profile_form():
             except (ValueError, TypeError):
                 birth_date_obj = None
 
+        # Get valid birth date range
+        min_date, max_date = get_birth_date_range()
+
         birth_date_input = st.date_input(
             "Birth Date",
             value=birth_date_obj,
+            min_value=min_date,
+            max_value=max_date,
             help="Select your birth date to calculate age for percentile comparisons",
             format="MM/DD/YYYY",
         )
@@ -1652,8 +1673,17 @@ def add_scan_form():
         col1, col2 = st.columns(2)
 
         with col1:
+            # Get reasonable scan date range (past 10 years, up to 1 year in future)
+            from datetime import date, timedelta
+
+            today = date.today()
+            min_scan_date = today - timedelta(days=10 * 365)  # 10 years ago
+            max_scan_date = today + timedelta(days=365)  # 1 year in future
+
             scan_date = st.date_input(
                 "Scan Date *",
+                min_value=min_scan_date,
+                max_value=max_scan_date,
                 help="Date when the DEXA scan was performed",
                 format="MM/DD/YYYY",
             )
@@ -1815,9 +1845,18 @@ def edit_scan_form(scan_index, scan_data):
                 except (ValueError, TypeError):
                     pass
 
+            # Get reasonable scan date range (past 10 years, up to 1 year in future)
+            from datetime import date, timedelta
+
+            today = date.today()
+            min_scan_date = today - timedelta(days=10 * 365)  # 10 years ago
+            max_scan_date = today + timedelta(days=365)  # 1 year in future
+
             scan_date = st.date_input(
                 "Scan Date *",
                 value=existing_date,
+                min_value=min_scan_date,
+                max_value=max_scan_date,
                 help="Date when the DEXA scan was performed",
                 format="MM/DD/YYYY",
             )
