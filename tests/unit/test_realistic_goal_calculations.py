@@ -6,21 +6,21 @@ These tests ensure goal calculations produce realistic, science-based projection
 for lean mass gain and timeframes, rather than overly optimistic estimates.
 """
 
+import os
+import sys
 import unittest
 from datetime import datetime
-import sys
-import os
 
 # Add the parent directory to Python path to import core
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from core import (
-    run_analysis_from_data,
-    extract_data_from_config,
-    parse_gender,
-    get_conservative_gain_rate,
-    calculate_progressive_gain_over_time,
     LEAN_MASS_GAIN_RATES,
+    calculate_progressive_gain_over_time,
+    extract_data_from_config,
+    get_conservative_gain_rate,
+    parse_gender,
+    run_analysis_from_data,
 )
 
 
@@ -96,12 +96,16 @@ class TestRealisticGoalCalculations(unittest.TestCase):
         )
 
         # Intermediate rates should be moderate
-        intermediate_rate, _ = get_conservative_gain_rate(young_user, "intermediate", 25)
+        intermediate_rate, _ = get_conservative_gain_rate(
+            young_user, "intermediate", 25
+        )
         self.assertLessEqual(
             intermediate_rate, 0.6, "Intermediate rate should not exceed 0.6 kg/month"
         )
         self.assertGreaterEqual(
-            intermediate_rate, 0.15, "Intermediate rate should be at least 0.15 kg/month"
+            intermediate_rate,
+            0.15,
+            "Intermediate rate should be at least 0.15 kg/month",
         )
 
         # Advanced rates should be slow
@@ -285,7 +289,9 @@ class TestRealisticGoalCalculations(unittest.TestCase):
 
                 # Lean change should be positive and reasonable
                 lean_change = gc.get("lean_change", 0)
-                self.assertGreater(lean_change, 0, "Lean mass change should be positive")
+                self.assertGreater(
+                    lean_change, 0, "Lean mass change should be positive"
+                )
                 self.assertLessEqual(
                     lean_change, 25.0, f"Lean change {lean_change:.1f} lbs is excessive"
                 )
@@ -340,10 +346,10 @@ class TestRealisticGoalCalculations(unittest.TestCase):
                     )
 
                 # Print actual values for debugging
-                print(f"\n--- Example Config Test Results ---")
+                print("\n--- Example Config Test Results ---")
                 print(f"Years to 90th percentile: {years_to_goal:.1f}")
                 print(f"TLM change needed: {tlm_change:.1f} lbs")
-                print(f"Annual TLM rate: {tlm_change/years_to_goal:.1f} lbs/year")
+                print(f"Annual TLM rate: {tlm_change / years_to_goal:.1f} lbs/year")
                 if "alm_change_needed_lbs" in gc:
                     print(f"ALM change needed: {gc['alm_change_needed_lbs']:.1f} lbs")
 
@@ -362,9 +368,9 @@ class TestProgressiveGainModel(unittest.TestCase):
             "gender": "male",
             "gender_code": 0,
         }
-        
+
         self.user_info_female = {
-            "birth_date": "04/26/1982", 
+            "birth_date": "04/26/1982",
             "height_in": 64.0,
             "gender": "female",
             "gender_code": 1,
@@ -375,7 +381,7 @@ class TestProgressiveGainModel(unittest.TestCase):
         total_gain, explanation = calculate_progressive_gain_over_time(
             self.user_info_male, "novice", 25, 1.0
         )
-        
+
         # Should be 1 year * 12 months * 0.45 kg/month = 5.4 kg
         expected_gain = 0.45 * 12 * 1.0
         self.assertAlmostEqual(total_gain, expected_gain, places=1)
@@ -388,13 +394,13 @@ class TestProgressiveGainModel(unittest.TestCase):
         total_gain, explanation = calculate_progressive_gain_over_time(
             self.user_info_male, "novice", 25, 3.0
         )
-        
+
         # Year 1: 0.45 * 12 = 5.4 kg (novice)
         # Years 2-3: 0.25 * 12 * 2 = 6.0 kg (intermediate)
         # Total: 11.4 kg
         expected_gain = (0.45 * 12 * 1) + (0.25 * 12 * 2)
         self.assertAlmostEqual(total_gain, expected_gain, places=1)
-        
+
         self.assertIn("Year 1", explanation)
         self.assertIn("novice rate", explanation)
         self.assertIn("Years 2-3", explanation)
@@ -405,16 +411,16 @@ class TestProgressiveGainModel(unittest.TestCase):
         total_gain, explanation = calculate_progressive_gain_over_time(
             self.user_info_male, "novice", 25, 5.0
         )
-        
+
         # Year 1: 0.45 * 12 = 5.4 kg (novice)
-        # Years 2-3: 0.25 * 12 * 2 = 6.0 kg (intermediate) 
+        # Years 2-3: 0.25 * 12 * 2 = 6.0 kg (intermediate)
         # Years 4-5: 0.12 * 12 * 2 = 2.88 kg (advanced)
         # Total: 14.28 kg
         expected_gain = (0.45 * 12 * 1) + (0.25 * 12 * 2) + (0.12 * 12 * 2)
         self.assertAlmostEqual(total_gain, expected_gain, places=1)
-        
+
         self.assertIn("Year 1", explanation)
-        self.assertIn("Years 2-3", explanation) 
+        self.assertIn("Years 2-3", explanation)
         self.assertIn("Years 4+", explanation)
         self.assertIn("advanced rate", explanation)
 
@@ -423,11 +429,11 @@ class TestProgressiveGainModel(unittest.TestCase):
         total_gain, explanation = calculate_progressive_gain_over_time(
             self.user_info_male, "intermediate", 25, 2.0
         )
-        
+
         # All 2 years at intermediate rate: 0.25 * 12 * 2 = 6.0 kg
         expected_gain = 0.25 * 12 * 2.0
         self.assertAlmostEqual(total_gain, expected_gain, places=1)
-        
+
         self.assertIn("intermediate rate", explanation)
         self.assertNotIn("novice", explanation)
 
@@ -436,11 +442,11 @@ class TestProgressiveGainModel(unittest.TestCase):
         total_gain, explanation = calculate_progressive_gain_over_time(
             self.user_info_male, "advanced", 25, 3.0
         )
-        
+
         # All 3 years at advanced rate: 0.12 * 12 * 3 = 4.32 kg
         expected_gain = 0.12 * 12 * 3.0
         self.assertAlmostEqual(total_gain, expected_gain, places=1)
-        
+
         self.assertIn("advanced rate", explanation)
         self.assertNotIn("novice", explanation)
         self.assertNotIn("intermediate", explanation)
@@ -451,14 +457,14 @@ class TestProgressiveGainModel(unittest.TestCase):
         total_gain_young, _ = calculate_progressive_gain_over_time(
             self.user_info_male, "novice", 25, 3.0
         )
-        
+
         total_gain_older, _ = calculate_progressive_gain_over_time(
             self.user_info_male, "novice", 42, 3.0
         )
-        
+
         # Older person should have reduced gains
         self.assertLess(total_gain_older, total_gain_young)
-        
+
         # Age factor: 1 - (1.2 * 0.1) = 0.88
         expected_ratio = 0.88
         actual_ratio = total_gain_older / total_gain_young
@@ -469,14 +475,14 @@ class TestProgressiveGainModel(unittest.TestCase):
         male_gain, _ = calculate_progressive_gain_over_time(
             self.user_info_male, "novice", 25, 3.0
         )
-        
+
         female_gain, _ = calculate_progressive_gain_over_time(
             self.user_info_female, "novice", 25, 3.0
         )
-        
+
         # Female gains should be lower than male gains
         self.assertLess(female_gain, male_gain)
-        
+
         # Should be roughly 55-60% of male gains based on rate ratios
         ratio = female_gain / male_gain
         self.assertGreater(ratio, 0.5)
@@ -488,13 +494,13 @@ class TestProgressiveGainModel(unittest.TestCase):
         progressive_gain, _ = calculate_progressive_gain_over_time(
             self.user_info_male, "intermediate", 25, 5.0
         )
-        
+
         # Fixed intermediate rate for 5 years: 0.25 * 12 * 5 = 15.0 kg
         fixed_rate_gain = 0.25 * 12 * 5.0
-        
+
         # Progressive should be less than fixed rate (includes advanced years)
         self.assertLess(progressive_gain, fixed_rate_gain)
-        
+
         # Difference should be meaningful (at least 1 kg less)
         self.assertGreater(fixed_rate_gain - progressive_gain, 1.0)
 
