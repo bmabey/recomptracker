@@ -173,8 +173,13 @@ class TestPhaseTransitions(unittest.TestCase):
         """Test Cut-First template initial phase selection"""
 
         # High BF should start with cut
-        high_bf_profile = self.user_profile
-        high_bf_profile.scan_history[0]["body_fat_percentage"] = 28.0
+        from dataclasses import replace
+        high_bf_profile = replace(
+            self.user_profile,
+            scan_history=[
+                replace(self.user_profile.scan_history[0], body_fat_percentage=28.0)
+            ]
+        )
 
         config = SimulationConfig(
             user_profile=high_bf_profile,
@@ -195,8 +200,12 @@ class TestPhaseTransitions(unittest.TestCase):
         )
 
         # Low BF should start with bulk
-        low_bf_profile = self.user_profile
-        low_bf_profile.scan_history[0]["body_fat_percentage"] = 15.0
+        low_bf_profile = replace(
+            self.user_profile,
+            scan_history=[
+                replace(self.user_profile.scan_history[0], body_fat_percentage=15.0)
+            ]
+        )
 
         config.user_profile = low_bf_profile
         engine = MonteCarloEngine(config)
@@ -230,8 +239,13 @@ class TestPhaseTransitions(unittest.TestCase):
         )
 
         # Test extremely high BF override
-        extreme_bf_profile = self.user_profile
-        extreme_bf_profile.scan_history[0]["body_fat_percentage"] = 35.0
+        from dataclasses import replace
+        extreme_bf_profile = replace(
+            self.user_profile,
+            scan_history=[
+                replace(self.user_profile.scan_history[0], body_fat_percentage=35.0)
+            ]
+        )
 
         config.user_profile = extreme_bf_profile
         engine = MonteCarloEngine(config)

@@ -24,6 +24,19 @@ import scipy.stats as stats
 from jsonschema import ValidationError, validate
 from scipy.interpolate import interp1d
 
+# Import shared data models
+from shared_models import (
+    AnalysisResults,
+    BodyComposition,
+    GoalConfig,
+    GoalResults,
+    ScanData,
+    TrainingLevel,
+    UserProfile,
+    convert_dict_to_goal_config,
+    convert_dict_to_user_profile,
+)
+
 # Constants for lean mass gain rates (kg/month)
 # Based on realistic muscle building research (Helms et al., Krieger, etc.)
 LEAN_MASS_GAIN_RATES = {
@@ -115,13 +128,6 @@ CONFIG_SCHEMA = {
                             "minimum": 0,
                             "maximum": 1,
                         },
-                        "target_age": {
-                            "oneOf": [
-                                {"type": "number", "minimum": 18, "maximum": 120},
-                                {"type": "string", "pattern": "^\\?$"},
-                                {"type": "null"},
-                            ]
-                        },
                         "suggested": {"type": "boolean"},
                         "description": {"type": "string"},
                         "target_body_fat_percentage": {
@@ -140,13 +146,6 @@ CONFIG_SCHEMA = {
                             "type": "number",
                             "minimum": 0,
                             "maximum": 1,
-                        },
-                        "target_age": {
-                            "oneOf": [
-                                {"type": "number", "minimum": 18, "maximum": 120},
-                                {"type": "string", "pattern": "^\\?$"},
-                                {"type": "null"},
-                            ]
                         },
                         "suggested": {"type": "boolean"},
                         "description": {"type": "string"},
@@ -698,24 +697,54 @@ def determine_training_level(user_info, processed_data):
 
 
 def calculate_suggested_goal(
-    goal_params, user_info, processed_data, lms_functions, metric="almi"
+    goal_params, user_info, processed_data, lms_functions, metric=None
 ):
     """
-    Calculates suggested goals with realistic timeframes based on training level and progression rates.
+    Calculates suggested goals with auto-calculated realistic timeframes.
+    
+    Supports both new dataclass format and legacy dict format for backward compatibility.
 
     Args:
-        goal_params (dict): Goal parameters including target_percentile
-        user_info (dict): User information
+        goal_params (dict or GoalConfig): Goal parameters including target_percentile
+        user_info (dict or UserProfile): User information  
         processed_data (pd.DataFrame): Processed scan data
         lms_functions (dict): LMS interpolation functions
-        metric (str): Metric type ('almi' or 'ffmi')
+        metric (str, optional): Metric type ('almi' or 'ffmi'), auto-detected if not provided
 
     Returns:
-        tuple: (updated_goal, messages) where updated_goal contains target_age and messages is list of explanations
+        tuple or GoalResults: (updated_goal, messages) for legacy format or GoalResults for new format
     """
-    # Initialize messages list to collect explanations
-    messages = []
-
+    
+    # Handle both new dataclass format and legacy dict format
+    if hasattr(goal_params, 'metric_type'):
+        # New dataclass format - this is the future path
+        goal_config = goal_params
+        user_profile = user_info
+        metric = goal_config.metric_type
+        
+        # Convert to legacy format for internal processing
+        goal_params_dict = {
+            "target_percentile": goal_config.target_percentile,
+            "suggested": goal_config.suggested,
+            "target_body_fat_percentage": goal_config.target_body_fat_percentage
+        }
+        user_info_dict = {
+            "birth_date": user_profile.birth_date,
+            "height_in": user_profile.height_in,
+            "gender": user_profile.gender,
+            "gender_code": user_profile.gender_code,
+            "training_level": user_profile.training_level.value
+        }
+        is_legacy_call = False
+    else:
+        # Legacy dict format - for backward compatibility
+        goal_params_dict = goal_params.copy()
+        user_info_dict = user_info
+        if metric is None:
+            # Try to infer metric from context, default to almi
+            metric = "almi"
+        is_legacy_call = True
+    
     # Get the most recent scan data (handle both DataFrame and list)
     if hasattr(processed_data, "iloc"):
         latest_scan = processed_data.iloc[-1]
@@ -725,19 +754,17 @@ def calculate_suggested_goal(
 
     # Determine training level
     training_level, level_explanation = determine_training_level(
-        user_info, processed_data
+        user_info_dict, processed_data
     )
-    messages.append(level_explanation)
 
     # Get conservative gain rate
     monthly_gain_rate_kg, gain_explanation = get_conservative_gain_rate(
-        user_info, training_level, current_age
+        user_info_dict, training_level, current_age
     )
-    messages.append(gain_explanation)
 
     # Get current metric value and target percentile
     current_metric = latest_scan[f"{metric}_kg_m2"]
-    target_percentile = goal_params["target_percentile"]
+    target_percentile = goal_params_dict["target_percentile"]
 
     # Get current percentile from scan data (already calculated in percentage format)
     current_percentile = latest_scan[f"{metric}_percentile"]
@@ -755,23 +782,21 @@ def calculate_suggested_goal(
             print(
                 "  🎯 You're already above the 90th percentile - no goal suggestion needed!"
             )
-            return None, messages  # Return None to indicate no goal should be suggested
+            if is_legacy_call:
+                return None, [level_explanation, gain_explanation]
+            else:
+                return None
 
         # Only suggest higher percentile if user is below 90th percentile
         new_target_percentile = min(0.90, current_percentile_decimal + 0.05)
         print(
             f"  Suggesting a higher target: {new_target_percentile * 100:.0f}th percentile instead"
         )
-
-        updated_goal = goal_params.copy()
-        updated_goal["target_percentile"] = new_target_percentile
-        updated_goal["target_age"] = current_age + 2  # Default 2-year timeframe
-        updated_goal["suggested"] = True
-        messages.append(
-            f"Suggesting a higher target: {new_target_percentile * 100:.0f}th percentile instead"
-        )
-
-        return updated_goal, messages
+        
+        # Update goal params with new target
+        goal_params_dict["target_percentile"] = new_target_percentile
+        goal_params_dict["suggested"] = True
+        target_percentile = new_target_percentile
 
     # Binary search to find the target age where we can achieve the goal
     min_age = current_age
@@ -805,7 +830,7 @@ def calculate_suggested_goal(
             return True  # Already at or above target
 
         # Convert metric gain to lean mass gain (approximate)
-        height_m = user_info["height_in"] * 0.0254
+        height_m = user_info_dict["height_in"] * 0.0254
         height_m2 = height_m**2
 
         if metric == "almi":
@@ -824,7 +849,7 @@ def calculate_suggested_goal(
 
         # Calculate total achievable gain over the available timeframe
         achievable_gain_kg, _ = calculate_progressive_gain_over_time(
-            user_info, training_level, current_age, years_available
+            user_info_dict, training_level, current_age, years_available
         )
 
         # Check if achievable gain meets requirement
@@ -847,10 +872,6 @@ def calculate_suggested_goal(
     if best_age is None:
         # If no feasible solution found, use a reasonable timeframe
         best_age = current_age + 2  # 2 years as fallback
-        messages.append(
-            f"Could not find feasible timeframe for {target_percentile * 100:.0f}th percentile {metric.upper()}"
-        )
-        messages.append(f"Using 2-year timeframe as fallback (age {best_age:.1f})")
         print(
             f"  Could not find feasible timeframe for {target_percentile * 100:.0f}th percentile {metric.upper()}"
         )
@@ -860,25 +881,74 @@ def calculate_suggested_goal(
 
         # Get progressive gain explanation for this timeframe
         _, progressive_explanation = calculate_progressive_gain_over_time(
-            user_info, training_level, current_age, time_to_goal
+            user_info_dict, training_level, current_age, time_to_goal
         )
-
-        messages.append(
-            f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model"
-        )
-        messages.append(progressive_explanation)
 
         print(
             f"  ✓ Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model"
         )
         print(f"  {progressive_explanation}")
 
-    # Update goal parameters
-    updated_goal = goal_params.copy()
+    # Prepare messages for legacy return format
+    messages = [level_explanation, gain_explanation]
+    if best_age is None:
+        messages.append(f"Could not find feasible timeframe for {target_percentile * 100:.0f}th percentile {metric.upper()}")
+        messages.append(f"Using 2-year timeframe as fallback (age {best_age:.1f})")
+    else:
+        time_to_goal = best_age - current_age
+        _, progressive_explanation = calculate_progressive_gain_over_time(
+            user_info_dict, training_level, current_age, time_to_goal
+        )
+        messages.append(f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model")
+        messages.append(progressive_explanation)
+
+    # Update goal parameters for legacy return
+    updated_goal = goal_params_dict.copy()
     updated_goal["target_age"] = best_age
     updated_goal["suggested"] = True
 
-    return updated_goal, messages
+    if is_legacy_call:
+        # Return legacy format (tuple)
+        return updated_goal, messages
+    else:
+        # For new dataclass format, use create_goal_row to get detailed calculations
+        temp_goal_dict = {
+            "target_percentile": target_percentile,
+            "target_age": best_age,
+            "suggested": goal_params_dict.get("suggested", True),
+            "target_body_fat_percentage": goal_params_dict.get("target_body_fat_percentage")
+        }
+        
+        goal_row, goal_calculations = create_goal_row(
+            temp_goal_dict, user_info_dict, processed_data, lms_functions, metric
+        )
+        
+        if goal_calculations is None:
+            return None
+        
+        # Convert to GoalResults dataclass
+        return GoalResults(
+            target_age=best_age,
+            target_percentile=target_percentile,
+            target_metric_value=goal_calculations["target_metric_value"],
+            target_z_score=goal_calculations["target_z_score"],
+            metric_change_needed=goal_calculations["metric_change_needed"],
+            lean_change_needed_lbs=goal_calculations["lean_change_needed_lbs"],
+            alm_change_needed_lbs=goal_calculations["alm_change_needed_lbs"],
+            alm_change_needed_kg=goal_calculations["alm_change_needed_kg"],
+            tlm_change_needed_lbs=goal_calculations["tlm_change_needed_lbs"],
+            tlm_change_needed_kg=goal_calculations["tlm_change_needed_kg"],
+            weight_change=goal_calculations["weight_change"],
+            lean_change=goal_calculations["lean_change"],
+            fat_change=goal_calculations["fat_change"],
+            bf_change=goal_calculations["bf_change"],
+            percentile_change=goal_calculations["percentile_change"],
+            z_change=goal_calculations["z_change"],
+            target_body_composition=goal_calculations["target_body_composition"],
+            suggested=goal_params_dict.get("suggested", True),
+            target_almi=goal_calculations.get("target_almi"),
+            target_ffmi=goal_calculations.get("target_ffmi")
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1353,15 +1423,39 @@ def process_scans_and_goal(
             f"Processing {'suggested ' if almi_goal.get('suggested') else ''}ALMI goal: {almi_goal['target_percentile'] * 100:.0f}th percentile"
         )
 
-        # Handle suggested goals (auto-calculate target age)
+        # Convert to dataclass format and handle suggested goals (auto-calculate target age)
         if almi_goal.get("target_age") in [None, "?"] or almi_goal.get("suggested"):
-            almi_goal, almi_messages = calculate_suggested_goal(
-                almi_goal, user_info, processed_data, lms_functions, "almi"
-            )
-            if almi_messages:
-                goal_calculations["messages"] = (
-                    goal_calculations.get("messages", []) + almi_messages
+            # Convert user_info and scan_history to UserProfile for new function
+            try:
+                user_profile = convert_dict_to_user_profile(user_info, scan_history)
+                goal_config = convert_dict_to_goal_config({
+                    **almi_goal,
+                    "metric_type": "almi"
+                })
+                
+                goal_results = calculate_suggested_goal(
+                    goal_config, user_profile, processed_data, lms_functions
                 )
+                
+                if goal_results is not None:
+                    # Convert back to legacy dict format for create_goal_row
+                    almi_goal = {
+                        "target_percentile": goal_results.target_percentile,
+                        "target_age": goal_results.target_age,
+                        "suggested": goal_results.suggested,
+                        "target_body_fat_percentage": goal_config.target_body_fat_percentage
+                    }
+                    # For new dataclass format, no separate messages are returned - they're integrated
+                    # Add a placeholder for backward compatibility
+                    goal_calculations["messages"] = goal_calculations.get("messages", [])
+                else:
+                    almi_goal = None
+                    
+            except Exception as e:
+                print(f"Error in goal calculation: {e}")
+                # Fall back to 2-year timeframe
+                almi_goal["target_age"] = user_info.get("current_age", 30) + 2
+                almi_goal["suggested"] = True
 
         # Only create goal row if we have a valid goal (not None)
         if almi_goal is not None:
@@ -1377,15 +1471,39 @@ def process_scans_and_goal(
             f"Processing {'suggested ' if ffmi_goal.get('suggested') else ''}FFMI goal: {ffmi_goal['target_percentile'] * 100:.0f}th percentile"
         )
 
-        # Handle suggested goals (auto-calculate target age)
+        # Convert to dataclass format and handle suggested goals (auto-calculate target age)
         if ffmi_goal.get("target_age") in [None, "?"] or ffmi_goal.get("suggested"):
-            ffmi_goal, ffmi_messages = calculate_suggested_goal(
-                ffmi_goal, user_info, processed_data, lms_functions, "ffmi"
-            )
-            if ffmi_messages:
-                goal_calculations["messages"] = (
-                    goal_calculations.get("messages", []) + ffmi_messages
+            # Convert user_info and scan_history to UserProfile for new function
+            try:
+                user_profile = convert_dict_to_user_profile(user_info, scan_history)
+                goal_config = convert_dict_to_goal_config({
+                    **ffmi_goal,
+                    "metric_type": "ffmi"
+                })
+                
+                goal_results = calculate_suggested_goal(
+                    goal_config, user_profile, processed_data, lms_functions
                 )
+                
+                if goal_results is not None:
+                    # Convert back to legacy dict format for create_goal_row
+                    ffmi_goal = {
+                        "target_percentile": goal_results.target_percentile,
+                        "target_age": goal_results.target_age,
+                        "suggested": goal_results.suggested,
+                        "target_body_fat_percentage": goal_config.target_body_fat_percentage
+                    }
+                    # For new dataclass format, no separate messages are returned - they're integrated
+                    # Add a placeholder for backward compatibility
+                    goal_calculations["messages"] = goal_calculations.get("messages", [])
+                else:
+                    ffmi_goal = None
+                    
+            except Exception as e:
+                print(f"Error in goal calculation: {e}")
+                # Fall back to 2-year timeframe
+                ffmi_goal["target_age"] = user_info.get("current_age", 30) + 2
+                ffmi_goal["suggested"] = True
 
         # Only create goal row if we have a valid goal (not None)
         if ffmi_goal is not None:

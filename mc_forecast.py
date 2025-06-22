@@ -15,9 +15,7 @@ Key Features:
 
 import logging
 import random
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -27,154 +25,28 @@ from scipy import stats
 # Import cached percentile calculation from core
 from core import calculate_percentile_cached
 
+# Import shared dataclasses and enums
+from shared_models import (
+    BF_THRESHOLDS,
+    P_RATIO_DEFAULTS,
+    RATE_DEFAULTS,
+    TRAINING_VARIANCE,
+    CheckpointData,
+    GoalConfig,
+    PhaseType,
+    SimulationConfig,
+    SimulationResults,
+    SimulationState,
+    TemplateType,
+    TrainingLevel,
+    UserProfile,
+)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class PhaseType(Enum):
-    """Body composition phase types"""
-
-    CUT = "cut"
-    BULK = "bulk"
-    MAINTENANCE = "maintenance"
-
-
-class TemplateType(Enum):
-    """Multi-phase strategy templates"""
-
-    CUT_FIRST = "cut_first"
-    BULK_FIRST = "bulk_first"
-
-
-class TrainingLevel(Enum):
-    """Training experience levels affecting variance and rates"""
-
-    NOVICE = "novice"
-    INTERMEDIATE = "intermediate"
-    ADVANCED = "advanced"
-
-
-@dataclass
-class SimulationState:
-    """State of a single simulation at a specific time point"""
-
-    week: int
-    weight_lbs: float
-    lean_mass_lbs: float
-    fat_mass_lbs: float
-    body_fat_pct: float
-    phase: PhaseType
-    almi: float
-    ffmi: float
-
-
-@dataclass
-class UserProfile:
-    """User profile data for simulation"""
-
-    birth_date: str  # MM/DD/YYYY format
-    height_in: float
-    gender: str  # 'male' or 'female'
-    training_level: TrainingLevel
-    scan_history: List[Dict]  # DEXA scan data
-
-
-@dataclass
-class GoalConfig:
-    """Goal configuration (simplified - no target age)"""
-
-    metric_type: str  # 'almi' or 'ffmi'
-    target_percentile: float  # 0.01 to 0.99
-    description: Optional[str] = None
-
-
-@dataclass
-class SimulationConfig:
-    """Configuration for Monte Carlo simulation"""
-
-    user_profile: UserProfile
-    goal_config: GoalConfig
-    training_level: TrainingLevel
-    template: TemplateType
-    variance_factor: float
-    random_seed: Optional[int] = None
-    run_count: int = 2000
-    max_duration_weeks: Optional[int] = None  # Override age-based default
-
-
-@dataclass
-class CheckpointData:
-    """Key milestone in the forecast timeline"""
-
-    week: int
-    phase: PhaseType
-    weight_lbs: float
-    body_fat_pct: float
-    lean_mass_lbs: float
-    fat_mass_lbs: float
-    almi: float
-    ffmi: float
-    percentile_progress: float
-
-
-@dataclass
-class SimulationResults:
-    """Results from Monte Carlo simulation"""
-
-    trajectories: List[List[SimulationState]]  # All simulation runs
-    median_checkpoints: List[CheckpointData]  # Key phase transitions
-    representative_path: List[SimulationState]  # Most likely trajectory
-    percentile_bands: Dict[str, List[SimulationState]]  # Confidence intervals
-    goal_achievement_week: int  # Week when target percentile reached
-    goal_achievement_age: float  # User's age when goal achieved
-    convergence_quality: float  # Statistical confidence measure
-    total_phases: int  # Number of bulk/cut cycles
-
-
-# P-Ratio constants based on research
-P_RATIO_DEFAULTS = {
-    "bulk_any_bf": (0.45, 0.50),  # Lean mass ratio range for bulking
-    "cut_high_bf": (0.20, 0.25),  # High BF (>25%M, >30%F) cutting
-    "cut_moderate_bf": (0.30, 0.40),  # Moderate BF cutting
-}
-
-# Training-level variance factors (sigma)
-TRAINING_VARIANCE = {
-    TrainingLevel.NOVICE: 0.50,  # High variability
-    TrainingLevel.INTERMEDIATE: 0.25,  # Moderate variability
-    TrainingLevel.ADVANCED: 0.10,  # Low variability
-}
-
-# MacroFactor-based rate defaults (% body weight per week)
-RATE_DEFAULTS = {
-    "bulk": {
-        TrainingLevel.NOVICE: 0.5,  # Happy medium for beginners
-        TrainingLevel.INTERMEDIATE: 0.325,  # Happy medium for intermediate
-        TrainingLevel.ADVANCED: 0.15,  # Happy medium for advanced
-    },
-    "cut": {
-        "conservative": 0.25,  # Minimal muscle loss
-        "moderate": 0.625,  # 0.5-0.75% average
-        "aggressive": 1.0,  # Higher muscle loss risk
-    },
-}
-
-# Body fat thresholds for phase transitions
-BF_THRESHOLDS = {
-    "male": {
-        "healthy_max": 25,  # Cut recommended above this
-        "acceptable_max": 20,  # Reasonable bulk stopping point
-        "preferred_max": 15,  # Lean maintenance range
-        "minimum": 8,  # Safety floor
-    },
-    "female": {
-        "healthy_max": 35,
-        "acceptable_max": 30,
-        "preferred_max": 25,
-        "minimum": 16,
-    },
-}
 
 
 class MonteCarloEngine:
@@ -254,21 +126,37 @@ class MonteCarloEngine:
 
         return trajectory
 
-    def _create_initial_state(self, scan: Dict) -> SimulationState:
-        """Create initial simulation state from DEXA scan"""
+    def _create_initial_state(self, scan) -> SimulationState:
+        """Create initial simulation state from DEXA scan (dict or ScanData)"""
+        
+        # Handle both dict and ScanData object formats
+        if hasattr(scan, 'arms_lean_lbs'):  # ScanData object
+            arms_lean = scan.arms_lean_lbs
+            legs_lean = scan.legs_lean_lbs
+            total_weight = scan.total_weight_lbs
+            total_lean = scan.total_lean_mass_lbs
+            fat_mass = scan.fat_mass_lbs
+            body_fat_pct = scan.body_fat_percentage
+        else:  # dict format
+            arms_lean = scan["arms_lean_lbs"]
+            legs_lean = scan["legs_lean_lbs"]
+            total_weight = scan["total_weight_lbs"]
+            total_lean = scan["total_lean_mass_lbs"]
+            fat_mass = scan["fat_mass_lbs"]
+            body_fat_pct = scan["body_fat_percentage"]
 
         # Calculate ALMI and FFMI
-        alm_kg = (scan["arms_lean_lbs"] + scan["legs_lean_lbs"]) * 0.453592
-        tlm_kg = scan["total_lean_mass_lbs"] * 0.453592
+        alm_kg = (arms_lean + legs_lean) * 0.453592
+        tlm_kg = total_lean * 0.453592
         almi = alm_kg / (self.height_m**2)
         ffmi = tlm_kg / (self.height_m**2)
 
         return SimulationState(
             week=0,
-            weight_lbs=scan["total_weight_lbs"],
-            lean_mass_lbs=scan["total_lean_mass_lbs"],
-            fat_mass_lbs=scan["fat_mass_lbs"],
-            body_fat_pct=scan["body_fat_percentage"],
+            weight_lbs=total_weight,
+            lean_mass_lbs=total_lean,
+            fat_mass_lbs=fat_mass,
+            body_fat_pct=body_fat_pct,
             phase=PhaseType.MAINTENANCE,  # Will be set by phase logic
             almi=almi,
             ffmi=ffmi,
@@ -377,8 +265,15 @@ class MonteCarloEngine:
         # Recalculate ALMI/FFMI (simplified - maintain ALM/TLM ratio)
         # Use actual ALM/TLM ratio from initial scan
         latest_scan = self.config.user_profile.scan_history[-1]
-        initial_alm = latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
-        initial_tlm = latest_scan["total_lean_mass_lbs"]
+        
+        # Handle both dict and ScanData object formats
+        if hasattr(latest_scan, 'arms_lean_lbs'):  # ScanData object
+            initial_alm = latest_scan.arms_lean_lbs + latest_scan.legs_lean_lbs
+            initial_tlm = latest_scan.total_lean_mass_lbs
+        else:  # dict format
+            initial_alm = latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
+            initial_tlm = latest_scan["total_lean_mass_lbs"]
+            
         alm_ratio = initial_alm / initial_tlm
 
         new_alm_kg = new_lean * 0.453592 * alm_ratio
