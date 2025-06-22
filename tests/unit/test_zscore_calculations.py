@@ -918,8 +918,8 @@ class TestTrainingLevelDetection(unittest.TestCase):
             "gender_code": 1,
         }
 
-    def test_detect_novice_single_scan(self):
-        """Test that single scan defaults to novice level."""
+    def test_detect_intermediate_single_scan(self):
+        """Test that single scan defaults to intermediate level (realistic baseline)."""
         processed_data = [
             {
                 "date_str": "01/01/2024",
@@ -932,9 +932,9 @@ class TestTrainingLevelDetection(unittest.TestCase):
             processed_data, self.user_info_male
         )
 
-        self.assertEqual(level, "novice")
+        self.assertEqual(level, "intermediate")
         self.assertIn("Insufficient scan history", explanation)
-        self.assertIn("conservative approach", explanation)
+        self.assertIn("realistic baseline", explanation)
 
     def test_detect_novice_rapid_gains(self):
         """Test detection of novice level with rapid gains and few scans."""
