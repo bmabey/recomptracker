@@ -1110,36 +1110,48 @@ def run_analysis():
         # Update session state goals with calculated values (only auto-calculated fields)
         if goal_calculations:
             # Update ALMI goal with calculated values
-            if "almi" in goal_calculations and st.session_state.almi_goal.get("target_percentile"):
+            if "almi" in goal_calculations and st.session_state.almi_goal.get(
+                "target_percentile"
+            ):
                 almi_calc = goal_calculations["almi"]
-                
+
                 # Update target_age if it was auto-calculated ("?" or None)
                 if st.session_state.almi_goal.get("target_age") in ["?", None]:
                     calculated_age = almi_calc.get("target_age")
                     if calculated_age is not None:
                         st.session_state.almi_goal["target_age"] = str(calculated_age)
-                
+
                 # Update target_body_fat_percentage if not already set by user
                 if "target_body_fat_percentage" not in st.session_state.almi_goal:
-                    target_bf = almi_calc.get("target_body_composition", {}).get("body_fat_percentage")
+                    target_bf = almi_calc.get("target_body_composition", {}).get(
+                        "body_fat_percentage"
+                    )
                     if target_bf is not None:
-                        st.session_state.almi_goal["target_body_fat_percentage"] = target_bf
+                        st.session_state.almi_goal["target_body_fat_percentage"] = (
+                            target_bf
+                        )
 
-            # Update FFMI goal with calculated values  
-            if "ffmi" in goal_calculations and st.session_state.ffmi_goal.get("target_percentile"):
+            # Update FFMI goal with calculated values
+            if "ffmi" in goal_calculations and st.session_state.ffmi_goal.get(
+                "target_percentile"
+            ):
                 ffmi_calc = goal_calculations["ffmi"]
-                
+
                 # Update target_age if it was auto-calculated ("?" or None)
                 if st.session_state.ffmi_goal.get("target_age") in ["?", None]:
                     calculated_age = ffmi_calc.get("target_age")
                     if calculated_age is not None:
                         st.session_state.ffmi_goal["target_age"] = str(calculated_age)
-                
+
                 # Update target_body_fat_percentage if not already set by user
                 if "target_body_fat_percentage" not in st.session_state.ffmi_goal:
-                    target_bf = ffmi_calc.get("target_body_composition", {}).get("body_fat_percentage")
+                    target_bf = ffmi_calc.get("target_body_composition", {}).get(
+                        "body_fat_percentage"
+                    )
                     if target_bf is not None:
-                        st.session_state.ffmi_goal["target_body_fat_percentage"] = target_bf
+                        st.session_state.ffmi_goal["target_body_fat_percentage"] = (
+                            target_bf
+                        )
 
     except Exception as e:
         st.error(f"Analysis failed: {str(e)}")
@@ -1630,6 +1642,7 @@ def display_user_profile_form():
 
             # Generate realistic fake goals
             import random
+
             fake_almi_goal = {
                 "target_percentile": random.choice([0.70, 0.75, 0.80, 0.85, 0.90]),
                 "target_age": "?",  # Let analysis auto-calculate
