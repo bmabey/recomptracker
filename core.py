@@ -24,9 +24,10 @@ from jsonschema import ValidationError, validate
 from scipy.interpolate import interp1d
 
 # Constants for lean mass gain rates (kg/month)
+# Based on realistic muscle building research (Helms et al., Krieger, etc.)
 LEAN_MASS_GAIN_RATES = {
-    "male": {"novice": 1.0, "intermediate": 0.35, "advanced": 0.15},
-    "female": {"novice": 0.5, "intermediate": 0.2, "advanced": 0.08},
+    "male": {"novice": 0.45, "intermediate": 0.25, "advanced": 0.12},
+    "female": {"novice": 0.25, "intermediate": 0.15, "advanced": 0.06},
 }
 
 # Healthy body fat percentage ranges by gender
