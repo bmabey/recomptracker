@@ -91,6 +91,7 @@ class SimulationConfig:
     variance_factor: float
     random_seed: Optional[int] = None
     run_count: int = 2000
+    max_duration_weeks: Optional[int] = None  # Override age-based default
 
 
 @dataclass
@@ -180,6 +181,9 @@ class MonteCarloEngine:
         # Determine variance factor
         self.variance_factor = self._calculate_variance_factor()
         
+        # Calculate maximum duration (age-based or override)
+        self.max_duration_weeks = self._calculate_max_duration_weeks()
+        
         logger.info(f"Initialized Monte Carlo engine for {config.run_count} runs")
     
     def run_simulation(self) -> SimulationResults:
@@ -215,7 +219,8 @@ class MonteCarloEngine:
         trajectory = [current_state]
         current_phase = self._determine_initial_phase(current_state)
         
-        max_weeks = 260  # 5 year safety limit
+        # Use age-based maximum duration
+        max_weeks = self.max_duration_weeks
         
         for week in range(1, max_weeks + 1):
             # Check if goal achieved
@@ -512,6 +517,25 @@ class MonteCarloEngine:
         # For now, just use training level variance
         
         return base_variance
+    
+    def _calculate_max_duration_weeks(self) -> int:
+        """Calculate maximum simulation duration based on user age"""
+        
+        # Use override if specified
+        if self.config.max_duration_weeks is not None:
+            return self.config.max_duration_weeks
+        
+        # Age-based default limits  
+        current_age = self.current_age
+        
+        if current_age < 41:
+            return 520  # 10 years for younger users
+        elif current_age < 56:
+            return 416  # 8 years for middle-aged users
+        elif current_age < 71:
+            return 260  # 5 years for older users
+        else:
+            return 156  # 3 years for elderly users
     
     def _process_simulation_results(self, trajectories: List[List[SimulationState]]) -> SimulationResults:
         """Process raw trajectories into structured results"""

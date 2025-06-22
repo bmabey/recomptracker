@@ -719,6 +719,122 @@ class TestStatisticalProperties(unittest.TestCase):
             self.assertLessEqual(week_10_data["p75"], week_10_data["p90"])
 
 
+class TestAgeBasedMaxDuration(unittest.TestCase):
+    """Test age-based maximum duration calculation"""
+    
+    def test_age_based_duration_brackets(self):
+        """Test that different age brackets get correct maximum durations"""
+        
+        from datetime import datetime, timedelta
+        
+        # Test cases: (age, expected_weeks, expected_years)
+        # Avoid exact boundary ages due to floating point precision
+        test_cases = [
+            (25, 520, 10.0),  # Young: 10 years
+            (39, 520, 10.0),  # Young: still 10 years (< 41)
+            (43, 416, 8.0),   # Middle-aged: 8 years  
+            (54, 416, 8.0),   # Middle-aged: still 8 years (< 56)
+            (58, 260, 5.0),   # Older: 5 years
+            (69, 260, 5.0),   # Older: still 5 years (< 71)
+            (73, 156, 3.0),   # Elderly: 3 years
+            (85, 156, 3.0),   # Very elderly: still 3 years
+        ]
+        
+        for age, expected_weeks, expected_years in test_cases:
+            with self.subTest(age=age):
+                # Create birth date for desired age
+                birth_date = datetime.now() - timedelta(days=age * 365.25)
+                birth_date_str = birth_date.strftime('%m/%d/%Y')
+                
+                user_profile = UserProfile(
+                    birth_date=birth_date_str,
+                    height_in=68.0,
+                    gender='male',
+                    training_level=TrainingLevel.INTERMEDIATE,
+                    scan_history=[{
+                        'date': '04/07/2022',
+                        'total_weight_lbs': 170.0,
+                        'total_lean_mass_lbs': 130.0,
+                        'fat_mass_lbs': 40.0,
+                        'body_fat_percentage': 23.5,
+                        'arms_lean_lbs': 18.0,
+                        'legs_lean_lbs': 45.0
+                    }]
+                )
+                
+                goal_config = GoalConfig(metric_type='almi', target_percentile=0.75)
+                
+                config = SimulationConfig(
+                    user_profile=user_profile,
+                    goal_config=goal_config,
+                    training_level=TrainingLevel.INTERMEDIATE,
+                    template=TemplateType.CUT_FIRST,
+                    variance_factor=0.25
+                )
+                
+                engine = MonteCarloEngine(config)
+                
+                self.assertEqual(engine.max_duration_weeks, expected_weeks,
+                               f"Age {age} should have {expected_weeks} weeks max duration")
+                self.assertAlmostEqual(engine.max_duration_weeks / 52, expected_years, places=1,
+                                     msg=f"Age {age} should have ~{expected_years} years max duration")
+    
+    def test_max_duration_override(self):
+        """Test that max_duration_weeks override works correctly"""
+        
+        from datetime import datetime, timedelta
+        
+        # Create 60-year-old (normally gets 5 years = 260 weeks)
+        birth_date = datetime.now() - timedelta(days=60 * 365.25)
+        birth_date_str = birth_date.strftime('%m/%d/%Y')
+        
+        user_profile = UserProfile(
+            birth_date=birth_date_str,
+            height_in=68.0,
+            gender='male',
+            training_level=TrainingLevel.INTERMEDIATE,
+            scan_history=[{
+                'date': '04/07/2022',
+                'total_weight_lbs': 170.0,
+                'total_lean_mass_lbs': 130.0,
+                'fat_mass_lbs': 40.0,
+                'body_fat_percentage': 23.5,
+                'arms_lean_lbs': 18.0,
+                'legs_lean_lbs': 45.0
+            }]
+        )
+        
+        goal_config = GoalConfig(metric_type='almi', target_percentile=0.75)
+        
+        # Test without override (should use age-based default)
+        config_default = SimulationConfig(
+            user_profile=user_profile,
+            goal_config=goal_config,
+            training_level=TrainingLevel.INTERMEDIATE,
+            template=TemplateType.CUT_FIRST,
+            variance_factor=0.25
+        )
+        
+        engine_default = MonteCarloEngine(config_default)
+        self.assertEqual(engine_default.max_duration_weeks, 260,
+                        "60-year-old should get 260 weeks (5 years) by default")
+        
+        # Test with override
+        override_weeks = 780  # 15 years
+        config_override = SimulationConfig(
+            user_profile=user_profile,
+            goal_config=goal_config,
+            training_level=TrainingLevel.INTERMEDIATE,
+            template=TemplateType.CUT_FIRST,
+            variance_factor=0.25,
+            max_duration_weeks=override_weeks
+        )
+        
+        engine_override = MonteCarloEngine(config_override)
+        self.assertEqual(engine_override.max_duration_weeks, override_weeks,
+                        "Override should take precedence over age-based default")
+
+
 class TestDataStructures(unittest.TestCase):
     """Test data structure integrity and validation"""
     
