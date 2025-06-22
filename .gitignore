@@ -148,4 +148,5 @@ feature_prompt
 
 # misc
 scratch/
+.streamlit
 
