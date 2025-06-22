@@ -1637,14 +1637,167 @@ def display_user_profile_form():
                     st.rerun()
 
 
+def add_scan_form():
+    """Display a form for adding a new DEXA scan."""
+    # Get tooltips for help text
+    tooltips = get_metric_explanations()["tooltips"]
+
+    with st.form("add_scan_form", clear_on_submit=True):
+        st.markdown("#### ➕ Add New DEXA Scan")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            scan_date = st.date_input(
+                "Scan Date *",
+                help="Date when the DEXA scan was performed",
+                format="MM/DD/YYYY",
+            )
+
+            total_weight = st.number_input(
+                "Total Weight (lbs) *",
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help="Total body weight from DEXA scan",
+            )
+
+            total_lean_mass = st.number_input(
+                "Total Lean Mass (lbs) *",
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["lean_mass"],
+            )
+
+            fat_mass = st.number_input(
+                "Fat Mass (lbs) *",
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help="Total fat mass from DEXA scan",
+            )
+
+        with col2:
+            body_fat_percentage = st.number_input(
+                "Body Fat % *",
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["body_fat_percentage"],
+            )
+
+            arms_lean = st.number_input(
+                "Arms Lean Mass (lbs) *",
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["arms_lean"],
+            )
+
+            legs_lean = st.number_input(
+                "Legs Lean Mass (lbs) *",
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["legs_lean"],
+            )
+
+        st.markdown("*Required fields")
+
+        submitted = st.form_submit_button(
+            "➕ Add Scan", type="primary", use_container_width=True
+        )
+
+        if submitted:
+            # Validate required fields
+            errors = []
+            if not scan_date:
+                errors.append("Scan date is required")
+            if total_weight <= 0:
+                errors.append("Total weight must be greater than 0")
+            if total_lean_mass <= 0:
+                errors.append("Total lean mass must be greater than 0")
+            if fat_mass <= 0:
+                errors.append("Fat mass must be greater than 0")
+            if body_fat_percentage <= 0:
+                errors.append("Body fat percentage must be greater than 0")
+            if arms_lean <= 0:
+                errors.append("Arms lean mass must be greater than 0")
+            if legs_lean <= 0:
+                errors.append("Legs lean mass must be greater than 0")
+
+            if errors:
+                for error in errors:
+                    st.error(f"• {error}")
+                return
+
+            # Check scan limit
+            current_scans = [
+                scan
+                for scan in st.session_state.scan_history
+                if scan.get("date", "").strip()
+            ]
+            if len(current_scans) >= 20:
+                st.error(
+                    "⚠️ Cannot add more scans. Maximum of 20 scans supported for URL sharing."
+                )
+                return
+
+            # Create new scan entry
+            new_scan = {
+                "date": scan_date.strftime("%m/%d/%Y"),
+                "total_weight_lbs": float(total_weight),
+                "total_lean_mass_lbs": float(total_lean_mass),
+                "fat_mass_lbs": float(fat_mass),
+                "body_fat_percentage": float(body_fat_percentage),
+                "arms_lean_lbs": float(arms_lean),
+                "legs_lean_lbs": float(legs_lean),
+            }
+
+            # Remove any empty placeholder scans
+            st.session_state.scan_history = [
+                scan
+                for scan in st.session_state.scan_history
+                if scan.get("date", "").strip()
+                or any(
+                    scan.get(field, 0) > 0
+                    for field in [
+                        "total_weight_lbs",
+                        "total_lean_mass_lbs",
+                        "fat_mass_lbs",
+                        "body_fat_percentage",
+                        "arms_lean_lbs",
+                        "legs_lean_lbs",
+                    ]
+                )
+            ]
+
+            # Add new scan and sort by date
+            st.session_state.scan_history.append(new_scan)
+            st.session_state.scan_history.sort(
+                key=lambda x: pd.to_datetime(
+                    x.get("date", "01/01/1900"), format="%m/%d/%Y"
+                )
+            )
+
+            st.success(
+                f"✅ Scan from {scan_date.strftime('%m/%d/%Y')} added successfully!"
+            )
+            st.rerun()
+
+
 def display_scan_history_form():
-    """Display the DEXA scan history form using an editable data table."""
+    """Display the DEXA scan history with add form and read-only table."""
     st.subheader("🔬 DEXA Scan History")
 
-    # Check scan limit
-    num_scans = len(
-        [scan for scan in st.session_state.scan_history if scan.get("date", "").strip()]
-    )
+    # Check scan limit for display warnings
+    meaningful_scans = [
+        scan for scan in st.session_state.scan_history if scan.get("date", "").strip()
+    ]
+    num_scans = len(meaningful_scans)
+
     if num_scans >= 20:
         st.error(
             "⚠️ Maximum of 20 scans supported for URL sharing. Please remove some scans before adding more."
@@ -1654,117 +1807,76 @@ def display_scan_history_form():
             f"📊 You have {num_scans} scans. URL sharing supports up to 20 scans."
         )
 
-    # Initialize with empty scan if none exist
+    # Initialize session state if empty
     if len(st.session_state.scan_history) == 0:
-        st.session_state.scan_history = [
-            {
-                "date": "",
-                "total_weight_lbs": 0.0,
-                "total_lean_mass_lbs": 0.0,
-                "fat_mass_lbs": 0.0,
-                "body_fat_percentage": 0.0,
-                "arms_lean_lbs": 0.0,
-                "legs_lean_lbs": 0.0,
-            }
-        ]
+        st.session_state.scan_history = []
 
-    # Convert session state to DataFrame for data editor
-    df = pd.DataFrame(st.session_state.scan_history)
+    # Display add new scan form if under limit
+    if num_scans < 20:
+        add_scan_form()
+        st.divider()
 
-    # Convert date strings to datetime objects for DateColumn compatibility
-    if not df.empty and "date" in df.columns:
-        # Use pandas to_datetime for better compatibility with Streamlit
-        df["date"] = pd.to_datetime(df["date"], format="%m/%d/%Y", errors="coerce")
+    # Display existing scans if any
+    if meaningful_scans:
+        st.markdown("#### 📋 Your DEXA Scans")
 
-    # Get tooltips for help text
-    tooltips = get_metric_explanations()["tooltips"]
+        # Create a clean display DataFrame
+        display_data = []
+        for i, scan in enumerate(meaningful_scans):
+            display_data.append(
+                {
+                    "Date": scan.get("date", ""),
+                    "Weight (lbs)": f"{scan.get('total_weight_lbs', 0):.1f}",
+                    "Lean Mass (lbs)": f"{scan.get('total_lean_mass_lbs', 0):.1f}",
+                    "Fat Mass (lbs)": f"{scan.get('fat_mass_lbs', 0):.1f}",
+                    "Body Fat %": f"{scan.get('body_fat_percentage', 0):.1f}%",
+                    "Arms Lean (lbs)": f"{scan.get('arms_lean_lbs', 0):.1f}",
+                    "Legs Lean (lbs)": f"{scan.get('legs_lean_lbs', 0):.1f}",
+                    "Actions": i,  # We'll use this for delete buttons
+                }
+            )
 
-    # Configure column types and validation
-    column_config = {
-        "date": st.column_config.DateColumn(
-            "Date", help="Date of the DEXA scan", required=True, format="MM/DD/YYYY"
-        ),
-        "total_weight_lbs": st.column_config.NumberColumn(
-            "Weight (lbs)",
-            help="Total body weight from DEXA scan",
-            min_value=0.0,
-            step=0.1,
-            format="%.1f",
-            required=True,
-        ),
-        "total_lean_mass_lbs": st.column_config.NumberColumn(
-            "Lean Mass (lbs)",
-            help=tooltips["lean_mass"],
-            min_value=0.0,
-            step=0.1,
-            format="%.1f",
-            required=True,
-        ),
-        "fat_mass_lbs": st.column_config.NumberColumn(
-            "Fat Mass (lbs)",
-            help="Total fat mass from DEXA scan",
-            min_value=0.0,
-            step=0.1,
-            format="%.1f",
-            required=True,
-        ),
-        "body_fat_percentage": st.column_config.NumberColumn(
-            "Body Fat %",
-            help=tooltips["body_fat_percentage"],
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            format="%.1f",
-            required=True,
-        ),
-        "arms_lean_lbs": st.column_config.NumberColumn(
-            "Arms Lean (lbs)",
-            help=tooltips["arms_lean"],
-            min_value=0.0,
-            step=0.1,
-            format="%.1f",
-            required=True,
-        ),
-        "legs_lean_lbs": st.column_config.NumberColumn(
-            "Legs Lean (lbs)",
-            help=tooltips["legs_lean"],
-            min_value=0.0,
-            step=0.1,
-            format="%.1f",
-            required=True,
-        ),
-    }
+        # Display the table
+        df_display = pd.DataFrame(display_data)
 
-    # Display editable data table
-    edited_df = st.data_editor(
-        df,
-        column_config=column_config,
-        num_rows="dynamic",
-        use_container_width=True,
-        key="scan_hisory_editor",
-        height=min(75 + (len(df) * 35), 400),  # Dynamic height based on number of rows
-    )
+        # Use columns to display table and delete buttons
+        col1, col2 = st.columns([0.85, 0.15])
 
-    # Update session state with edited data, but limit to 20 scans
-    new_scan_history = edited_df.to_dict("records")
+        with col1:
+            # Show read-only table without the Actions column
+            st.dataframe(
+                df_display.drop("Actions", axis=1),
+                use_container_width=True,
+                hide_index=True,
+            )
 
-    # Convert datetime objects to MM/DD/YYYY string format for compatibility
-    for scan in new_scan_history:
-        if (
-            scan.get("date")
-            and hasattr(scan["date"], "strftime")
-            and not pd.isna(scan.get("date"))
-        ):
-            # Convert datetime object to string
-            scan["date"] = scan["date"].strftime("%m/%d/%Y")
-        else:
-            # Handle NaT/None/empty dates
-            scan["date"] = ""
+        with col2:
+            st.markdown("**Remove**")
+            # Add delete buttons for each scan
+            for i, scan in enumerate(meaningful_scans):
+                if st.button(
+                    "🗑️",
+                    key=f"delete_scan_{i}",
+                    help=f"Delete scan from {scan.get('date', 'Unknown')}",
+                ):
+                    # Find and remove the specific scan by date
+                    scan_date = scan.get("date", "")
+                    st.session_state.scan_history = [
+                        s
+                        for s in st.session_state.scan_history
+                        if s.get("date", "") != scan_date
+                    ]
+                    st.success(f"✅ Scan from {scan_date} removed!")
+                    st.rerun()
 
-    # Count meaningful scans (those with actual data)
-    meaningful_scans = [
+    else:
+        if num_scans == 0:
+            st.info("👆 Add your first DEXA scan using the form above to get started!")
+
+    # Clean up any empty placeholder scans that might exist
+    st.session_state.scan_history = [
         scan
-        for scan in new_scan_history
+        for scan in st.session_state.scan_history
         if scan.get("date", "").strip()
         or any(
             scan.get(field, 0) > 0
@@ -1778,69 +1890,6 @@ def display_scan_history_form():
             ]
         )
     ]
-
-    if len(meaningful_scans) > 20:
-        st.error("⚠️ Cannot add more than 20 scans. URL sharing limit exceeded.")
-        # Keep only the first 20 meaningful scans plus any empty rows
-        empty_scans = [
-            scan for scan in new_scan_history if scan not in meaningful_scans
-        ]
-        st.session_state.scan_history = meaningful_scans[:20] + empty_scans
-    else:
-        st.session_state.scan_history = new_scan_history
-
-    # Validate scan data and show errors
-    scan_errors = []
-    for i, scan in enumerate(st.session_state.scan_history):
-        # Check if this row has been meaningfully edited (not just default empty values)
-        has_any_data = (scan.get("date", "").strip() != "") or any(
-            scan.get(field, 0) > 0
-            for field in [
-                "total_weight_lbs",
-                "total_lean_mass_lbs",
-                "fat_mass_lbs",
-                "body_fat_percentage",
-                "arms_lean_lbs",
-                "legs_lean_lbs",
-            ]
-        )
-
-        # Only validate rows that have some data entered
-        if has_any_data:
-            # Check for empty required fields
-            if not scan.get("date") or scan.get("date", "").strip() == "":
-                scan_errors.append(f"Row {i + 1}: Date is required")
-            elif scan.get("date"):
-                # Validate date format
-                is_valid, error_msg = validate_user_input("scan_date", scan["date"])
-                if not is_valid:
-                    scan_errors.append(f"Row {i + 1}: {error_msg}")
-
-            # Check for zero values in required numeric fields
-            required_numeric = [
-                "total_weight_lbs",
-                "total_lean_mass_lbs",
-                "fat_mass_lbs",
-                "body_fat_percentage",
-                "arms_lean_lbs",
-                "legs_lean_lbs",
-            ]
-            for field in required_numeric:
-                if not scan.get(field) or scan.get(field, 0) <= 0:
-                    field_display = (
-                        field.replace("_", " ")
-                        .replace("lbs", "(lbs)")
-                        .replace("percentage", "%")
-                        .title()
-                    )
-                    scan_errors.append(
-                        f"Row {i + 1}: {field_display} must be greater than 0"
-                    )
-
-    if scan_errors:
-        st.error("Please fix the following scan data issues:")
-        for error in scan_errors:
-            st.error(f"• {error}")
 
 
 def display_goals_form():
