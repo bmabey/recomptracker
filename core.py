@@ -549,6 +549,88 @@ def get_conservative_gain_rate(user_info, training_level, current_age):
     return adjusted_rate, explanation
 
 
+def calculate_progressive_gain_over_time(user_info, initial_training_level, current_age, years):
+    """
+    Calculates realistic total lean mass gain over multiple years using progressive rates.
+    
+    Models diminishing returns as trainees advance from novice → intermediate → advanced.
+    
+    Args:
+        user_info (dict): User information
+        initial_training_level (str): Starting training level
+        current_age (float): Current age
+        years (float): Time period in years
+        
+    Returns:
+        tuple: (total_gain_kg, explanation) - Total achievable gain and explanation
+    """
+    gender_str = get_gender_string(user_info["gender_code"])
+    
+    # Define progression timeline (years when levels typically change)
+    novice_duration = 1.0  # First year: novice gains
+    intermediate_duration = 2.0  # Years 2-3: intermediate gains  
+    # Year 4+: advanced gains
+    
+    total_gain_kg = 0.0
+    explanations = []
+    
+    # Calculate age-adjusted rates for each level
+    rates = {}
+    for level in ["novice", "intermediate", "advanced"]:
+        base_rate = LEAN_MASS_GAIN_RATES[gender_str][level]
+        # Age adjustment
+        if current_age <= 30:
+            age_factor = 1.0
+        else:
+            decades_over_30 = (current_age - 30) / 10
+            age_factor = max(1 - (AGE_ADJUSTMENT_FACTOR * decades_over_30), 0.5)
+        rates[level] = base_rate * age_factor
+    
+    remaining_years = years
+    current_level = initial_training_level
+    
+    # Year 1: Novice phase (if starting as novice or if user is truly new)
+    if current_level == "novice" and remaining_years > 0:
+        novice_years = min(remaining_years, novice_duration)
+        novice_gain = rates["novice"] * 12 * novice_years  # Convert to kg/year
+        total_gain_kg += novice_gain
+        remaining_years -= novice_years
+        explanations.append(f"Year 1: {novice_gain:.1f} kg at novice rate ({rates['novice']:.2f} kg/month)")
+        current_level = "intermediate"
+    
+    # Years 2-3: Intermediate phase
+    if current_level in ["novice", "intermediate"] and remaining_years > 0:
+        intermediate_years = min(remaining_years, intermediate_duration)
+        intermediate_gain = rates["intermediate"] * 12 * intermediate_years
+        total_gain_kg += intermediate_gain
+        remaining_years -= intermediate_years
+        year_start = years - remaining_years - intermediate_years + 1
+        year_end = years - remaining_years
+        if intermediate_years > 0:
+            explanations.append(f"Years {year_start:.0f}-{year_end:.0f}: {intermediate_gain:.1f} kg at intermediate rate ({rates['intermediate']:.2f} kg/month)")
+        current_level = "advanced"
+    
+    # Year 4+: Advanced phase  
+    if remaining_years > 0:
+        advanced_gain = rates["advanced"] * 12 * remaining_years
+        total_gain_kg += advanced_gain
+        year_start = years - remaining_years + 1
+        if remaining_years > 0:
+            explanations.append(f"Years {year_start:.0f}+: {advanced_gain:.1f} kg at advanced rate ({rates['advanced']:.2f} kg/month)")
+    
+    # If starting as intermediate/advanced, just use that rate for the entire period
+    if initial_training_level == "intermediate" and years <= intermediate_duration:
+        total_gain_kg = rates["intermediate"] * 12 * years
+        explanations = [f"All {years:.1f} years: {total_gain_kg:.1f} kg at intermediate rate ({rates['intermediate']:.2f} kg/month)"]
+    elif initial_training_level == "advanced":
+        total_gain_kg = rates["advanced"] * 12 * years  
+        explanations = [f"All {years:.1f} years: {total_gain_kg:.1f} kg at advanced rate ({rates['advanced']:.2f} kg/month)"]
+    
+    explanation = f"Progressive gain model: {'; '.join(explanations)}"
+    
+    return total_gain_kg, explanation
+
+
 def determine_training_level(user_info, processed_data):
     """
     Determines training level using explicit specification or detection from scans.
@@ -691,16 +773,18 @@ def calculate_suggested_goal(
             # For FFMI, direct lean mass gain
             tlm_gain_needed_kg = required_gain * height_m2
 
-        # Calculate time needed
-        time_needed_months = time_needed_months = (
-            tlm_gain_needed_kg / monthly_gain_rate_kg
-            if monthly_gain_rate_kg > 0
-            else float("inf")
+        # Calculate time needed using progressive gain model
+        years_available = target_age - current_age
+        if years_available <= 0:
+            return False
+            
+        # Calculate total achievable gain over the available timeframe
+        achievable_gain_kg, _ = calculate_progressive_gain_over_time(
+            user_info, training_level, current_age, years_available
         )
-        time_needed_years = time_needed_months / 12
-
-        # Check if achievable within timeframe
-        return (current_age + time_needed_years) <= target_age
+        
+        # Check if achievable gain meets requirement
+        return achievable_gain_kg >= tlm_gain_needed_kg
 
     # Binary search for optimal target age
     best_age = None
@@ -729,12 +813,21 @@ def calculate_suggested_goal(
         print(f"  Using 2-year timeframe as fallback (age {best_age:.1f})")
     else:
         time_to_goal = best_age - current_age
+        
+        # Get progressive gain explanation for this timeframe
+        _, progressive_explanation = calculate_progressive_gain_over_time(
+            user_info, training_level, current_age, time_to_goal
+        )
+        
         messages.append(
-            f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) based on {training_level} progression rates"
+            f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model"
         )
+        messages.append(progressive_explanation)
+        
         print(
-            f"  ✓ Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) based on {training_level} progression rates"
+            f"  ✓ Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model"
         )
+        print(f"  {progressive_explanation}")
 
     # Update goal parameters
     updated_goal = goal_params.copy()
