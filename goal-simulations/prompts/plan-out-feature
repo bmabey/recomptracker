@@ -1,0 +1,13 @@
+Think hard.
+
+For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially.
+
+I don't wnat you to write any code yet. Instead, I want you to plan out the solution to implment the PRD as laied out in goal-simulations/prd.md.
+
+Focus on understanding the problem requirements and proposing the correct way to break down this problem.
+Provide a principled plans that follows best practices and software design principles.
+The solution should be robust, maintainable, and extendable.
+
+I want you to break down the problem into smaller, more manageable parts. For each part, I want you to write a markdown file that describes the part and proposes a list of tools that you would use to implement the part.
+Each part should be written to goal-simulations/plans/0#-<part-name>.md
+

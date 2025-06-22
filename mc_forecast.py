@@ -47,8 +47,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-
-
 class MonteCarloEngine:
     """Core Monte Carlo simulation engine"""
 
@@ -107,10 +105,25 @@ class MonteCarloEngine:
         # Use age-based maximum duration
         max_weeks = self.max_duration_weeks
 
+        if run_idx == 0:  # Debug first trajectory only
+            print(
+                f"Debug trajectory {run_idx}: initial_state.week={current_state.week}, max_weeks={max_weeks}"
+            )
+            print(
+                f"Debug trajectory {run_idx}: initial_state.almi={current_state.almi:.2f}"
+            )
+
         for week in range(1, max_weeks + 1):
             # Check if goal achieved
             if self._goal_achieved(current_state):
+                if run_idx == 0:
+                    print(
+                        f"Debug trajectory {run_idx}: Goal achieved at week {week - 1}"
+                    )
                 break
+
+            if run_idx == 0 and week <= 3:  # Debug first few weeks
+                print(f"Debug trajectory {run_idx}: Week {week}, continuing simulation")
 
             # Check for phase transition
             if self._should_transition_phase(current_state, current_phase, week):
@@ -124,13 +137,18 @@ class MonteCarloEngine:
             trajectory.append(next_state)
             current_state = next_state
 
+        if run_idx == 0:
+            print(
+                f"Debug trajectory {run_idx}: Final trajectory length: {len(trajectory)}"
+            )
+
         return trajectory
 
     def _create_initial_state(self, scan) -> SimulationState:
         """Create initial simulation state from DEXA scan (dict or ScanData)"""
-        
+
         # Handle both dict and ScanData object formats
-        if hasattr(scan, 'arms_lean_lbs'):  # ScanData object
+        if hasattr(scan, "arms_lean_lbs"):  # ScanData object
             arms_lean = scan.arms_lean_lbs
             legs_lean = scan.legs_lean_lbs
             total_weight = scan.total_weight_lbs
@@ -265,15 +283,15 @@ class MonteCarloEngine:
         # Recalculate ALMI/FFMI (simplified - maintain ALM/TLM ratio)
         # Use actual ALM/TLM ratio from initial scan
         latest_scan = self.config.user_profile.scan_history[-1]
-        
+
         # Handle both dict and ScanData object formats
-        if hasattr(latest_scan, 'arms_lean_lbs'):  # ScanData object
+        if hasattr(latest_scan, "arms_lean_lbs"):  # ScanData object
             initial_alm = latest_scan.arms_lean_lbs + latest_scan.legs_lean_lbs
             initial_tlm = latest_scan.total_lean_mass_lbs
         else:  # dict format
             initial_alm = latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
             initial_tlm = latest_scan["total_lean_mass_lbs"]
-            
+
         alm_ratio = initial_alm / initial_tlm
 
         new_alm_kg = new_lean * 0.453592 * alm_ratio
@@ -320,21 +338,34 @@ class MonteCarloEngine:
         else:  # ffmi
             current_percentile = self._estimate_ffmi_percentile(state.ffmi)
 
-        return current_percentile >= self.config.goal_config.target_percentile
+        # Debug: Check if percentile calculation is working
+        if np.isnan(current_percentile):
+            logger.warning(
+                f"Got NaN percentile for {self.config.goal_config.metric_type}={state.almi if self.config.goal_config.metric_type == 'almi' else state.ffmi} at age {self.current_age}"
+            )
+            return False
+
+        achieved = current_percentile >= self.config.goal_config.target_percentile
+        if achieved and state.week == 0:  # Debug initial goal achievement
+            print(
+                f"Debug: Goal achieved immediately! ALMI {state.almi:.2f} = {current_percentile:.3f} percentile >= {self.config.goal_config.target_percentile}"
+            )
+
+        return achieved
 
     def _estimate_almi_percentile(self, almi: float) -> float:
         """Calculate ALMI percentile using real LMS curves with caching"""
         gender = self.config.user_profile.gender
         gender_code = 0 if gender == "male" else 1
-        
+
         # Use cached percentile calculation from core
         percentile = calculate_percentile_cached(
             value=almi,
             age=self.current_age,
             metric="appendicular_LMI",
-            gender_code=gender_code
+            gender_code=gender_code,
         )
-        
+
         # Return 0.5 as fallback if calculation fails
         return percentile if not np.isnan(percentile) else 0.5
 
@@ -342,15 +373,12 @@ class MonteCarloEngine:
         """Calculate FFMI percentile using real LMS curves with caching"""
         gender = self.config.user_profile.gender
         gender_code = 0 if gender == "male" else 1
-        
+
         # Use cached percentile calculation from core
         percentile = calculate_percentile_cached(
-            value=ffmi,
-            age=self.current_age,
-            metric="LMI",
-            gender_code=gender_code
+            value=ffmi, age=self.current_age, metric="LMI", gender_code=gender_code
         )
-        
+
         # Return 0.5 as fallback if calculation fails
         return percentile if not np.isnan(percentile) else 0.5
 
@@ -395,7 +423,7 @@ class MonteCarloEngine:
 
         # Find median goal achievement time
         goal_weeks = []
-        for trajectory in trajectories:
+        for i, trajectory in enumerate(trajectories):
             # Find when goal was achieved in this run
             for state in trajectory:
                 if self._goal_achieved(state):
@@ -403,9 +431,28 @@ class MonteCarloEngine:
                     break
             else:
                 # Goal not achieved - use final week
-                goal_weeks.append(trajectory[-1].week)
+                if trajectory:
+                    final_week = trajectory[-1].week
+                    goal_weeks.append(final_week)
+                    if i == 0:  # Log details for first trajectory
+                        logger.warning(
+                            f"Goal not achieved in trajectory {i}, final week: {final_week}, final state: ALMI={trajectory[-1].almi:.2f}"
+                        )
+                else:
+                    logger.error(f"Empty trajectory {i}")
+                    goal_weeks.append(0)  # This might be causing the issue
 
-        median_goal_week = int(np.median(goal_weeks))
+        print(f"Debug: goal_weeks = {goal_weeks[:10]}...")  # Show first 10 values
+        print(
+            f"Debug: len(goal_weeks) = {len(goal_weeks)}, min = {min(goal_weeks) if goal_weeks else 'N/A'}, max = {max(goal_weeks) if goal_weeks else 'N/A'}"
+        )
+
+        if not goal_weeks or all(w == 0 for w in goal_weeks):
+            print("Debug: All goal_weeks are 0 or empty - simulation failed")
+            median_goal_week = 0
+        else:
+            median_goal_week = int(np.median(goal_weeks))
+
         goal_achievement_age = self.current_age + (median_goal_week / 52)
 
         # Calculate percentile bands (simplified)

@@ -17,13 +17,14 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
-
 # ============================================================================
 # ENUMS
 # ============================================================================
 
+
 class PhaseType(Enum):
     """Body composition phase types"""
+
     CUT = "cut"
     BULK = "bulk"
     MAINTENANCE = "maintenance"
@@ -31,12 +32,14 @@ class PhaseType(Enum):
 
 class TemplateType(Enum):
     """Multi-phase strategy templates"""
+
     CUT_FIRST = "cut_first"
     BULK_FIRST = "bulk_first"
 
 
 class TrainingLevel(Enum):
     """Training experience levels affecting variance and rates"""
+
     NOVICE = "novice"
     INTERMEDIATE = "intermediate"
     ADVANCED = "advanced"
@@ -46,9 +49,11 @@ class TrainingLevel(Enum):
 # CORE DATA STRUCTURES
 # ============================================================================
 
+
 @dataclass
 class ScanData:
     """Individual DEXA scan data structure"""
+
     date: str  # MM/DD/YYYY format
     total_weight_lbs: float
     total_lean_mass_lbs: float
@@ -56,10 +61,10 @@ class ScanData:
     body_fat_percentage: float
     arms_lean_lbs: float
     legs_lean_lbs: float
-    
+
     # Optional fields for backward compatibility
     date_str: Optional[str] = None  # Alternative date field name
-    
+
     def __post_init__(self):
         """Set date_str for backward compatibility if not provided"""
         if self.date_str is None:
@@ -69,6 +74,7 @@ class ScanData:
 @dataclass
 class BodyComposition:
     """Calculated body composition metrics"""
+
     age_at_scan: float
     almi_kg_m2: float  # Appendicular Lean Mass Index
     ffmi_kg_m2: float  # Fat-Free Mass Index
@@ -79,7 +85,7 @@ class BodyComposition:
     ffmi_percentile: float  # 0-100 scale
     ffmi_t_score: float
     alm_kg: float  # Appendicular lean mass in kg
-    
+
     # Change tracking (optional, calculated when multiple scans exist)
     weight_change_last: Optional[float] = None
     lean_change_last: Optional[float] = None
@@ -91,7 +97,7 @@ class BodyComposition:
     ffmi_t_change_last: Optional[float] = None
     almi_pct_change_last: Optional[float] = None
     ffmi_pct_change_last: Optional[float] = None
-    
+
     # Changes from first scan
     weight_change_first: Optional[float] = None
     lean_change_first: Optional[float] = None
@@ -104,23 +110,24 @@ class BodyComposition:
 @dataclass
 class UserProfile:
     """User demographic and anthropometric data"""
+
     birth_date: str  # MM/DD/YYYY format
     height_in: float
     gender: str  # 'male' or 'female'
     training_level: TrainingLevel
     scan_history: List[ScanData]
-    
+
     # Optional fields for backward compatibility
     birth_date_str: Optional[str] = None
     gender_code: Optional[int] = None  # 0=male, 1=female
-    
+
     def __post_init__(self):
         """Set derived fields for backward compatibility"""
         if self.birth_date_str is None:
             self.birth_date_str = self.birth_date
         if self.gender_code is None:
-            self.gender_code = 0 if self.gender.lower() in ['m', 'male'] else 1
-        
+            self.gender_code = 0 if self.gender.lower() in ["m", "male"] else 1
+
         # Convert scan_history dicts to ScanData objects if needed
         if self.scan_history and isinstance(self.scan_history[0], dict):
             self.scan_history = [
@@ -132,6 +139,7 @@ class UserProfile:
 @dataclass
 class GoalConfig:
     """Goal configuration - simplified without target_age"""
+
     metric_type: str  # 'almi' or 'ffmi'
     target_percentile: float  # 0.01 to 0.99
     description: Optional[str] = None
@@ -142,6 +150,7 @@ class GoalConfig:
 @dataclass
 class SimulationState:
     """State of a single simulation at a specific time point"""
+
     week: int
     weight_lbs: float
     lean_mass_lbs: float
@@ -155,6 +164,7 @@ class SimulationState:
 @dataclass
 class CheckpointData:
     """Key milestone in the forecast timeline"""
+
     week: int
     phase: PhaseType
     weight_lbs: float
@@ -169,6 +179,7 @@ class CheckpointData:
 @dataclass
 class SimulationConfig:
     """Configuration for Monte Carlo simulation"""
+
     user_profile: UserProfile
     goal_config: GoalConfig
     training_level: TrainingLevel
@@ -182,6 +193,7 @@ class SimulationConfig:
 @dataclass
 class SimulationResults:
     """Results from Monte Carlo simulation"""
+
     trajectories: List[List[SimulationState]]  # All simulation runs
     median_checkpoints: List[CheckpointData]  # Key phase transitions
     representative_path: List[SimulationState]  # Most likely trajectory
@@ -195,6 +207,7 @@ class SimulationResults:
 @dataclass
 class GoalResults:
     """Results from goal calculation and body composition planning"""
+
     target_age: float  # Auto-calculated target age
     target_percentile: float
     target_metric_value: float
@@ -212,7 +225,7 @@ class GoalResults:
     percentile_change: float
     z_change: float
     target_body_composition: Dict[str, float]
-    
+
     # Backward compatibility fields
     alm_to_add_kg: Optional[float] = None
     estimated_tlm_gain_kg: Optional[float] = None
@@ -221,7 +234,7 @@ class GoalResults:
     suggested: bool = False
     target_almi: Optional[float] = None
     target_ffmi: Optional[float] = None
-    
+
     def __post_init__(self):
         """Set backward compatibility fields"""
         self.alm_to_add_kg = self.alm_change_needed_kg
@@ -233,6 +246,7 @@ class GoalResults:
 @dataclass
 class AnalysisResults:
     """Complete analysis results including scans and goals"""
+
     user_profile: UserProfile
     scan_results: List[BodyComposition]
     goal_results: Dict[str, GoalResults]  # 'almi' and/or 'ffmi' keys
@@ -243,29 +257,32 @@ class AnalysisResults:
 # UTILITY FUNCTIONS
 # ============================================================================
 
-def convert_dict_to_user_profile(user_info: dict, scan_history: List[dict]) -> UserProfile:
+
+def convert_dict_to_user_profile(
+    user_info: dict, scan_history: List[dict]
+) -> UserProfile:
     """Convert legacy dict format to UserProfile dataclass"""
     # Convert training level string to enum
     training_level_str = user_info.get("training_level", "intermediate").lower()
     training_level = TrainingLevel(training_level_str)
-    
+
     # Convert scan history dicts to ScanData objects
     scan_data_list = []
     for scan in scan_history:
         scan_copy = scan.copy()
         # Handle both 'date' and 'date_str' field names
-        if 'date' not in scan_copy and 'date_str' in scan_copy:
-            scan_copy['date'] = scan_copy['date_str']
-        elif 'date_str' not in scan_copy and 'date' in scan_copy:
-            scan_copy['date_str'] = scan_copy['date']
+        if "date" not in scan_copy and "date_str" in scan_copy:
+            scan_copy["date"] = scan_copy["date_str"]
+        elif "date_str" not in scan_copy and "date" in scan_copy:
+            scan_copy["date_str"] = scan_copy["date"]
         scan_data_list.append(ScanData(**scan_copy))
-    
+
     return UserProfile(
         birth_date=user_info["birth_date"],
         height_in=user_info["height_in"],
         gender=user_info["gender"],
         training_level=training_level,
-        scan_history=scan_data_list
+        scan_history=scan_data_list,
     )
 
 
@@ -276,7 +293,7 @@ def convert_dict_to_goal_config(goal_dict: dict) -> GoalConfig:
         target_percentile=goal_dict["target_percentile"],
         description=goal_dict.get("description"),
         suggested=goal_dict.get("suggested", False),
-        target_body_fat_percentage=goal_dict.get("target_body_fat_percentage")
+        target_body_fat_percentage=goal_dict.get("target_body_fat_percentage"),
     )
 
 

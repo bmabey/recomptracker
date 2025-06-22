@@ -390,7 +390,7 @@ def calculate_z_percentile(value, age, L_func, M_func, S_func):
 def calculate_percentile_cached(value, age, metric, gender_code, data_path="./data/"):
     """
     Calculates percentile for a given value with caching for performance.
-    
+
     This is a high-level function that loads LMS data and calculates percentiles
     with automatic caching of both LMS data and percentile calculations.
     Optimized for Monte Carlo simulations with repeated calculations.
@@ -407,13 +407,13 @@ def calculate_percentile_cached(value, age, metric, gender_code, data_path="./da
     """
     # Load cached LMS data
     L_func, M_func, S_func = load_lms_data(metric, gender_code, data_path)
-    
+
     if L_func is None:
         return np.nan
-    
+
     # Calculate Z-score and percentile using existing logic
     z_score, percentile = calculate_z_percentile(value, age, L_func, M_func, S_func)
-    
+
     return percentile
 
 
@@ -701,12 +701,12 @@ def calculate_suggested_goal(
 ):
     """
     Calculates suggested goals with auto-calculated realistic timeframes.
-    
+
     Supports both new dataclass format and legacy dict format for backward compatibility.
 
     Args:
         goal_params (dict or GoalConfig): Goal parameters including target_percentile
-        user_info (dict or UserProfile): User information  
+        user_info (dict or UserProfile): User information
         processed_data (pd.DataFrame): Processed scan data
         lms_functions (dict): LMS interpolation functions
         metric (str, optional): Metric type ('almi' or 'ffmi'), auto-detected if not provided
@@ -714,26 +714,26 @@ def calculate_suggested_goal(
     Returns:
         tuple or GoalResults: (updated_goal, messages) for legacy format or GoalResults for new format
     """
-    
+
     # Handle both new dataclass format and legacy dict format
-    if hasattr(goal_params, 'metric_type'):
+    if hasattr(goal_params, "metric_type"):
         # New dataclass format - this is the future path
         goal_config = goal_params
         user_profile = user_info
         metric = goal_config.metric_type
-        
+
         # Convert to legacy format for internal processing
         goal_params_dict = {
             "target_percentile": goal_config.target_percentile,
             "suggested": goal_config.suggested,
-            "target_body_fat_percentage": goal_config.target_body_fat_percentage
+            "target_body_fat_percentage": goal_config.target_body_fat_percentage,
         }
         user_info_dict = {
             "birth_date": user_profile.birth_date,
             "height_in": user_profile.height_in,
             "gender": user_profile.gender,
             "gender_code": user_profile.gender_code,
-            "training_level": user_profile.training_level.value
+            "training_level": user_profile.training_level.value,
         }
         is_legacy_call = False
     else:
@@ -744,7 +744,7 @@ def calculate_suggested_goal(
             # Try to infer metric from context, default to almi
             metric = "almi"
         is_legacy_call = True
-    
+
     # Get the most recent scan data (handle both DataFrame and list)
     if hasattr(processed_data, "iloc"):
         latest_scan = processed_data.iloc[-1]
@@ -792,7 +792,7 @@ def calculate_suggested_goal(
         print(
             f"  Suggesting a higher target: {new_target_percentile * 100:.0f}th percentile instead"
         )
-        
+
         # Update goal params with new target
         goal_params_dict["target_percentile"] = new_target_percentile
         goal_params_dict["suggested"] = True
@@ -892,20 +892,26 @@ def calculate_suggested_goal(
     # Prepare messages for legacy return format
     messages = [level_explanation, gain_explanation]
     if best_age is None:
-        messages.append(f"Could not find feasible timeframe for {target_percentile * 100:.0f}th percentile {metric.upper()}")
+        messages.append(
+            f"Could not find feasible timeframe for {target_percentile * 100:.0f}th percentile {metric.upper()}"
+        )
         messages.append(f"Using 2-year timeframe as fallback (age {best_age:.1f})")
     else:
         time_to_goal = best_age - current_age
         _, progressive_explanation = calculate_progressive_gain_over_time(
             user_info_dict, training_level, current_age, time_to_goal
         )
-        messages.append(f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model")
+        messages.append(
+            f"Calculated feasible timeframe: {time_to_goal:.1f} years (age {best_age:.1f}) using progressive gain model"
+        )
         messages.append(progressive_explanation)
 
     # Update goal parameters for legacy return
     updated_goal = goal_params_dict.copy()
     updated_goal["target_age"] = best_age
-    updated_goal["suggested"] = True
+    updated_goal["suggested"] = goal_params_dict.get(
+        "suggested", True
+    )  # Preserve original or default to True
 
     if is_legacy_call:
         # Return legacy format (tuple)
@@ -916,16 +922,18 @@ def calculate_suggested_goal(
             "target_percentile": target_percentile,
             "target_age": best_age,
             "suggested": goal_params_dict.get("suggested", True),
-            "target_body_fat_percentage": goal_params_dict.get("target_body_fat_percentage")
+            "target_body_fat_percentage": goal_params_dict.get(
+                "target_body_fat_percentage"
+            ),
         }
-        
+
         goal_row, goal_calculations = create_goal_row(
             temp_goal_dict, user_info_dict, processed_data, lms_functions, metric
         )
-        
+
         if goal_calculations is None:
             return None
-        
+
         # Convert to GoalResults dataclass
         return GoalResults(
             target_age=best_age,
@@ -947,7 +955,7 @@ def calculate_suggested_goal(
             target_body_composition=goal_calculations["target_body_composition"],
             suggested=goal_params_dict.get("suggested", True),
             target_almi=goal_calculations.get("target_almi"),
-            target_ffmi=goal_calculations.get("target_ffmi")
+            target_ffmi=goal_calculations.get("target_ffmi"),
         )
 
 
@@ -1133,7 +1141,7 @@ def get_alm_tlm_ratio(processed_data, goal_params, lms_functions, user_info):
 def load_lms_data(metric, gender_code, data_path="./data/"):
     """
     Loads LMS reference data and creates interpolation functions.
-    
+
     This function is cached to avoid repeated file I/O operations.
     Cache stores up to 8 combinations (2 metrics × 2 genders × 2 paths typically).
 
@@ -1428,29 +1436,30 @@ def process_scans_and_goal(
             # Convert user_info and scan_history to UserProfile for new function
             try:
                 user_profile = convert_dict_to_user_profile(user_info, scan_history)
-                goal_config = convert_dict_to_goal_config({
-                    **almi_goal,
-                    "metric_type": "almi"
-                })
-                
+                goal_config = convert_dict_to_goal_config(
+                    {**almi_goal, "metric_type": "almi"}
+                )
+
                 goal_results = calculate_suggested_goal(
                     goal_config, user_profile, processed_data, lms_functions
                 )
-                
+
                 if goal_results is not None:
                     # Convert back to legacy dict format for create_goal_row
                     almi_goal = {
                         "target_percentile": goal_results.target_percentile,
                         "target_age": goal_results.target_age,
                         "suggested": goal_results.suggested,
-                        "target_body_fat_percentage": goal_config.target_body_fat_percentage
+                        "target_body_fat_percentage": goal_config.target_body_fat_percentage,
                     }
                     # For new dataclass format, no separate messages are returned - they're integrated
                     # Add a placeholder for backward compatibility
-                    goal_calculations["messages"] = goal_calculations.get("messages", [])
+                    goal_calculations["messages"] = goal_calculations.get(
+                        "messages", []
+                    )
                 else:
                     almi_goal = None
-                    
+
             except Exception as e:
                 print(f"Error in goal calculation: {e}")
                 # Fall back to 2-year timeframe
@@ -1476,29 +1485,30 @@ def process_scans_and_goal(
             # Convert user_info and scan_history to UserProfile for new function
             try:
                 user_profile = convert_dict_to_user_profile(user_info, scan_history)
-                goal_config = convert_dict_to_goal_config({
-                    **ffmi_goal,
-                    "metric_type": "ffmi"
-                })
-                
+                goal_config = convert_dict_to_goal_config(
+                    {**ffmi_goal, "metric_type": "ffmi"}
+                )
+
                 goal_results = calculate_suggested_goal(
                     goal_config, user_profile, processed_data, lms_functions
                 )
-                
+
                 if goal_results is not None:
                     # Convert back to legacy dict format for create_goal_row
                     ffmi_goal = {
                         "target_percentile": goal_results.target_percentile,
                         "target_age": goal_results.target_age,
                         "suggested": goal_results.suggested,
-                        "target_body_fat_percentage": goal_config.target_body_fat_percentage
+                        "target_body_fat_percentage": goal_config.target_body_fat_percentage,
                     }
                     # For new dataclass format, no separate messages are returned - they're integrated
                     # Add a placeholder for backward compatibility
-                    goal_calculations["messages"] = goal_calculations.get("messages", [])
+                    goal_calculations["messages"] = goal_calculations.get(
+                        "messages", []
+                    )
                 else:
                     ffmi_goal = None
-                    
+
             except Exception as e:
                 print(f"Error in goal calculation: {e}")
                 # Fall back to 2-year timeframe

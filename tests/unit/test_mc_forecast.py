@@ -174,11 +174,12 @@ class TestPhaseTransitions(unittest.TestCase):
 
         # High BF should start with cut
         from dataclasses import replace
+
         high_bf_profile = replace(
             self.user_profile,
             scan_history=[
                 replace(self.user_profile.scan_history[0], body_fat_percentage=28.0)
-            ]
+            ],
         )
 
         config = SimulationConfig(
@@ -204,7 +205,7 @@ class TestPhaseTransitions(unittest.TestCase):
             self.user_profile,
             scan_history=[
                 replace(self.user_profile.scan_history[0], body_fat_percentage=15.0)
-            ]
+            ],
         )
 
         config.user_profile = low_bf_profile
@@ -240,11 +241,12 @@ class TestPhaseTransitions(unittest.TestCase):
 
         # Test extremely high BF override
         from dataclasses import replace
+
         extreme_bf_profile = replace(
             self.user_profile,
             scan_history=[
                 replace(self.user_profile.scan_history[0], body_fat_percentage=35.0)
-            ]
+            ],
         )
 
         config.user_profile = extreme_bf_profile
@@ -709,8 +711,8 @@ class TestStatisticalProperties(unittest.TestCase):
                     "total_lean_mass_lbs": 130.0,
                     "fat_mass_lbs": 40.0,
                     "body_fat_percentage": 23.5,
-                    "arms_lean_lbs": 18.0,
-                    "legs_lean_lbs": 45.0,
+                    "arms_lean_lbs": 16.0,  # Reduced from 18.0 to give starting ALMI ~8.5 (65th percentile)
+                    "legs_lean_lbs": 40.0,  # Reduced from 45.0 to give starting ALMI ~8.5 (65th percentile)
                 }
             ],
         )
@@ -732,8 +734,16 @@ class TestStatisticalProperties(unittest.TestCase):
             results_list.append(results.goal_achievement_week)
 
         # Check that results are reasonably stable
+        print(f"Debug: results_list = {results_list}")
         mean_weeks = np.mean(results_list)
         std_weeks = np.std(results_list)
+        print(f"Debug: mean_weeks = {mean_weeks}, std_weeks = {std_weeks}")
+
+        if mean_weeks == 0:
+            self.fail(
+                f"All simulations failed to achieve goal or returned invalid results: {results_list}"
+            )
+
         cv = std_weeks / mean_weeks  # Coefficient of variation
 
         self.assertLess(
