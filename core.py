@@ -2429,16 +2429,17 @@ def create_plotly_dual_mode_plot(
     fig = go.Figure()
 
     # Define percentiles and colors - these ALWAYS stay visible
-    percentiles = [0.03, 0.10, 0.25, 0.50, 0.75, 0.90, 0.97]
-    percentile_labels = ["3rd", "10th", "25th", "50th", "75th", "90th", "97th"]
+    # Reversed order to match visual appearance in plot (highest to lowest)
+    percentiles = [0.97, 0.90, 0.75, 0.50, 0.25, 0.10, 0.03]
+    percentile_labels = ["97th", "90th", "75th", "50th", "25th", "10th", "3rd"]
     colors = [
-        "#FF6B6B",
-        "#4ECDC4",
-        "#45B7D1",
-        "#96CEB4",
-        "#FECCA7",
-        "#DDA0DD",
         "#FFB347",
+        "#DDA0DD",
+        "#FECCA7",
+        "#96CEB4",
+        "#45B7D1",
+        "#4ECDC4",
+        "#FF6B6B",
     ]
 
     # Add percentile curves (ALWAYS visible for consistent axis range)
@@ -2483,12 +2484,13 @@ def create_plotly_dual_mode_plot(
     )
 
     if enable_tscore:
+        # Reversed order to match visual appearance in plot (highest to lowest)
         t_score_bands = [
-            (-4, -2, "#FF6B6B", "Well Below Peak"),
-            (-2, -1, "#FFA500", "Below Peak"),
-            (-1, 0, "#FFD700", "Approaching Peak"),
-            (0, 2, "#90EE90", "Peak Zone"),
             (2, 4, "#228B22", "Elite Zone"),
+            (0, 2, "#90EE90", "Peak Zone"),
+            (-1, 0, "#FFD700", "Approaching Peak"),
+            (-2, -1, "#FFA500", "Below Peak"),
+            (-4, -2, "#FF6B6B", "Well Below Peak"),
         ]
 
     # Filter data for actual scans (not goal rows)
