@@ -995,6 +995,10 @@ def initialize_session_state():
     if "url_loaded_needs_analysis" not in st.session_state:
         st.session_state.url_loaded_needs_analysis = False
 
+    # Initialize editing state
+    if "editing_scan_index" not in st.session_state:
+        st.session_state.editing_scan_index = None
+
 
 def validate_form_data():
     """Validate all form data and return validation results."""
@@ -1788,6 +1792,172 @@ def add_scan_form():
             st.rerun()
 
 
+def edit_scan_form(scan_index, scan_data):
+    """Display a form for editing an existing DEXA scan."""
+    # Get tooltips for help text
+    tooltips = get_metric_explanations()["tooltips"]
+
+    original_date = scan_data.get("date", "Unknown")
+
+    with st.form(f"edit_scan_form_{scan_index}", clear_on_submit=False):
+        st.markdown(f"#### ✏️ Edit DEXA Scan from {original_date}")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Parse existing date for display
+            existing_date = None
+            if scan_data.get("date"):
+                try:
+                    existing_date = pd.to_datetime(
+                        scan_data["date"], format="%m/%d/%Y"
+                    ).date()
+                except (ValueError, TypeError):
+                    pass
+
+            scan_date = st.date_input(
+                "Scan Date *",
+                value=existing_date,
+                help="Date when the DEXA scan was performed",
+                format="MM/DD/YYYY",
+            )
+
+            total_weight = st.number_input(
+                "Total Weight (lbs) *",
+                value=float(scan_data.get("total_weight_lbs", 0)),
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help="Total body weight from DEXA scan",
+            )
+
+            total_lean_mass = st.number_input(
+                "Total Lean Mass (lbs) *",
+                value=float(scan_data.get("total_lean_mass_lbs", 0)),
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["lean_mass"],
+            )
+
+            fat_mass = st.number_input(
+                "Fat Mass (lbs) *",
+                value=float(scan_data.get("fat_mass_lbs", 0)),
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help="Total fat mass from DEXA scan",
+            )
+
+        with col2:
+            body_fat_percentage = st.number_input(
+                "Body Fat % *",
+                value=float(scan_data.get("body_fat_percentage", 0)),
+                min_value=0.0,
+                max_value=100.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["body_fat_percentage"],
+            )
+
+            arms_lean = st.number_input(
+                "Arms Lean Mass (lbs) *",
+                value=float(scan_data.get("arms_lean_lbs", 0)),
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["arms_lean"],
+            )
+
+            legs_lean = st.number_input(
+                "Legs Lean Mass (lbs) *",
+                value=float(scan_data.get("legs_lean_lbs", 0)),
+                min_value=0.0,
+                step=0.1,
+                format="%.1f",
+                help=tooltips["legs_lean"],
+            )
+
+        st.markdown("*Required fields")
+
+        # Action buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            submitted = st.form_submit_button(
+                "💾 Update Scan", type="primary", use_container_width=True
+            )
+        with col2:
+            cancelled = st.form_submit_button("❌ Cancel", use_container_width=True)
+
+        if cancelled:
+            st.session_state.editing_scan_index = None
+            st.rerun()
+
+        if submitted:
+            # Validate required fields
+            errors = []
+            if not scan_date:
+                errors.append("Scan date is required")
+            if total_weight <= 0:
+                errors.append("Total weight must be greater than 0")
+            if total_lean_mass <= 0:
+                errors.append("Total lean mass must be greater than 0")
+            if fat_mass <= 0:
+                errors.append("Fat mass must be greater than 0")
+            if body_fat_percentage <= 0:
+                errors.append("Body fat percentage must be greater than 0")
+            if arms_lean <= 0:
+                errors.append("Arms lean mass must be greater than 0")
+            if legs_lean <= 0:
+                errors.append("Legs lean mass must be greater than 0")
+
+            if errors:
+                for error in errors:
+                    st.error(f"• {error}")
+                return
+
+            # Check for date conflicts (excluding the current scan being edited)
+            new_date_str = scan_date.strftime("%m/%d/%Y")
+            existing_dates = [
+                scan.get("date", "")
+                for i, scan in enumerate(st.session_state.scan_history)
+                if i != scan_index and scan.get("date", "").strip()
+            ]
+
+            if new_date_str in existing_dates:
+                st.error(
+                    f"⚠️ A scan already exists for {new_date_str}. Please choose a different date."
+                )
+                return
+
+            # Update the scan data
+            updated_scan = {
+                "date": new_date_str,
+                "total_weight_lbs": float(total_weight),
+                "total_lean_mass_lbs": float(total_lean_mass),
+                "fat_mass_lbs": float(fat_mass),
+                "body_fat_percentage": float(body_fat_percentage),
+                "arms_lean_lbs": float(arms_lean),
+                "legs_lean_lbs": float(legs_lean),
+            }
+
+            # Update scan in place
+            st.session_state.scan_history[scan_index] = updated_scan
+
+            # Re-sort by date
+            st.session_state.scan_history.sort(
+                key=lambda x: pd.to_datetime(
+                    x.get("date", "01/01/1900"), format="%m/%d/%Y"
+                )
+            )
+
+            # Clear editing state
+            st.session_state.editing_scan_index = None
+
+            st.success(f"✅ Scan from {original_date} updated successfully!")
+            st.rerun()
+
+
 def display_scan_history_form():
     """Display the DEXA scan history with add form and read-only table."""
     st.subheader("🔬 DEXA Scan History")
@@ -1813,30 +1983,39 @@ def display_scan_history_form():
 
     # Display existing scans table if any
     if meaningful_scans:
-        # Create custom table layout with integrated remove buttons
-        # Header row
-        cols = st.columns([0.12, 0.12, 0.12, 0.12, 0.11, 0.13, 0.13, 0.15])
+        st.markdown("*All values in pounds except Body Fat %*")
+
+        # Create custom table layout with integrated edit and remove buttons
+        # Header row - cleaner headers without repetitive (lbs)
+        cols = st.columns([0.12, 0.12, 0.12, 0.12, 0.11, 0.13, 0.13, 0.17])
 
         with cols[0]:
             st.markdown("**Date**")
         with cols[1]:
-            st.markdown("**Weight (lbs)**")
+            st.markdown("**Weight**")
         with cols[2]:
-            st.markdown("**Lean Mass (lbs)**")
+            st.markdown("**Lean Mass**")
         with cols[3]:
-            st.markdown("**Fat Mass (lbs)**")
+            st.markdown("**Fat Mass**")
         with cols[4]:
             st.markdown("**Body Fat %**")
         with cols[5]:
-            st.markdown("**Arms Lean (lbs)**")
+            st.markdown("**Arms Lean**")
         with cols[6]:
-            st.markdown("**Legs Lean (lbs)**")
+            st.markdown("**Legs Lean**")
         with cols[7]:
-            st.markdown("**Remove**")
+            st.markdown("**Actions**")
 
         # Data rows
         for i, scan in enumerate(meaningful_scans):
-            row_cols = st.columns([0.12, 0.12, 0.12, 0.12, 0.11, 0.13, 0.13, 0.15])
+            # Find the actual index in the full scan_history list
+            actual_index = None
+            for j, full_scan in enumerate(st.session_state.scan_history):
+                if full_scan.get("date", "") == scan.get("date", ""):
+                    actual_index = j
+                    break
+
+            row_cols = st.columns([0.12, 0.12, 0.12, 0.12, 0.11, 0.13, 0.13, 0.17])
 
             with row_cols[0]:
                 st.text(scan.get("date", ""))
@@ -1853,26 +2032,72 @@ def display_scan_history_form():
             with row_cols[6]:
                 st.text(f"{scan.get('legs_lean_lbs', 0):.1f}")
             with row_cols[7]:
-                if st.button(
-                    "🗑️",
-                    key=f"delete_scan_{i}",
-                    help=f"Delete scan from {scan.get('date', 'Unknown')}",
-                    type="secondary",
-                ):
-                    # Find and remove the specific scan by date
-                    scan_date = scan.get("date", "")
-                    st.session_state.scan_history = [
-                        s
-                        for s in st.session_state.scan_history
-                        if s.get("date", "") != scan_date
-                    ]
-                    st.success(f"✅ Scan from {scan_date} removed!")
-                    st.rerun()
+                # Create sub-columns for edit and delete buttons
+                action_col1, action_col2 = st.columns([0.5, 0.5])
+
+                with action_col1:
+                    # Disable edit button if another scan is being edited
+                    edit_disabled = (
+                        st.session_state.editing_scan_index is not None
+                        and st.session_state.editing_scan_index != actual_index
+                    )
+
+                    if st.button(
+                        "✏️",
+                        key=f"edit_scan_{i}",
+                        help=f"Edit scan from {scan.get('date', 'Unknown')}",
+                        type="secondary",
+                        disabled=edit_disabled,
+                    ):
+                        st.session_state.editing_scan_index = actual_index
+                        st.rerun()
+
+                with action_col2:
+                    # Disable delete button if this scan is being edited
+                    delete_disabled = (
+                        st.session_state.editing_scan_index == actual_index
+                    )
+
+                    if st.button(
+                        "🗑️",
+                        key=f"delete_scan_{i}",
+                        help=f"Delete scan from {scan.get('date', 'Unknown')}",
+                        type="secondary",
+                        disabled=delete_disabled,
+                    ):
+                        # Find and remove the specific scan by date
+                        scan_date = scan.get("date", "")
+                        st.session_state.scan_history = [
+                            s
+                            for s in st.session_state.scan_history
+                            if s.get("date", "") != scan_date
+                        ]
+                        # Clear editing state if we deleted the scan being edited
+                        if st.session_state.editing_scan_index == actual_index:
+                            st.session_state.editing_scan_index = None
+                        st.success(f"✅ Scan from {scan_date} removed!")
+                        st.rerun()
 
         st.divider()
 
-    # Display add new scan form if under limit
-    if num_scans < 20:
+    # Display edit form if a scan is being edited, otherwise show add form
+    if st.session_state.editing_scan_index is not None:
+        # Get the scan being edited by index in scan_history
+        if (
+            0
+            <= st.session_state.editing_scan_index
+            < len(st.session_state.scan_history)
+        ):
+            edit_scan_form(
+                st.session_state.editing_scan_index,
+                st.session_state.scan_history[st.session_state.editing_scan_index],
+            )
+        else:
+            # Invalid index, clear editing state
+            st.session_state.editing_scan_index = None
+            st.rerun()
+    elif num_scans < 20:
+        # Display add new scan form if under limit and not editing
         add_scan_form()
 
     # Show helpful message if no scans exist
