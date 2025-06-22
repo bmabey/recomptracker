@@ -137,6 +137,21 @@ class UserProfile:
 
 
 @dataclass
+class BFRangeConfig:
+    """User-customizable body fat percentage range for bulk/cut cycles"""
+
+    min_bf_pct: float  # Custom minimum BF% (e.g., 10%)
+    max_bf_pct: float  # Custom maximum BF% (e.g., 15%)
+
+    def __post_init__(self):
+        """Validate BF range configuration"""
+        if self.min_bf_pct >= self.max_bf_pct:
+            raise ValueError("min_bf_pct must be less than max_bf_pct")
+        if self.min_bf_pct < 0 or self.max_bf_pct > 50:
+            raise ValueError("BF percentages must be reasonable (0-50%)")
+
+
+@dataclass
 class GoalConfig:
     """Goal configuration - simplified without target_age"""
 
@@ -238,6 +253,7 @@ class SimulationConfig:
     template: TemplateType
     variance_factor: float
     phase_sequence: Optional["PhaseSequence"] = None  # Auto-generated if None
+    bf_range_config: Optional["BFRangeConfig"] = None  # Custom BF% cycling range
     random_seed: Optional[int] = None
     run_count: int = 2000
     max_duration_weeks: Optional[int] = None  # Override age-based default

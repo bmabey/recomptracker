@@ -83,7 +83,9 @@ class MonteCarloEngine:
         # Generate phase sequence if not provided
         if config.phase_sequence is None:
             self.phase_sequence = self.template_engine.generate_sequence(
-                config.template, config.user_profile
+                config.template,
+                config.user_profile,
+                bf_range_config=config.bf_range_config,
             )
             # Validate the generated sequence
             PhaseValidationEngine.validate_sequence(
@@ -810,6 +812,7 @@ def create_simulation_engine(
     user_profile: UserProfile,
     goal_config: GoalConfig,
     template: TemplateType = TemplateType.CUT_FIRST,
+    bf_range_config=None,
     run_count: int = 2000,
     random_seed: Optional[int] = None,
 ) -> MonteCarloEngine:
@@ -827,6 +830,7 @@ def create_simulation_engine(
         training_level=training_level,
         template=template,
         variance_factor=variance_factor,
+        bf_range_config=bf_range_config,
         random_seed=random_seed,
         run_count=run_count,
     )

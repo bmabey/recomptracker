@@ -252,7 +252,9 @@ class PhaseTemplateEngine:
     def __init__(self, rate_calculator: RateCalculator):
         self.rate_calculator = rate_calculator
 
-    def select_template(self, user_profile: UserProfile) -> TemplateType:
+    def select_template(
+        self, user_profile: UserProfile, bf_range_config=None
+    ) -> TemplateType:
         """
         Select optimal template based on current body composition.
 
@@ -260,19 +262,29 @@ class PhaseTemplateEngine:
         - Health research: Cut recommended above 25%M/35%F (Helms et al., 2014)
         - Safety research: Prioritize sustainable body fat ranges
         - Stronger By Science: Allow flexibility for experienced users
+        - Custom BF range: Suggest template based on position relative to custom range
 
         Args:
             user_profile: User's demographic and body composition data
+            bf_range_config: Optional custom BF range configuration
 
         Returns:
             Recommended template type
         """
+        from shared_models import BFRangeConfig
+
         latest_scan = user_profile.scan_history[-1]
         current_bf = latest_scan.body_fat_percentage
         gender = user_profile.gender.lower()
         thresholds = BF_THRESHOLDS[gender]
 
-        # Research-based template selection
+        # If custom BF range provided, use it for template suggestion
+        if bf_range_config is not None:
+            return self._select_template_with_custom_range(
+                current_bf, gender, bf_range_config
+            )
+
+        # Research-based template selection (existing logic)
         if current_bf > thresholds["healthy_max"]:
             logger.info(
                 f"Cut-first template selected: BF {current_bf:.1f}% > {thresholds['healthy_max']}% "
@@ -287,11 +299,60 @@ class PhaseTemplateEngine:
             # Default to CUT_FIRST for safety, but BULK_FIRST is viable
             return TemplateType.CUT_FIRST
 
+    def _select_template_with_custom_range(
+        self, current_bf: float, gender: str, bf_range_config
+    ) -> TemplateType:
+        """
+        Select template based on position relative to custom BF range.
+
+        Args:
+            current_bf: Current body fat percentage
+            gender: User's gender for safety checks
+            bf_range_config: Custom BF range configuration
+
+        Returns:
+            Recommended template type
+        """
+        from shared_models import BFRangeConfig
+
+        # Safety check: ensure custom range respects minimums
+        safety_min = BF_THRESHOLDS[gender]["minimum"]
+        if bf_range_config.min_bf_pct < safety_min:
+            logger.warning(
+                f"Custom min BF {bf_range_config.min_bf_pct}% below safety minimum {safety_min}% for {gender}"
+            )
+
+        # Template suggestion based on position relative to custom range
+        if current_bf > bf_range_config.max_bf_pct:
+            logger.info(
+                f"Cut-first template suggested: BF {current_bf:.1f}% > custom max {bf_range_config.max_bf_pct}%"
+            )
+            return TemplateType.CUT_FIRST
+        elif current_bf < bf_range_config.min_bf_pct:
+            # Check if bulking is safe
+            if current_bf <= safety_min + 2:
+                logger.info(
+                    f"Bulk-first template suggested: BF {current_bf:.1f}% near safety minimum {safety_min}%"
+                )
+                return TemplateType.BULK_FIRST
+            else:
+                logger.info(
+                    f"Bulk-first template suggested: BF {current_bf:.1f}% < custom min {bf_range_config.min_bf_pct}%"
+                )
+                return TemplateType.BULK_FIRST
+        else:
+            logger.info(
+                f"Within custom range {bf_range_config.min_bf_pct}-{bf_range_config.max_bf_pct}%: "
+                f"Cut-first template as default (user can override)"
+            )
+            return TemplateType.CUT_FIRST
+
     def generate_sequence(
         self,
         template: TemplateType,
         user_profile: UserProfile,
         target_bf_pct: Optional[float] = None,
+        bf_range_config=None,
     ) -> PhaseSequence:
         """
         Generate complete phase sequence for template.
@@ -300,41 +361,55 @@ class PhaseTemplateEngine:
             template: Selected template type
             user_profile: User's profile data
             target_bf_pct: Optional target body fat percentage
+            bf_range_config: Optional custom BF range configuration
 
         Returns:
             Complete phase sequence with research rationale
         """
         if template == TemplateType.CUT_FIRST:
-            return self._generate_cut_first_sequence(user_profile, target_bf_pct)
+            return self._generate_cut_first_sequence(
+                user_profile, target_bf_pct, bf_range_config
+            )
         elif template == TemplateType.BULK_FIRST:
-            return self._generate_bulk_first_sequence(user_profile, target_bf_pct)
+            return self._generate_bulk_first_sequence(
+                user_profile, target_bf_pct, bf_range_config
+            )
         else:
             raise PhaseConfigError(f"Unknown template: {template}")
 
     def _generate_cut_first_sequence(
-        self, user_profile: UserProfile, target_bf_pct: Optional[float]
+        self,
+        user_profile: UserProfile,
+        target_bf_pct: Optional[float],
+        bf_range_config=None,
     ) -> PhaseSequence:
         """
-        Generate cut-first template sequence.
+        Generate cut-first template sequence with optional custom BF range.
 
-        Based on MacroFactor research:
-        1. Initial cut to healthy range
-        2. Bulk to acceptable upper limit
-        3. Cut to preferred range
-        4. Repeat cycles as needed
+        Logic:
+        1. If custom range: Use custom boundaries for cycling
+        2. If outside custom range: Get into range first, then cycle within it
+        3. If no custom range: Use research-backed thresholds (existing behavior)
         """
         gender = user_profile.gender.lower()
         thresholds = BF_THRESHOLDS[gender]
         latest_scan = user_profile.scan_history[-1]
         current_bf = latest_scan.body_fat_percentage
 
-        phases = []
-
         # Calculate rates once for reuse
         cut_rate = self.rate_calculator.get_cut_rate("moderate")
         bulk_rate = self.rate_calculator.get_bulk_rate(
             user_profile.training_level, "moderate"
         )
+
+        # Use custom range if provided
+        if bf_range_config is not None:
+            return self._generate_cut_first_with_custom_range(
+                user_profile, current_bf, bf_range_config, cut_rate, bulk_rate
+            )
+
+        # Original research-based logic when no custom range
+        phases = []
 
         # Phase 1: Initial cut to healthy range
         if current_bf > thresholds["acceptable_max"]:
@@ -386,25 +461,172 @@ class PhaseTemplateEngine:
             safety_validated=True,
         )
 
+    def _generate_cut_first_with_custom_range(
+        self,
+        user_profile: UserProfile,
+        current_bf: float,
+        bf_range_config,
+        cut_rate: float,
+        bulk_rate: float,
+    ) -> PhaseSequence:
+        """Generate cut-first sequence using custom BF range boundaries"""
+        gender = user_profile.gender.lower()
+        phases = []
+
+        # Safety validation
+        safety_min = BF_THRESHOLDS[gender]["minimum"]
+        effective_min = max(bf_range_config.min_bf_pct, safety_min)
+        if effective_min != bf_range_config.min_bf_pct:
+            logger.warning(
+                f"Adjusted custom min BF from {bf_range_config.min_bf_pct}% to {effective_min}% for safety"
+            )
+
+        # Build phases based on starting position and cut-first approach
+        if current_bf > bf_range_config.max_bf_pct:
+            # Above range: Cut to minimum, then cycle
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=24,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut to custom range minimum {effective_min}% (cut-first approach)",
+                )
+            )
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=bf_range_config.max_bf_pct,
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}%",
+                )
+            )
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=20,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut back to custom range minimum {effective_min}%",
+                )
+            )
+        elif current_bf < effective_min:
+            # Below range: Bulk directly to maximum (honoring cut-first by ending at minimum)
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=bf_range_config.max_bf_pct,
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}% (from below range)",
+                )
+            )
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=20,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut to custom range minimum {effective_min}% (cut-first goal)",
+                )
+            )
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=bf_range_config.max_bf_pct,
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale=f"Bulk back to custom range maximum {bf_range_config.max_bf_pct}%",
+                )
+            )
+        else:
+            # Within range: Cut to minimum first, then cycle
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=20,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut to custom range minimum {effective_min}% (within range, cut-first)",
+                )
+            )
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=bf_range_config.max_bf_pct,
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}%",
+                )
+            )
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=20,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut back to custom range minimum {effective_min}%",
+                )
+            )
+
+        total_duration = sum(p.min_duration_weeks for p in phases)
+
+        return PhaseSequence(
+            template=TemplateType.CUT_FIRST,
+            phases=phases,
+            rationale=(
+                f"Cut-first template with custom range {effective_min}-{bf_range_config.max_bf_pct}%. "
+                f"Prioritizes cutting approach within user-defined aesthetic boundaries."
+            ),
+            expected_duration_weeks=total_duration,
+            safety_validated=True,
+        )
+
     def _generate_bulk_first_sequence(
-        self, user_profile: UserProfile, target_bf_pct: Optional[float]
+        self,
+        user_profile: UserProfile,
+        target_bf_pct: Optional[float],
+        bf_range_config=None,
     ) -> PhaseSequence:
         """
-        Generate bulk-first template sequence.
+        Generate bulk-first template sequence with optional custom BF range.
 
-        For lean users prioritizing muscle gain (Stronger By Science approach).
+        Logic:
+        1. If custom range: Use custom boundaries for cycling
+        2. If outside custom range: Get into range first, then cycle within it
+        3. If no custom range: Use research-backed thresholds (existing behavior)
         """
         gender = user_profile.gender.lower()
         thresholds = BF_THRESHOLDS[gender]
         latest_scan = user_profile.scan_history[-1]
         current_bf = latest_scan.body_fat_percentage
 
-        phases = []
-
-        # Phase 1: Initial bulk
+        # Calculate rates once for reuse
+        cut_rate = self.rate_calculator.get_cut_rate("moderate")
         bulk_rate = self.rate_calculator.get_bulk_rate(
             user_profile.training_level, "moderate"
         )
+
+        # Use custom range if provided
+        if bf_range_config is not None:
+            return self._generate_bulk_first_with_custom_range(
+                user_profile, current_bf, bf_range_config, cut_rate, bulk_rate
+            )
+
+        # Original research-based logic when no custom range
+        phases = []
+
+        # Phase 1: Initial bulk
         target_bulk_bf = min(current_bf + 5, thresholds["acceptable_max"] + 2)
 
         phases.append(
@@ -419,7 +641,6 @@ class PhaseTemplateEngine:
         )
 
         # Phase 2: Cut to preferred range
-        cut_rate = self.rate_calculator.get_cut_rate("moderate")
         phases.append(
             PhaseConfig(
                 phase_type=PhaseType.CUT,
@@ -440,6 +661,124 @@ class PhaseTemplateEngine:
                 "Bulk-first template for lean users prioritizing muscle gain "
                 "(Stronger By Science flexible approach). Suitable for users "
                 "already in healthy body fat range."
+            ),
+            expected_duration_weeks=total_duration,
+            safety_validated=True,
+        )
+
+    def _generate_bulk_first_with_custom_range(
+        self,
+        user_profile: UserProfile,
+        current_bf: float,
+        bf_range_config,
+        cut_rate: float,
+        bulk_rate: float,
+    ) -> PhaseSequence:
+        """Generate bulk-first sequence using custom BF range boundaries"""
+        gender = user_profile.gender.lower()
+        phases = []
+
+        # Safety validation
+        safety_min = BF_THRESHOLDS[gender]["minimum"]
+        effective_min = max(bf_range_config.min_bf_pct, safety_min)
+        if effective_min != bf_range_config.min_bf_pct:
+            logger.warning(
+                f"Adjusted custom min BF from {bf_range_config.min_bf_pct}% to {effective_min}% for safety"
+            )
+
+        # Phase 1: Get into custom range if needed (Bulk-first approach)
+        if current_bf < effective_min:
+            # Bulk to custom range maximum (bulk-first approach)
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=bf_range_config.max_bf_pct,
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}% (bulk-first approach)",
+                )
+            )
+            # Follow with cut to minimum
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=20,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut to custom range minimum {effective_min}%",
+                )
+            )
+        elif current_bf > bf_range_config.max_bf_pct:
+            # User chose bulk-first but is above range - still honor their choice by going higher first
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=min(
+                        current_bf + 5, bf_range_config.max_bf_pct + 5
+                    ),  # Go higher first
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale="Initial bulk (user chose bulk-first despite high BF)",
+                )
+            )
+            # Then cut to custom range minimum
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=24,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut to custom range minimum {effective_min}%",
+                )
+            )
+        else:
+            # Within range: bulk to maximum first (bulk-first approach)
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.BULK,
+                    target_bf_pct=bf_range_config.max_bf_pct,
+                    min_duration_weeks=12,
+                    max_duration_weeks=36,
+                    rate_pct_per_week=bulk_rate,
+                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}% (within range, bulk-first)",
+                )
+            )
+            # Follow with cut to minimum
+            phases.append(
+                PhaseConfig(
+                    phase_type=PhaseType.CUT,
+                    target_bf_pct=effective_min,
+                    min_duration_weeks=8,
+                    max_duration_weeks=20,
+                    rate_pct_per_week=cut_rate,
+                    rationale=f"Cut to custom range minimum {effective_min}%",
+                )
+            )
+
+        # Final phase: Bulk back to custom range maximum (complete the cycle)
+        phases.append(
+            PhaseConfig(
+                phase_type=PhaseType.BULK,
+                target_bf_pct=bf_range_config.max_bf_pct,
+                min_duration_weeks=12,
+                max_duration_weeks=36,
+                rate_pct_per_week=bulk_rate,
+                rationale=f"Bulk back to custom range maximum {bf_range_config.max_bf_pct}%",
+            )
+        )
+
+        total_duration = sum(p.min_duration_weeks for p in phases)
+
+        return PhaseSequence(
+            template=TemplateType.BULK_FIRST,
+            phases=phases,
+            rationale=(
+                f"Bulk-first template with custom range {effective_min}-{bf_range_config.max_bf_pct}%. "
+                f"Prioritizes bulking approach within user-defined aesthetic boundaries."
             ),
             expected_duration_weeks=total_duration,
             safety_validated=True,
