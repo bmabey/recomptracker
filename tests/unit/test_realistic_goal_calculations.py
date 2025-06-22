@@ -19,6 +19,7 @@ from core import (
     extract_data_from_config,
     parse_gender,
     get_conservative_gain_rate,
+    calculate_progressive_gain_over_time,
     LEAN_MASS_GAIN_RATES,
 )
 
@@ -348,6 +349,154 @@ class TestRealisticGoalCalculations(unittest.TestCase):
 
         except Exception as e:
             self.fail(f"Example config goal calculation failed: {e}")
+
+
+class TestProgressiveGainModel(unittest.TestCase):
+    """Test progressive gain rate modeling for long-term goals."""
+
+    def setUp(self):
+        """Set up test data for progressive gain testing."""
+        self.user_info_male = {
+            "birth_date": "04/26/1982",
+            "height_in": 66.0,
+            "gender": "male",
+            "gender_code": 0,
+        }
+        
+        self.user_info_female = {
+            "birth_date": "04/26/1982", 
+            "height_in": 64.0,
+            "gender": "female",
+            "gender_code": 1,
+        }
+
+    def test_single_year_novice_uses_novice_rates(self):
+        """Test that 1-year goals for novice trainees use only novice rates."""
+        total_gain, explanation = calculate_progressive_gain_over_time(
+            self.user_info_male, "novice", 25, 1.0
+        )
+        
+        # Should be 1 year * 12 months * 0.45 kg/month = 5.4 kg
+        expected_gain = 0.45 * 12 * 1.0
+        self.assertAlmostEqual(total_gain, expected_gain, places=1)
+        self.assertIn("novice rate", explanation)
+        self.assertNotIn("intermediate", explanation)
+        self.assertNotIn("advanced", explanation)
+
+    def test_three_year_novice_progression(self):
+        """Test that 3-year goals properly blend novice → intermediate rates."""
+        total_gain, explanation = calculate_progressive_gain_over_time(
+            self.user_info_male, "novice", 25, 3.0
+        )
+        
+        # Year 1: 0.45 * 12 = 5.4 kg (novice)
+        # Years 2-3: 0.25 * 12 * 2 = 6.0 kg (intermediate)
+        # Total: 11.4 kg
+        expected_gain = (0.45 * 12 * 1) + (0.25 * 12 * 2)
+        self.assertAlmostEqual(total_gain, expected_gain, places=1)
+        
+        self.assertIn("Year 1", explanation)
+        self.assertIn("novice rate", explanation)
+        self.assertIn("Years 2-3", explanation)
+        self.assertIn("intermediate rate", explanation)
+
+    def test_five_year_full_progression(self):
+        """Test that 5-year goals include all three phases: novice → intermediate → advanced."""
+        total_gain, explanation = calculate_progressive_gain_over_time(
+            self.user_info_male, "novice", 25, 5.0
+        )
+        
+        # Year 1: 0.45 * 12 = 5.4 kg (novice)
+        # Years 2-3: 0.25 * 12 * 2 = 6.0 kg (intermediate) 
+        # Years 4-5: 0.12 * 12 * 2 = 2.88 kg (advanced)
+        # Total: 14.28 kg
+        expected_gain = (0.45 * 12 * 1) + (0.25 * 12 * 2) + (0.12 * 12 * 2)
+        self.assertAlmostEqual(total_gain, expected_gain, places=1)
+        
+        self.assertIn("Year 1", explanation)
+        self.assertIn("Years 2-3", explanation) 
+        self.assertIn("Years 4+", explanation)
+        self.assertIn("advanced rate", explanation)
+
+    def test_intermediate_start_skips_novice_phase(self):
+        """Test that intermediate trainees skip novice rates."""
+        total_gain, explanation = calculate_progressive_gain_over_time(
+            self.user_info_male, "intermediate", 25, 2.0
+        )
+        
+        # All 2 years at intermediate rate: 0.25 * 12 * 2 = 6.0 kg
+        expected_gain = 0.25 * 12 * 2.0
+        self.assertAlmostEqual(total_gain, expected_gain, places=1)
+        
+        self.assertIn("intermediate rate", explanation)
+        self.assertNotIn("novice", explanation)
+
+    def test_advanced_start_uses_only_advanced_rates(self):
+        """Test that advanced trainees use only advanced rates."""
+        total_gain, explanation = calculate_progressive_gain_over_time(
+            self.user_info_male, "advanced", 25, 3.0
+        )
+        
+        # All 3 years at advanced rate: 0.12 * 12 * 3 = 4.32 kg
+        expected_gain = 0.12 * 12 * 3.0
+        self.assertAlmostEqual(total_gain, expected_gain, places=1)
+        
+        self.assertIn("advanced rate", explanation)
+        self.assertNotIn("novice", explanation)
+        self.assertNotIn("intermediate", explanation)
+
+    def test_age_adjustments_apply_to_all_phases(self):
+        """Test that age adjustments are applied correctly across all training phases."""
+        # 42-year-old should have ~20% reduction (1.2 decades over 30 * 10% = 12% reduction)
+        total_gain_young, _ = calculate_progressive_gain_over_time(
+            self.user_info_male, "novice", 25, 3.0
+        )
+        
+        total_gain_older, _ = calculate_progressive_gain_over_time(
+            self.user_info_male, "novice", 42, 3.0
+        )
+        
+        # Older person should have reduced gains
+        self.assertLess(total_gain_older, total_gain_young)
+        
+        # Age factor: 1 - (1.2 * 0.1) = 0.88
+        expected_ratio = 0.88
+        actual_ratio = total_gain_older / total_gain_young
+        self.assertAlmostEqual(actual_ratio, expected_ratio, places=1)
+
+    def test_female_vs_male_rates(self):
+        """Test that female rates are appropriately lower than male rates."""
+        male_gain, _ = calculate_progressive_gain_over_time(
+            self.user_info_male, "novice", 25, 3.0
+        )
+        
+        female_gain, _ = calculate_progressive_gain_over_time(
+            self.user_info_female, "novice", 25, 3.0
+        )
+        
+        # Female gains should be lower than male gains
+        self.assertLess(female_gain, male_gain)
+        
+        # Should be roughly 55-60% of male gains based on rate ratios
+        ratio = female_gain / male_gain
+        self.assertGreater(ratio, 0.5)
+        self.assertLess(ratio, 0.7)
+
+    def test_progressive_vs_fixed_rate_comparison(self):
+        """Test that progressive model gives different (more conservative) results than fixed rate for long terms."""
+        # For a 5-year goal, progressive model should be more conservative than fixed intermediate rate
+        progressive_gain, _ = calculate_progressive_gain_over_time(
+            self.user_info_male, "intermediate", 25, 5.0
+        )
+        
+        # Fixed intermediate rate for 5 years: 0.25 * 12 * 5 = 15.0 kg
+        fixed_rate_gain = 0.25 * 12 * 5.0
+        
+        # Progressive should be less than fixed rate (includes advanced years)
+        self.assertLess(progressive_gain, fixed_rate_gain)
+        
+        # Difference should be meaningful (at least 1 kg less)
+        self.assertGreater(fixed_rate_gain - progressive_gain, 1.0)
 
 
 if __name__ == "__main__":
