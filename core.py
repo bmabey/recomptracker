@@ -415,11 +415,11 @@ def detect_training_level_from_scans(processed_data, user_info):
     # Need at least 2 scans for progression analysis
     if len(processed_data) < 2:
         print(
-            "  Insufficient scan history for training level detection - defaulting to novice"
+            "  Insufficient scan history for training level detection - defaulting to intermediate"
         )
         return (
-            "novice",
-            "Insufficient scan history - defaulting to novice (conservative approach)",
+            "intermediate",
+            "Insufficient scan history - defaulting to intermediate (realistic baseline)",
         )
 
     # Handle both DataFrame and list formats
