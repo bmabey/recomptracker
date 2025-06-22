@@ -1811,53 +1811,53 @@ def display_scan_history_form():
     if len(st.session_state.scan_history) == 0:
         st.session_state.scan_history = []
 
-    # Display add new scan form if under limit
-    if num_scans < 20:
-        add_scan_form()
-        st.divider()
-
-    # Display existing scans if any
+    # Display existing scans table if any
     if meaningful_scans:
-        st.markdown("#### 📋 Your DEXA Scans")
+        # Create custom table layout with integrated remove buttons
+        # Header row
+        cols = st.columns([0.12, 0.12, 0.12, 0.12, 0.11, 0.13, 0.13, 0.15])
 
-        # Create a clean display DataFrame
-        display_data = []
-        for i, scan in enumerate(meaningful_scans):
-            display_data.append(
-                {
-                    "Date": scan.get("date", ""),
-                    "Weight (lbs)": f"{scan.get('total_weight_lbs', 0):.1f}",
-                    "Lean Mass (lbs)": f"{scan.get('total_lean_mass_lbs', 0):.1f}",
-                    "Fat Mass (lbs)": f"{scan.get('fat_mass_lbs', 0):.1f}",
-                    "Body Fat %": f"{scan.get('body_fat_percentage', 0):.1f}%",
-                    "Arms Lean (lbs)": f"{scan.get('arms_lean_lbs', 0):.1f}",
-                    "Legs Lean (lbs)": f"{scan.get('legs_lean_lbs', 0):.1f}",
-                    "Actions": i,  # We'll use this for delete buttons
-                }
-            )
-
-        # Display the table
-        df_display = pd.DataFrame(display_data)
-
-        # Use columns to display table and delete buttons
-        col1, col2 = st.columns([0.85, 0.15])
-
-        with col1:
-            # Show read-only table without the Actions column
-            st.dataframe(
-                df_display.drop("Actions", axis=1),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-        with col2:
+        with cols[0]:
+            st.markdown("**Date**")
+        with cols[1]:
+            st.markdown("**Weight (lbs)**")
+        with cols[2]:
+            st.markdown("**Lean Mass (lbs)**")
+        with cols[3]:
+            st.markdown("**Fat Mass (lbs)**")
+        with cols[4]:
+            st.markdown("**Body Fat %**")
+        with cols[5]:
+            st.markdown("**Arms Lean (lbs)**")
+        with cols[6]:
+            st.markdown("**Legs Lean (lbs)**")
+        with cols[7]:
             st.markdown("**Remove**")
-            # Add delete buttons for each scan
-            for i, scan in enumerate(meaningful_scans):
+
+        # Data rows
+        for i, scan in enumerate(meaningful_scans):
+            row_cols = st.columns([0.12, 0.12, 0.12, 0.12, 0.11, 0.13, 0.13, 0.15])
+
+            with row_cols[0]:
+                st.text(scan.get("date", ""))
+            with row_cols[1]:
+                st.text(f"{scan.get('total_weight_lbs', 0):.1f}")
+            with row_cols[2]:
+                st.text(f"{scan.get('total_lean_mass_lbs', 0):.1f}")
+            with row_cols[3]:
+                st.text(f"{scan.get('fat_mass_lbs', 0):.1f}")
+            with row_cols[4]:
+                st.text(f"{scan.get('body_fat_percentage', 0):.1f}%")
+            with row_cols[5]:
+                st.text(f"{scan.get('arms_lean_lbs', 0):.1f}")
+            with row_cols[6]:
+                st.text(f"{scan.get('legs_lean_lbs', 0):.1f}")
+            with row_cols[7]:
                 if st.button(
                     "🗑️",
                     key=f"delete_scan_{i}",
                     help=f"Delete scan from {scan.get('date', 'Unknown')}",
+                    type="secondary",
                 ):
                     # Find and remove the specific scan by date
                     scan_date = scan.get("date", "")
@@ -1869,9 +1869,15 @@ def display_scan_history_form():
                     st.success(f"✅ Scan from {scan_date} removed!")
                     st.rerun()
 
-    else:
-        if num_scans == 0:
-            st.info("👆 Add your first DEXA scan using the form above to get started!")
+        st.divider()
+
+    # Display add new scan form if under limit
+    if num_scans < 20:
+        add_scan_form()
+
+    # Show helpful message if no scans exist
+    if num_scans == 0:
+        st.info("👆 Add your first DEXA scan using the form above to get started!")
 
     # Clean up any empty placeholder scans that might exist
     st.session_state.scan_history = [
