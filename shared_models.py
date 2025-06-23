@@ -269,6 +269,42 @@ class CheckpointData:
 
 
 @dataclass
+class PercentileBands:
+    """Confidence bands across simulation trajectories"""
+
+    p10: List[SimulationState]
+    p25: List[SimulationState]
+    p50: List[SimulationState]  # median
+    p75: List[SimulationState]
+    p90: List[SimulationState]
+
+
+@dataclass
+class ForecastPlan:
+    """Complete forecast results from Monte Carlo simulation"""
+
+    # Core simulation results
+    representative_path: List[SimulationState]
+    percentile_bands: PercentileBands
+    median_checkpoints: List[CheckpointData]
+
+    # Metadata
+    total_duration_weeks: int
+    total_phases: int
+    template_used: TemplateType
+    convergence_quality: float
+
+    # Performance metrics
+    simulation_time_ms: int
+    cache_hit: bool
+    run_count: int
+
+    # Goal achievement details
+    goal_achievement_week: int
+    goal_achievement_age: float
+
+
+@dataclass
 class SimulationConfig:
     """Configuration for Monte Carlo simulation"""
 
