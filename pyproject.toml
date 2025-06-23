@@ -21,6 +21,7 @@ dependencies = [
     "plotly>=5.0.0",
     "watchdog>=2.0.0",
     "requests>=2.25.0",
+    "ipython>=8.18.1",
 ]
 
 [project.optional-dependencies]

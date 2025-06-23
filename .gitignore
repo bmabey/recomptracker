@@ -143,6 +143,11 @@ dmypy.json
 almi_stats_table.csv
 *_curves.json
 
+# Scenario analysis output files
+monte_carlo_scenario_analysis_report_*.html
+scenario_plots/
+test_report_*.html
+
 # Claude related stuff
 feature_prompt
 

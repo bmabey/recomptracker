@@ -275,6 +275,14 @@ class MonteCarloEngine:
             trajectory.append(next_state)
             current_state = next_state
 
+            # Check if goal achieved after this week's progress
+            if self._goal_achieved(current_state):
+                if run_idx == 0:
+                    print(
+                        f"Debug trajectory {run_idx}: Goal achieved at week {week} (after progress simulation)"
+                    )
+                break
+
         if run_idx == 0:
             print(
                 f"Debug trajectory {run_idx}: Final trajectory length: {len(trajectory)}"
@@ -593,11 +601,15 @@ class MonteCarloEngine:
     def _goal_achieved(self, state: SimulationState) -> bool:
         """Check if target percentile goal has been achieved"""
 
-        # Calculate current percentile (simplified - would use LMS curves in reality)
+        # Calculate current percentile using simulation age
         if self.config.goal_config.metric_type == "almi":
-            current_percentile = self._estimate_almi_percentile(state.almi)
+            current_percentile = self._estimate_almi_percentile(
+                state.almi, state.simulation_age
+            )
         else:  # ffmi
-            current_percentile = self._estimate_ffmi_percentile(state.ffmi)
+            current_percentile = self._estimate_ffmi_percentile(
+                state.ffmi, state.simulation_age
+            )
 
         # Debug: Check if percentile calculation is working
         if np.isnan(current_percentile):
@@ -607,22 +619,33 @@ class MonteCarloEngine:
             return False
 
         achieved = current_percentile >= self.config.goal_config.target_percentile
+
+        # Debug goal achievement detection
         if achieved and state.week == 0:  # Debug initial goal achievement
             print(
                 f"Debug: Goal achieved immediately! ALMI {state.almi:.2f} = {current_percentile:.3f} percentile >= {self.config.goal_config.target_percentile}"
             )
+        elif (
+            achieved and state.week > 0
+        ):  # Debug when goal is achieved during simulation
+            print(
+                f"Debug: Goal achieved at week {state.week}! ALMI {state.almi:.2f} = {current_percentile:.3f} percentile >= {self.config.goal_config.target_percentile}, age {state.simulation_age:.1f}"
+            )
 
         return achieved
 
-    def _estimate_almi_percentile(self, almi: float) -> float:
+    def _estimate_almi_percentile(self, almi: float, age: float = None) -> float:
         """Calculate ALMI percentile using real LMS curves with caching"""
         gender = self.config.user_profile.gender
         gender_code = 0 if gender == "male" else 1
 
+        # Use provided age or fall back to current age
+        use_age = age if age is not None else self.current_age
+
         # Use cached percentile calculation from core
         percentile = calculate_percentile_cached(
             value=almi,
-            age=self.current_age,
+            age=use_age,
             metric="appendicular_LMI",
             gender_code=gender_code,
         )
@@ -630,14 +653,17 @@ class MonteCarloEngine:
         # Return 0.5 as fallback if calculation fails
         return percentile if not np.isnan(percentile) else 0.5
 
-    def _estimate_ffmi_percentile(self, ffmi: float) -> float:
+    def _estimate_ffmi_percentile(self, ffmi: float, age: float = None) -> float:
         """Calculate FFMI percentile using real LMS curves with caching"""
         gender = self.config.user_profile.gender
         gender_code = 0 if gender == "male" else 1
 
+        # Use provided age or fall back to current age
+        use_age = age if age is not None else self.current_age
+
         # Use cached percentile calculation from core
         percentile = calculate_percentile_cached(
-            value=ffmi, age=self.current_age, metric="LMI", gender_code=gender_code
+            value=ffmi, age=use_age, metric="LMI", gender_code=gender_code
         )
 
         # Return 0.5 as fallback if calculation fails
@@ -920,9 +946,13 @@ class MonteCarloEngine:
 
                     # Calculate percentile progress
                     if self.config.goal_config.metric_type == "almi":
-                        progress = self._estimate_almi_percentile(state.almi)
+                        progress = self._estimate_almi_percentile(
+                            state.almi, state.simulation_age
+                        )
                     else:
-                        progress = self._estimate_ffmi_percentile(state.ffmi)
+                        progress = self._estimate_ffmi_percentile(
+                            state.ffmi, state.simulation_age
+                        )
 
                     checkpoint = CheckpointData(
                         week=state.week,
