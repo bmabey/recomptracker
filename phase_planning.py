@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 from shared_models import (
     BF_THRESHOLDS,
+    BFRangeConfig,
     PhaseConfig,
     PhaseSequence,
     PhaseTransition,
@@ -252,6 +253,84 @@ class PhaseTemplateEngine:
     def __init__(self, rate_calculator: RateCalculator):
         self.rate_calculator = rate_calculator
 
+    def _estimate_effective_max_bf_from_weight(
+        self, user_profile: UserProfile, max_weight_lbs: float
+    ) -> float:
+        """
+        Estimate the effective maximum body fat percentage given a weight constraint.
+        
+        This helps template generation set realistic BF% targets when weight constraints are active.
+        
+        Args:
+            user_profile: User profile with current body composition
+            max_weight_lbs: Maximum allowed weight
+            
+        Returns:
+            Estimated maximum body fat percentage at the weight limit
+        """
+        try:
+            # Get current body composition
+            latest_scan = user_profile.scan_history[-1]
+            if hasattr(latest_scan, "total_lean_mass_lbs"):
+                current_lean_lbs = latest_scan.total_lean_mass_lbs
+            else:
+                current_lean_lbs = latest_scan["total_lean_mass_lbs"]
+
+            # Conservative estimate: assume lean mass stays roughly constant during weight gain
+            # This gives us a conservative upper bound on BF%
+            # max_weight = lean_mass + fat_mass
+            # max_fat_mass = max_weight - lean_mass
+            # max_bf_pct = max_fat_mass / max_weight * 100
+
+            max_fat_lbs = max_weight_lbs - current_lean_lbs
+            if max_fat_lbs <= 0:
+                # Weight constraint is below current lean mass - very restrictive
+                return 5.0  # Very low BF% - essentially a cutting scenario
+
+            estimated_max_bf_pct = (max_fat_lbs / max_weight_lbs) * 100
+
+            # Cap at reasonable maximums
+            gender = user_profile.gender.lower()
+            absolute_max = 35 if gender == "female" else 25
+
+            return min(estimated_max_bf_pct, absolute_max)
+
+        except Exception:
+            # If calculation fails, return a conservative estimate
+            return 15.0
+
+    def _calculate_effective_bulk_target(
+        self, user_profile: UserProfile, desired_bf_pct: float, bf_range_config
+    ) -> tuple[float, str]:
+        """
+        Calculate effective bulk target considering both BF% desires and weight constraints.
+        
+        Args:
+            user_profile: User profile data
+            desired_bf_pct: Desired BF% target from template logic
+            bf_range_config: BF range configuration with potential weight constraint
+            
+        Returns:
+            tuple: (effective_target_bf_pct, rationale_suffix)
+        """
+        if bf_range_config is None or bf_range_config.max_weight_lbs is None:
+            # No weight constraint, use desired BF%
+            return desired_bf_pct, ""
+
+        # Calculate weight-constrained max BF%
+        weight_constrained_max_bf = self._estimate_effective_max_bf_from_weight(
+            user_profile, bf_range_config.max_weight_lbs
+        )
+
+        if weight_constrained_max_bf < desired_bf_pct:
+            # Weight constraint is more restrictive than desired BF%
+            return weight_constrained_max_bf, (
+                f" (limited by weight constraint of {bf_range_config.max_weight_lbs} lbs)"
+            )
+        else:
+            # Desired BF% is achievable within weight constraint
+            return desired_bf_pct, ""
+
     def select_template(
         self, user_profile: UserProfile, bf_range_config=None
     ) -> TemplateType:
@@ -424,15 +503,30 @@ class PhaseTemplateEngine:
                 )
             )
 
-        # Phase 2: Bulk to upper acceptable limit
+        # Phase 2: Bulk to upper acceptable limit (considering weight constraints)
+        bulk_target_bf = thresholds["acceptable_max"] + 3  # Default conservative buffer
+        bulk_rationale = f"Bulk to {bulk_target_bf}% for muscle gain"
+
+        # Adjust bulk target if weight constraint is active
+        if bf_range_config is not None and bf_range_config.max_weight_lbs is not None:
+            weight_constrained_max_bf = self._estimate_effective_max_bf_from_weight(
+                user_profile, bf_range_config.max_weight_lbs
+            )
+            if weight_constrained_max_bf < bulk_target_bf:
+                bulk_target_bf = weight_constrained_max_bf
+                bulk_rationale = (
+                    f"Bulk to {bulk_target_bf:.1f}% (limited by weight constraint "
+                    f"of {bf_range_config.max_weight_lbs} lbs)"
+                )
+
         phases.append(
             PhaseConfig(
                 phase_type=PhaseType.BULK,
-                target_bf_pct=thresholds["acceptable_max"] + 3,  # Conservative buffer
+                target_bf_pct=bulk_target_bf,
                 min_duration_weeks=12,  # Muscle protein synthesis adaptation
                 max_duration_weeks=36,  # Sustainability limit
                 rate_pct_per_week=bulk_rate,
-                rationale=f"Bulk to {thresholds['acceptable_max'] + 3}% for muscle gain",
+                rationale=bulk_rationale,
             )
         )
 
@@ -494,14 +588,18 @@ class PhaseTemplateEngine:
                     rationale=f"Cut to custom range minimum {effective_min}% (cut-first approach)",
                 )
             )
+            # Calculate effective bulk target considering weight constraints
+            bulk_target_bf, weight_suffix = self._calculate_effective_bulk_target(
+                user_profile, bf_range_config.max_bf_pct, bf_range_config
+            )
             phases.append(
                 PhaseConfig(
                     phase_type=PhaseType.BULK,
-                    target_bf_pct=bf_range_config.max_bf_pct,
+                    target_bf_pct=bulk_target_bf,
                     min_duration_weeks=12,
                     max_duration_weeks=36,
                     rate_pct_per_week=bulk_rate,
-                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}%",
+                    rationale=f"Bulk to custom range maximum {bulk_target_bf:.1f}%{weight_suffix}",
                 )
             )
             phases.append(
@@ -516,14 +614,18 @@ class PhaseTemplateEngine:
             )
         elif current_bf < effective_min:
             # Below range: Bulk directly to maximum (honoring cut-first by ending at minimum)
+            # Calculate effective bulk target considering weight constraints
+            bulk_target_bf, weight_suffix = self._calculate_effective_bulk_target(
+                user_profile, bf_range_config.max_bf_pct, bf_range_config
+            )
             phases.append(
                 PhaseConfig(
                     phase_type=PhaseType.BULK,
-                    target_bf_pct=bf_range_config.max_bf_pct,
+                    target_bf_pct=bulk_target_bf,
                     min_duration_weeks=12,
                     max_duration_weeks=36,
                     rate_pct_per_week=bulk_rate,
-                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}% (from below range)",
+                    rationale=f"Bulk to custom range maximum {bulk_target_bf:.1f}% (from below range){weight_suffix}",
                 )
             )
             phases.append(
@@ -558,14 +660,18 @@ class PhaseTemplateEngine:
                     rationale=f"Cut to custom range minimum {effective_min}% (within range, cut-first)",
                 )
             )
+            # Calculate effective bulk target considering weight constraints
+            bulk_target_bf, weight_suffix = self._calculate_effective_bulk_target(
+                user_profile, bf_range_config.max_bf_pct, bf_range_config
+            )
             phases.append(
                 PhaseConfig(
                     phase_type=PhaseType.BULK,
-                    target_bf_pct=bf_range_config.max_bf_pct,
+                    target_bf_pct=bulk_target_bf,
                     min_duration_weeks=12,
                     max_duration_weeks=36,
                     rate_pct_per_week=bulk_rate,
-                    rationale=f"Bulk to custom range maximum {bf_range_config.max_bf_pct}%",
+                    rationale=f"Bulk to custom range maximum {bulk_target_bf:.1f}%{weight_suffix}",
                 )
             )
             phases.append(
@@ -626,8 +732,21 @@ class PhaseTemplateEngine:
         # Original research-based logic when no custom range
         phases = []
 
-        # Phase 1: Initial bulk
+        # Phase 1: Initial bulk (considering weight constraints)
         target_bulk_bf = min(current_bf + 5, thresholds["acceptable_max"] + 2)
+        bulk_rationale = f"Initial bulk to {target_bulk_bf}% for muscle prioritization"
+
+        # Adjust bulk target if weight constraint is active
+        if bf_range_config is not None and bf_range_config.max_weight_lbs is not None:
+            weight_constrained_max_bf = self._estimate_effective_max_bf_from_weight(
+                user_profile, bf_range_config.max_weight_lbs
+            )
+            if weight_constrained_max_bf < target_bulk_bf:
+                target_bulk_bf = weight_constrained_max_bf
+                bulk_rationale = (
+                    f"Initial bulk to {target_bulk_bf:.1f}% (limited by weight constraint "
+                    f"of {bf_range_config.max_weight_lbs} lbs)"
+                )
 
         phases.append(
             PhaseConfig(
@@ -636,7 +755,7 @@ class PhaseTemplateEngine:
                 min_duration_weeks=12,
                 max_duration_weeks=36,
                 rate_pct_per_week=bulk_rate,
-                rationale=f"Initial bulk to {target_bulk_bf}% for muscle prioritization",
+                rationale=bulk_rationale,
             )
         )
 
@@ -805,6 +924,8 @@ class PhaseTransitionManager:
         phase_config: PhaseConfig,
         weeks_in_phase: int,
         gender: str,
+        current_weight_lbs: Optional[float] = None,
+        bf_range_config: Optional["BFRangeConfig"] = None,
     ) -> bool:
         """
         Determine if phase transition should occur.
@@ -815,6 +936,8 @@ class PhaseTransitionManager:
             phase_config: Current phase configuration
             weeks_in_phase: Duration in current phase
             gender: User's gender for threshold lookup
+            current_weight_lbs: Current weight in pounds (for weight constraint checks)
+            bf_range_config: BF range config with potential max weight constraint
 
         Returns:
             True if transition should occur
@@ -840,6 +963,19 @@ class PhaseTransitionManager:
                 f"{phase_config.target_bf_pct:.1f}% target"
             )
             return True
+
+        # Check weight constraint (force cut if weight limit exceeded during bulk)
+        if (current_weight_lbs is not None and
+            bf_range_config is not None and
+            bf_range_config.max_weight_lbs is not None):
+
+            if (current_phase == PhaseType.BULK and
+                current_weight_lbs >= bf_range_config.max_weight_lbs):
+                logger.info(
+                    f"Phase transition triggered: Weight {current_weight_lbs:.1f} lbs "
+                    f"reached maximum {bf_range_config.max_weight_lbs:.1f} lbs (forcing cut)"
+                )
+                return True
 
         # Check maximum duration (sustainability research)
         if weeks_in_phase >= phase_config.max_duration_weeks:

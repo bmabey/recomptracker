@@ -417,6 +417,146 @@ def calculate_percentile_cached(value, age, metric, gender_code, data_path="./da
     return percentile
 
 
+def calculate_value_from_percentile_cached(target_percentile, age, metric, gender_code, data_path="./data/"):
+    """
+    Calculates the metric value needed to achieve a target percentile (inverse LMS lookup).
+
+    This is the inverse of calculate_percentile_cached - given a target percentile,
+    it returns the metric value needed to achieve that percentile for a specific age/gender.
+
+    Args:
+        target_percentile (float): The target percentile (0.0 to 1.0).
+        age (float): The age in decimal years.
+        metric (str): Either 'appendicular_LMI' for ALMI or 'LMI' for FFMI.
+        gender_code (int): 0 for male, 1 for female.
+        data_path (str): Path to the directory containing LMS CSV files.
+
+    Returns:
+        float: The metric value needed to achieve target percentile, or NaN if calculation fails.
+    """
+    from scipy import stats
+
+    # Validate input
+    if target_percentile < 0.0 or target_percentile > 1.0:
+        return np.nan
+
+    # Load cached LMS data
+    L_func, M_func, S_func = load_lms_data(metric, gender_code, data_path)
+
+    if L_func is None:
+        return np.nan
+
+    try:
+        # Get LMS values for the specified age
+        l_val = L_func(age)
+        m_val = M_func(age)
+        s_val = S_func(age)
+
+        # Convert percentile to Z-score
+        z_score = stats.norm.ppf(target_percentile)
+
+        # Calculate metric value from Z-score using inverse LMS transformation
+        metric_value = get_value_from_zscore(z_score, l_val, m_val, s_val)
+
+        return metric_value
+
+    except Exception:
+        return np.nan
+
+
+def validate_goal_feasibility_with_weight_constraint(
+    user_profile, goal_config, bf_range_config, current_age
+):
+    """
+    Validates if a goal is achievable within weight constraints.
+    
+    This function calculates the minimum weight needed to achieve the target ALMI percentile
+    and compares it to the max_weight_lbs constraint if provided.
+    
+    Args:
+        user_profile: UserProfile object with user data
+        goal_config: GoalConfig object with target percentile
+        bf_range_config: BFRangeConfig object with potential max_weight_lbs constraint
+        current_age (float): User's current age
+        
+    Returns:
+        tuple: (is_feasible: bool, error_message: str or None, min_weight_needed: float or None)
+    """
+    # Only validate for ALMI goals since weight constraint primarily affects muscle mass
+    if goal_config.metric_type != "almi":
+        return True, None, None
+
+    # Only validate if max_weight_lbs is provided
+    if bf_range_config is None or bf_range_config.max_weight_lbs is None:
+        return True, None, None
+
+    try:
+        # Get target ALMI value from target percentile
+        gender_code = 0 if user_profile.gender.lower() in ["m", "male"] else 1
+        target_almi = calculate_value_from_percentile_cached(
+            goal_config.target_percentile,
+            current_age,
+            "appendicular_LMI",
+            gender_code
+        )
+
+        if np.isnan(target_almi):
+            return False, "Could not calculate target ALMI value from percentile", None
+
+        # Calculate required ALM (appendicular lean mass) in kg
+        height_m = user_profile.height_in * 0.0254
+        required_alm_kg = target_almi * (height_m ** 2)
+
+        # Estimate ALM/TLM ratio from scan history
+        # Use the same logic as in the existing TLM estimation
+        latest_scan = user_profile.scan_history[-1]
+        if hasattr(latest_scan, "arms_lean_lbs"):
+            current_alm_lbs = latest_scan.arms_lean_lbs + latest_scan.legs_lean_lbs
+            current_tlm_lbs = latest_scan.total_lean_mass_lbs
+        else:
+            current_alm_lbs = latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
+            current_tlm_lbs = latest_scan["total_lean_mass_lbs"]
+
+        alm_tlm_ratio = current_alm_lbs / current_tlm_lbs
+
+        # Calculate required TLM (total lean mass)
+        required_alm_lbs = required_alm_kg / 0.453592  # Convert kg to lbs
+        required_tlm_lbs = required_alm_lbs / alm_tlm_ratio
+
+        # Estimate minimum total weight
+        # Use minimum realistic body fat percentage for this calculation
+        # Conservative estimate: use safety minimum BF% for gender
+        from shared_models import BF_THRESHOLDS
+        gender = user_profile.gender.lower()
+        min_bf_pct = BF_THRESHOLDS[gender]["minimum"]
+
+        # Account for bone mass (~15% of total lean mass typically)
+        estimated_bone_mass_lbs = required_tlm_lbs * 0.15
+
+        # Calculate minimum weight: required_tlm + minimum_fat + bone_mass
+        # min_weight = required_tlm + bone_mass + minimum_fat
+        # min_weight = required_tlm + bone_mass + (min_weight * min_bf_pct / 100)
+        # Solving: min_weight * (1 - min_bf_pct/100) = required_tlm + bone_mass
+        min_weight_lbs = (required_tlm_lbs + estimated_bone_mass_lbs) / (1 - min_bf_pct / 100)
+
+        # Check if achievable within weight constraint
+        if min_weight_lbs > bf_range_config.max_weight_lbs:
+            error_msg = (
+                f"Goal not achievable within weight constraint. "
+                f"Target {goal_config.target_percentile:.0%} ALMI percentile requires "
+                f"minimum weight of {min_weight_lbs:.1f} lbs, but max weight is set to "
+                f"{bf_range_config.max_weight_lbs:.1f} lbs. "
+                f"Consider: (1) increasing max weight to {min_weight_lbs:.1f}+ lbs, "
+                f"(2) lowering target percentile, or (3) removing weight constraint."
+            )
+            return False, error_msg, min_weight_lbs
+
+        return True, None, min_weight_lbs
+
+    except Exception as e:
+        return False, f"Error validating goal feasibility: {str(e)}", None
+
+
 # ---------------------------------------------------------------------------
 # SUGGESTED GOAL LOGIC AND LEAN MASS GAIN RATES
 # ---------------------------------------------------------------------------

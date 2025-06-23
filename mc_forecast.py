@@ -103,6 +103,26 @@ class MonteCarloEngine:
         """Execute full Monte Carlo simulation"""
         logger.info("Starting Monte Carlo simulation...")
 
+        # Validate goal feasibility with weight constraints if provided
+        if self.config.bf_range_config is not None and self.config.bf_range_config.max_weight_lbs is not None:
+            from core import validate_goal_feasibility_with_weight_constraint
+
+            is_feasible, error_msg, min_weight = validate_goal_feasibility_with_weight_constraint(
+                self.config.user_profile,
+                self.config.goal_config,
+                self.config.bf_range_config,
+                self.current_age
+            )
+
+            if not is_feasible:
+                raise ValueError(f"Goal not achievable with weight constraint: {error_msg}")
+
+            if min_weight is not None:
+                logger.info(
+                    f"Weight constraint validation passed. Minimum weight needed: {min_weight:.1f} lbs, "
+                    f"maximum allowed: {self.config.bf_range_config.max_weight_lbs:.1f} lbs"
+                )
+
         # Run all trajectories
         trajectories = []
         for run_idx in range(self.config.run_count):
@@ -174,6 +194,8 @@ class MonteCarloEngine:
                     current_phase_config,
                     weeks_in_current_phase,
                     self.config.user_profile.gender,
+                    current_weight_lbs=current_state.weight_lbs,
+                    bf_range_config=self.config.bf_range_config,
                 )
 
                 if should_transition:

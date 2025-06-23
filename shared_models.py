@@ -138,17 +138,25 @@ class UserProfile:
 
 @dataclass
 class BFRangeConfig:
-    """User-customizable body fat percentage range for bulk/cut cycles"""
+    """User-customizable body fat percentage range and weight constraints for bulk/cut cycles"""
 
     min_bf_pct: float  # Custom minimum BF% (e.g., 10%)
     max_bf_pct: float  # Custom maximum BF% (e.g., 15%)
+    max_weight_lbs: Optional[float] = None  # Maximum weight constraint (acts as dynamic BF% limit)
 
     def __post_init__(self):
-        """Validate BF range configuration"""
+        """Validate BF range and weight constraint configuration"""
         if self.min_bf_pct >= self.max_bf_pct:
             raise ValueError("min_bf_pct must be less than max_bf_pct")
         if self.min_bf_pct < 0 or self.max_bf_pct > 50:
             raise ValueError("BF percentages must be reasonable (0-50%)")
+
+        # Validate weight constraint if provided
+        if self.max_weight_lbs is not None:
+            if self.max_weight_lbs <= 0:
+                raise ValueError("max_weight_lbs must be positive")
+            if self.max_weight_lbs < 80 or self.max_weight_lbs > 500:
+                raise ValueError("max_weight_lbs must be reasonable (80-500 lbs)")
 
 
 @dataclass
