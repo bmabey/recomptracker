@@ -287,6 +287,11 @@ class MonteCarloEngine:
             phase=PhaseType.MAINTENANCE,  # Will be set by phase logic
             almi=almi,
             ffmi=ffmi,
+            # Initialize training progression tracking
+            weeks_training=0,
+            current_training_level=self.config.training_level,
+            training_level_transition_weeks=[],
+            simulation_age=self.current_age,
         )
 
     def _determine_initial_phase(self, state: SimulationState) -> PhaseType:
@@ -429,22 +434,34 @@ class MonteCarloEngine:
         Simulate one week of body composition changes using sophisticated rate calculator.
 
         This method uses the research-backed rate calculator and phase configuration
-        to provide more accurate and evidence-based body composition changes.
+        to provide more accurate and evidence-based body composition changes with
+        dynamic training level progression and age tracking.
         """
 
-        # Get sophisticated rate calculation
+        # Update training progression tracking
+        updated_state = current_state
+        updated_state.weeks_training += 1
+        updated_state.simulation_age = self.current_age + (
+            week / 52.0
+        )  # Update age based on simulation time
+
+        # Update training level progression
+        updated_state = self._update_training_progression(updated_state)
+
+        # Get sophisticated rate calculation using CURRENT training level (not initial)
+        current_training_level = updated_state.current_training_level
         if phase_config.phase_type == PhaseType.BULK:
             base_rate = self.rate_calculator.get_bulk_rate(
-                self.config.training_level, "moderate"
+                current_training_level, "moderate"
             )
         elif phase_config.phase_type == PhaseType.CUT:
             base_rate = self.rate_calculator.get_cut_rate("moderate")
         else:  # MAINTENANCE
             base_rate = 0
 
-        # Apply age adjustment
+        # Apply age adjustment using CURRENT simulation age
         age_adjusted_rate = self.rate_calculator.apply_age_adjustment(
-            base_rate, self.current_age
+            base_rate, updated_state.simulation_age
         )
 
         # Calculate absolute weight change using body weight scaling
@@ -459,8 +476,11 @@ class MonteCarloEngine:
         else:
             abs_weight_change = 0
 
-        # Add variance using the sophisticated variance factor
-        weight_noise = self.rng.normal(0, abs(abs_weight_change) * self.variance_factor)
+        # Add variance using dynamic training level variance factor
+        current_variance_factor = TRAINING_VARIANCE[current_training_level]
+        weight_noise = self.rng.normal(
+            0, abs(abs_weight_change) * current_variance_factor
+        )
         weight_change_lbs = abs_weight_change + weight_noise
 
         # Calculate P-ratio using sophisticated calculator
@@ -514,6 +534,11 @@ class MonteCarloEngine:
             phase=phase_config.phase_type,
             almi=new_almi,
             ffmi=new_ffmi,
+            # Carry forward training progression tracking
+            weeks_training=updated_state.weeks_training,
+            current_training_level=updated_state.current_training_level,
+            training_level_transition_weeks=updated_state.training_level_transition_weeks.copy(),
+            simulation_age=updated_state.simulation_age,
         )
 
     def _get_p_ratio(self, phase: PhaseType, body_fat_pct: float) -> float:
@@ -603,6 +628,85 @@ class MonteCarloEngine:
         # For now, just use training level variance
 
         return base_variance
+
+    def _calculate_dynamic_training_level(
+        self, current_state: SimulationState, initial_training_level: TrainingLevel
+    ) -> TrainingLevel:
+        """
+        Calculate current training level based on time progression and age factors.
+
+        Research-based transition thresholds:
+        - Novice phase: 6-18 months (varies by age/gender)
+        - Intermediate phase: 18 months - 3 years
+        - Advanced phase: 3+ years
+
+        Age factors affect progression speed:
+        - Younger users (18-25): Standard progression timelines
+        - Adult users (25-40): Slightly faster initial progression
+        - Older users (40+): Faster progression through novice phase
+        """
+        weeks_training = current_state.weeks_training
+        simulation_age = current_state.simulation_age
+        gender = self.config.user_profile.gender.lower()
+
+        # Age-based progression modifiers (research shows older beginners progress faster initially)
+        if simulation_age < 25:
+            age_modifier = 1.0  # Standard progression
+        elif simulation_age < 40:
+            age_modifier = 0.9  # 10% faster progression
+        else:
+            age_modifier = 0.75  # 25% faster progression (older adults adapt quicker to initial training)
+
+        # Gender-based slight adjustments (research shows minimal difference in progression timeline)
+        gender_modifier = 0.95 if gender == "female" else 1.0
+
+        # Calculate adjusted thresholds
+        base_novice_weeks = 52  # 1 year base
+        base_intermediate_weeks = 156  # 3 years base
+
+        novice_to_intermediate_weeks = int(
+            base_novice_weeks * age_modifier * gender_modifier
+        )
+        intermediate_to_advanced_weeks = int(
+            base_intermediate_weeks * age_modifier * gender_modifier
+        )
+
+        # Determine current training level (transition happens after the threshold week)
+        if weeks_training < novice_to_intermediate_weeks:
+            return TrainingLevel.NOVICE
+        elif weeks_training < intermediate_to_advanced_weeks:
+            return TrainingLevel.INTERMEDIATE
+        else:
+            return TrainingLevel.ADVANCED
+
+    def _update_training_progression(
+        self, current_state: SimulationState
+    ) -> SimulationState:
+        """
+        Update training progression tracking in simulation state.
+
+        Args:
+            current_state: Current simulation state
+
+        Returns:
+            Updated simulation state with progression tracking
+        """
+        # Calculate new training level
+        new_training_level = self._calculate_dynamic_training_level(
+            current_state, self.config.training_level
+        )
+
+        # Check for training level transition
+        if new_training_level != current_state.current_training_level:
+            # Record transition
+            current_state.training_level_transition_weeks.append(current_state.week)
+            logger.info(
+                f"Training level transition at week {current_state.week}: "
+                f"{current_state.current_training_level.value} -> {new_training_level.value}"
+            )
+            current_state.current_training_level = new_training_level
+
+        return current_state
 
     def _calculate_max_duration_weeks(self) -> int:
         """Calculate maximum simulation duration based on user age"""

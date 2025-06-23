@@ -227,6 +227,21 @@ class SimulationState:
     almi: float
     ffmi: float
 
+    # Training progression tracking
+    weeks_training: int = 0  # Total weeks of training elapsed
+    current_training_level: TrainingLevel = (
+        TrainingLevel.NOVICE
+    )  # Dynamic training level
+    training_level_transition_weeks: Optional[List[int]] = (
+        None  # When transitions occurred
+    )
+    simulation_age: float = 0.0  # Current age in simulation (birth_date + weeks)
+
+    def __post_init__(self):
+        """Initialize transition tracking if not provided"""
+        if self.training_level_transition_weeks is None:
+            self.training_level_transition_weeks = []
+
 
 @dataclass
 class CheckpointData:
