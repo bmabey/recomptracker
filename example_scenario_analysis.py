@@ -673,7 +673,6 @@ def generate_html_report(scenarios_dict, user_profile):
         param_items = [
             ("Training Level", params["training_level"].value),
             ("Template", params["template"].value),
-            ("Variance Factor", f"{params['variance_factor']:.2f}"),
             ("Run Count", str(params["run_count"])),
             ("Random Seed", str(params["random_seed"])),
             (
@@ -778,7 +777,6 @@ def run_simulation_scenario(scenario_name, user_profile, **kwargs):
         "training_level", TrainingLevel.NOVICE
     )  # Default to NOVICE
     template = kwargs.get("template", TemplateType.CUT_FIRST)
-    variance_factor = kwargs.get("variance_factor", 0.25)
     bf_range_config = kwargs.get("bf_range_config", None)
     run_count = kwargs.get("run_count", 200)
     max_duration_years = kwargs.get("max_duration_years", None)
@@ -787,7 +785,7 @@ def run_simulation_scenario(scenario_name, user_profile, **kwargs):
     print("Parameters:")
     print(f"  Training Level: {training_level.value}")
     print(f"  Template: {template.value}")
-    print(f"  Variance Factor: {variance_factor}")
+    print("  Variance Factor: Auto (based on training level)")
     print(f"  BF Range Config: {bf_range_config}")
     print(f"  Run Count: {run_count}")
     print(
@@ -817,7 +815,6 @@ def run_simulation_scenario(scenario_name, user_profile, **kwargs):
             goal_config=goal_config,
             training_level=training_level,
             template=template,
-            variance_factor=variance_factor,
             bf_range_config=bf_range_config,
             random_seed=random_seed,
             run_count=run_count,
@@ -910,7 +907,6 @@ def run_simulation_scenario(scenario_name, user_profile, **kwargs):
             "input_parameters": {
                 "training_level": training_level,
                 "template": template,
-                "variance_factor": variance_factor,
                 "bf_range_config": bf_range_config,
                 "run_count": run_count,
                 "max_duration_years": max_duration_years,
@@ -942,7 +938,6 @@ def run_simulation_scenario(scenario_name, user_profile, **kwargs):
             "input_parameters": {
                 "training_level": training_level,
                 "template": template,
-                "variance_factor": variance_factor,
                 "bf_range_config": bf_range_config,
                 "run_count": run_count,
                 "max_duration_years": max_duration_years,
@@ -989,11 +984,10 @@ def main():
 
     # Scenario 1: Baseline (Novice with dynamic progression)
     scenarios["baseline"] = run_simulation_scenario(
-        "Baseline - Novice/Cut-First/Medium Variance",
+        "Baseline - Novice/Cut-First",
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         run_count=200,
     )
 
@@ -1003,7 +997,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.INTERMEDIATE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         run_count=200,
     )
 
@@ -1012,7 +1005,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.ADVANCED,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.10,  # Lower variance for advanced
         run_count=200,
     )
 
@@ -1022,28 +1014,20 @@ def main():
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.BULK_FIRST,
-        variance_factor=0.25,
         run_count=200,
     )
 
     # Scenario 4: Variance factor variations
     scenarios["low_variance"] = run_simulation_scenario(
-        "Low Variance (Conservative)",
+        "Low Variance (Advanced Training Level)",
         user_profile,
-        training_level=TrainingLevel.NOVICE,
+        training_level=TrainingLevel.ADVANCED,  # Advanced has low variance (0.10)
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.10,
         run_count=200,
     )
 
-    scenarios["high_variance"] = run_simulation_scenario(
-        "High Variance (Aggressive)",
-        user_profile,
-        training_level=TrainingLevel.NOVICE,
-        template=TemplateType.CUT_FIRST,
-        variance_factor=0.40,
-        run_count=200,
-    )
+    # Note: Novice already has high variance (0.50), so we'll skip the artificial 0.40 scenario
+    # scenarios["high_variance"] removed - Novice already demonstrates high variance naturally
 
     # Scenario 5: Weight constraint scenarios
     scenarios["weight_190"] = run_simulation_scenario(
@@ -1051,7 +1035,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         bf_range_config=BFRangeConfig(
             min_bf_pct=8.0, max_bf_pct=15.0, max_weight_lbs=190.0
         ),
@@ -1063,7 +1046,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         bf_range_config=BFRangeConfig(
             min_bf_pct=8.0, max_bf_pct=15.0, max_weight_lbs=180.0
         ),
@@ -1076,7 +1058,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         max_duration_years=3,
         run_count=200,
     )
@@ -1087,7 +1068,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         bf_range_config=BFRangeConfig(
             min_bf_pct=11.0, max_bf_pct=15.0, max_weight_lbs=165.0
         ),
@@ -1099,7 +1079,6 @@ def main():
         user_profile,
         training_level=TrainingLevel.NOVICE,
         template=TemplateType.CUT_FIRST,
-        variance_factor=0.25,
         bf_range_config=BFRangeConfig(min_bf_pct=8.0, max_bf_pct=18.0),
         run_count=200,
     )
