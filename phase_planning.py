@@ -258,13 +258,13 @@ class PhaseTemplateEngine:
     ) -> float:
         """
         Estimate the effective maximum body fat percentage given a weight constraint.
-        
+
         This helps template generation set realistic BF% targets when weight constraints are active.
-        
+
         Args:
             user_profile: User profile with current body composition
             max_weight_lbs: Maximum allowed weight
-            
+
         Returns:
             Estimated maximum body fat percentage at the weight limit
         """
@@ -304,12 +304,12 @@ class PhaseTemplateEngine:
     ) -> tuple[float, str]:
         """
         Calculate effective bulk target considering both BF% desires and weight constraints.
-        
+
         Args:
             user_profile: User profile data
             desired_bf_pct: Desired BF% target from template logic
             bf_range_config: BF range configuration with potential weight constraint
-            
+
         Returns:
             tuple: (effective_target_bf_pct, rationale_suffix)
         """
@@ -965,12 +965,15 @@ class PhaseTransitionManager:
             return True
 
         # Check weight constraint (force cut if weight limit exceeded during bulk)
-        if (current_weight_lbs is not None and
-            bf_range_config is not None and
-            bf_range_config.max_weight_lbs is not None):
-
-            if (current_phase == PhaseType.BULK and
-                current_weight_lbs >= bf_range_config.max_weight_lbs):
+        if (
+            current_weight_lbs is not None
+            and bf_range_config is not None
+            and bf_range_config.max_weight_lbs is not None
+        ):
+            if (
+                current_phase == PhaseType.BULK
+                and current_weight_lbs >= bf_range_config.max_weight_lbs
+            ):
                 logger.info(
                     f"Phase transition triggered: Weight {current_weight_lbs:.1f} lbs "
                     f"reached maximum {bf_range_config.max_weight_lbs:.1f} lbs (forcing cut)"

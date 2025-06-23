@@ -417,7 +417,9 @@ def calculate_percentile_cached(value, age, metric, gender_code, data_path="./da
     return percentile
 
 
-def calculate_value_from_percentile_cached(target_percentile, age, metric, gender_code, data_path="./data/"):
+def calculate_value_from_percentile_cached(
+    target_percentile, age, metric, gender_code, data_path="./data/"
+):
     """
     Calculates the metric value needed to achieve a target percentile (inverse LMS lookup).
 
@@ -469,16 +471,16 @@ def validate_goal_feasibility_with_weight_constraint(
 ):
     """
     Validates if a goal is achievable within weight constraints.
-    
+
     This function calculates the minimum weight needed to achieve the target ALMI percentile
     and compares it to the max_weight_lbs constraint if provided.
-    
+
     Args:
         user_profile: UserProfile object with user data
         goal_config: GoalConfig object with target percentile
         bf_range_config: BFRangeConfig object with potential max_weight_lbs constraint
         current_age (float): User's current age
-        
+
     Returns:
         tuple: (is_feasible: bool, error_message: str or None, min_weight_needed: float or None)
     """
@@ -494,10 +496,7 @@ def validate_goal_feasibility_with_weight_constraint(
         # Get target ALMI value from target percentile
         gender_code = 0 if user_profile.gender.lower() in ["m", "male"] else 1
         target_almi = calculate_value_from_percentile_cached(
-            goal_config.target_percentile,
-            current_age,
-            "appendicular_LMI",
-            gender_code
+            goal_config.target_percentile, current_age, "appendicular_LMI", gender_code
         )
 
         if np.isnan(target_almi):
@@ -505,7 +504,7 @@ def validate_goal_feasibility_with_weight_constraint(
 
         # Calculate required ALM (appendicular lean mass) in kg
         height_m = user_profile.height_in * 0.0254
-        required_alm_kg = target_almi * (height_m ** 2)
+        required_alm_kg = target_almi * (height_m**2)
 
         # Estimate ALM/TLM ratio from scan history
         # Use the same logic as in the existing TLM estimation
@@ -514,7 +513,9 @@ def validate_goal_feasibility_with_weight_constraint(
             current_alm_lbs = latest_scan.arms_lean_lbs + latest_scan.legs_lean_lbs
             current_tlm_lbs = latest_scan.total_lean_mass_lbs
         else:
-            current_alm_lbs = latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
+            current_alm_lbs = (
+                latest_scan["arms_lean_lbs"] + latest_scan["legs_lean_lbs"]
+            )
             current_tlm_lbs = latest_scan["total_lean_mass_lbs"]
 
         alm_tlm_ratio = current_alm_lbs / current_tlm_lbs
@@ -527,6 +528,7 @@ def validate_goal_feasibility_with_weight_constraint(
         # Use minimum realistic body fat percentage for this calculation
         # Conservative estimate: use safety minimum BF% for gender
         from shared_models import BF_THRESHOLDS
+
         gender = user_profile.gender.lower()
         min_bf_pct = BF_THRESHOLDS[gender]["minimum"]
 
@@ -537,7 +539,9 @@ def validate_goal_feasibility_with_weight_constraint(
         # min_weight = required_tlm + bone_mass + minimum_fat
         # min_weight = required_tlm + bone_mass + (min_weight * min_bf_pct / 100)
         # Solving: min_weight * (1 - min_bf_pct/100) = required_tlm + bone_mass
-        min_weight_lbs = (required_tlm_lbs + estimated_bone_mass_lbs) / (1 - min_bf_pct / 100)
+        min_weight_lbs = (required_tlm_lbs + estimated_bone_mass_lbs) / (
+            1 - min_bf_pct / 100
+        )
 
         # Check if achievable within weight constraint
         if min_weight_lbs > bf_range_config.max_weight_lbs:

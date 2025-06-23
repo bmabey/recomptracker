@@ -97,8 +97,10 @@ class TestGoalFeasibilityValidation(unittest.TestCase):
         goal_config = GoalConfig(metric_type="almi", target_percentile=0.75)
         bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0)
 
-        is_feasible, error_msg, min_weight = validate_goal_feasibility_with_weight_constraint(
-            self.user_profile, goal_config, bf_range_config, 33.0
+        is_feasible, error_msg, min_weight = (
+            validate_goal_feasibility_with_weight_constraint(
+                self.user_profile, goal_config, bf_range_config, 33.0
+            )
         )
 
         self.assertTrue(is_feasible)
@@ -109,8 +111,10 @@ class TestGoalFeasibilityValidation(unittest.TestCase):
         """Test that validation passes when no bf_range_config is provided"""
         goal_config = GoalConfig(metric_type="almi", target_percentile=0.75)
 
-        is_feasible, error_msg, min_weight = validate_goal_feasibility_with_weight_constraint(
-            self.user_profile, goal_config, None, 33.0
+        is_feasible, error_msg, min_weight = (
+            validate_goal_feasibility_with_weight_constraint(
+                self.user_profile, goal_config, None, 33.0
+            )
         )
 
         self.assertTrue(is_feasible)
@@ -120,27 +124,37 @@ class TestGoalFeasibilityValidation(unittest.TestCase):
     def test_validation_skips_non_almi_goals(self):
         """Test that validation is skipped for non-ALMI goals"""
         goal_config = GoalConfig(metric_type="ffmi", target_percentile=0.75)
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=160.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=160.0
+        )
 
-        is_feasible, error_msg, min_weight = validate_goal_feasibility_with_weight_constraint(
-            self.user_profile, goal_config, bf_range_config, 33.0
+        is_feasible, error_msg, min_weight = (
+            validate_goal_feasibility_with_weight_constraint(
+                self.user_profile, goal_config, bf_range_config, 33.0
+            )
         )
 
         self.assertTrue(is_feasible)
         self.assertIsNone(error_msg)
         self.assertIsNone(min_weight)
 
-    @patch('core.calculate_value_from_percentile_cached')
+    @patch("core.calculate_value_from_percentile_cached")
     def test_validation_fails_with_restrictive_weight_constraint(self, mock_calc):
         """Test that validation fails when weight constraint is too restrictive"""
         # Mock LMS calculation to return a high ALMI target
-        mock_calc.return_value = 10.0  # High ALMI value that requires significant muscle mass
+        mock_calc.return_value = (
+            10.0  # High ALMI value that requires significant muscle mass
+        )
 
         goal_config = GoalConfig(metric_type="almi", target_percentile=0.95)
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=160.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=160.0
+        )
 
-        is_feasible, error_msg, min_weight = validate_goal_feasibility_with_weight_constraint(
-            self.user_profile, goal_config, bf_range_config, 33.0
+        is_feasible, error_msg, min_weight = (
+            validate_goal_feasibility_with_weight_constraint(
+                self.user_profile, goal_config, bf_range_config, 33.0
+            )
         )
 
         self.assertFalse(is_feasible)
@@ -149,17 +163,21 @@ class TestGoalFeasibilityValidation(unittest.TestCase):
         self.assertIn("160.0 lbs", error_msg)
         self.assertIsNotNone(min_weight)
 
-    @patch('core.calculate_value_from_percentile_cached')
+    @patch("core.calculate_value_from_percentile_cached")
     def test_validation_passes_with_reasonable_weight_constraint(self, mock_calc):
         """Test that validation passes when weight constraint is reasonable"""
         # Mock LMS calculation to return a reasonable ALMI target
         mock_calc.return_value = 8.5  # Reasonable ALMI value
 
         goal_config = GoalConfig(metric_type="almi", target_percentile=0.75)
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0
+        )
 
-        is_feasible, error_msg, min_weight = validate_goal_feasibility_with_weight_constraint(
-            self.user_profile, goal_config, bf_range_config, 33.0
+        is_feasible, error_msg, min_weight = (
+            validate_goal_feasibility_with_weight_constraint(
+                self.user_profile, goal_config, bf_range_config, 33.0
+            )
         )
 
         self.assertTrue(is_feasible)
@@ -222,7 +240,9 @@ class TestPhaseTransitionWithWeightConstraints(unittest.TestCase):
             rationale="Test bulk phase",
         )
 
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0
+        )
 
         # Should not transition when under weight limit
         should_transition = self.transition_manager.should_transition(
@@ -249,7 +269,9 @@ class TestPhaseTransitionWithWeightConstraints(unittest.TestCase):
             rationale="Test bulk phase",
         )
 
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0
+        )
 
         # Should transition when weight limit reached during bulk
         should_transition = self.transition_manager.should_transition(
@@ -276,7 +298,9 @@ class TestPhaseTransitionWithWeightConstraints(unittest.TestCase):
             rationale="Test cut phase",
         )
 
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0
+        )
 
         # Should not transition on weight during cut (weight would be decreasing)
         should_transition = self.transition_manager.should_transition(
@@ -331,12 +355,16 @@ class TestTemplateGenerationWithWeightConstraints(unittest.TestCase):
         self.assertTrue(len(bulk_phases) > 0)
 
         for bulk_phase in bulk_phases:
-            self.assertGreater(bulk_phase.target_bf_pct, 15.0)  # Should allow reasonable bulk targets
+            self.assertGreater(
+                bulk_phase.target_bf_pct, 15.0
+            )  # Should allow reasonable bulk targets
 
     def test_template_generation_with_restrictive_weight_constraint(self):
         """Test that template generation adjusts targets with restrictive weight constraints"""
         # Very restrictive weight constraint (should force lower BF% than 15%)
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=160.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=160.0
+        )
 
         sequence = self.template_engine.generate_sequence(
             TemplateType.CUT_FIRST, self.user_profile, bf_range_config=bf_range_config
@@ -415,7 +443,9 @@ class TestMonteCarloSimulationWithWeightConstraints(unittest.TestCase):
 
     def test_simulation_runs_with_reasonable_weight_constraint(self):
         """Test that simulation runs with reasonable weight constraints"""
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=200.0
+        )
 
         config = SimulationConfig(
             user_profile=self.user_profile,
@@ -438,7 +468,9 @@ class TestMonteCarloSimulationWithWeightConstraints(unittest.TestCase):
     def test_simulation_fails_with_impossible_weight_constraint(self):
         """Test that simulation fails upfront with impossible weight constraints"""
         # Very restrictive weight constraint that creates unsafe phase targets
-        bf_range_config = BFRangeConfig(min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=150.0)
+        bf_range_config = BFRangeConfig(
+            min_bf_pct=10.0, max_bf_pct=15.0, max_weight_lbs=150.0
+        )
 
         config = SimulationConfig(
             user_profile=self.user_profile,
@@ -453,8 +485,9 @@ class TestMonteCarloSimulationWithWeightConstraints(unittest.TestCase):
 
         # Should raise PhaseConfigError during initialization due to unsafe targets
         from phase_planning import PhaseConfigError
+
         with self.assertRaises(PhaseConfigError) as cm:
-            engine = MonteCarloEngine(config)
+            MonteCarloEngine(config)
 
         self.assertIn("below safe minimum", str(cm.exception))
 
@@ -462,24 +495,30 @@ class TestMonteCarloSimulationWithWeightConstraints(unittest.TestCase):
 class TestInverseLMSCalculation(unittest.TestCase):
     """Test inverse LMS calculation for weight constraint validation"""
 
-    @patch('core.load_lms_data')
-    @patch('core.get_value_from_zscore')
-    def test_calculate_value_from_percentile_cached(self, mock_get_value, mock_load_lms):
+    @patch("core.load_lms_data")
+    @patch("core.get_value_from_zscore")
+    def test_calculate_value_from_percentile_cached(
+        self, mock_get_value, mock_load_lms
+    ):
         """Test the inverse LMS calculation function"""
+
         # Mock LMS data loading
-        mock_l_func = lambda age: 1.0
-        mock_m_func = lambda age: 8.0
-        mock_s_func = lambda age: 0.15
+        def mock_l_func(age):
+            return 1.0
+
+        def mock_m_func(age):
+            return 8.0
+
+        def mock_s_func(age):
+            return 0.15
+
         mock_load_lms.return_value = (mock_l_func, mock_m_func, mock_s_func)
 
         # Mock inverse calculation
         mock_get_value.return_value = 8.5
 
         result = calculate_value_from_percentile_cached(
-            target_percentile=0.75,
-            age=30.0,
-            metric="appendicular_LMI",
-            gender_code=0
+            target_percentile=0.75, age=30.0, metric="appendicular_LMI", gender_code=0
         )
 
         self.assertEqual(result, 8.5)
@@ -492,7 +531,7 @@ class TestInverseLMSCalculation(unittest.TestCase):
             target_percentile=1.5,  # Invalid percentile > 1.0
             age=30.0,
             metric="appendicular_LMI",
-            gender_code=0
+            gender_code=0,
         )
 
         self.assertTrue(np.isnan(result))
@@ -500,19 +539,13 @@ class TestInverseLMSCalculation(unittest.TestCase):
     def test_calculate_value_from_percentile_edge_cases(self):
         """Test edge cases for percentile calculation"""
         # Test 0th percentile
-        result_0 = calculate_value_from_percentile_cached(
-            target_percentile=0.0,
-            age=30.0,
-            metric="appendicular_LMI",
-            gender_code=0
+        calculate_value_from_percentile_cached(
+            target_percentile=0.0, age=30.0, metric="appendicular_LMI", gender_code=0
         )
 
         # Test 100th percentile
-        result_100 = calculate_value_from_percentile_cached(
-            target_percentile=1.0,
-            age=30.0,
-            metric="appendicular_LMI",
-            gender_code=0
+        calculate_value_from_percentile_cached(
+            target_percentile=1.0, age=30.0, metric="appendicular_LMI", gender_code=0
         )
 
         # Should handle edge cases without crashing

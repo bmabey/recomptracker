@@ -142,7 +142,9 @@ class BFRangeConfig:
 
     min_bf_pct: float  # Custom minimum BF% (e.g., 10%)
     max_bf_pct: float  # Custom maximum BF% (e.g., 15%)
-    max_weight_lbs: Optional[float] = None  # Maximum weight constraint (acts as dynamic BF% limit)
+    max_weight_lbs: Optional[float] = (
+        None  # Maximum weight constraint (acts as dynamic BF% limit)
+    )
 
     def __post_init__(self):
         """Validate BF range and weight constraint configuration"""
