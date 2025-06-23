@@ -677,6 +677,11 @@ class MonteCarloEngine:
 
     def _calculate_variance_factor(self) -> float:
         """Calculate overall variance factor"""
+        # Use explicit override if provided
+        if self.config.variance_factor is not None:
+            return self.config.variance_factor
+
+        # Otherwise use training level default
         base_variance = TRAINING_VARIANCE[self.config.training_level]
 
         # TODO: Blend with empirical variance from scan history (50/50)

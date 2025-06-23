@@ -276,7 +276,7 @@ class SimulationConfig:
     goal_config: GoalConfig
     training_level: TrainingLevel
     template: TemplateType
-    variance_factor: float
+    variance_factor: Optional[float] = None  # Auto-calculated if None
     phase_sequence: Optional["PhaseSequence"] = None  # Auto-generated if None
     bf_range_config: Optional["BFRangeConfig"] = None  # Custom BF% cycling range
     random_seed: Optional[int] = None
