@@ -181,6 +181,49 @@ config = {
 
 Maximum 20 scans per URL.
 
+### Step 5: Help the user understand their results
+
+After generating the URL, provide context to help the user interpret what they'll see in RecompTracker. Use the knowledge below.
+
+#### What the metrics mean
+
+- **ALMI (Appendicular Lean Mass Index)**: Lean mass in arms + legs divided by height in meters squared (kg/m²). This is the key metric for longevity — it measures the functional skeletal muscle that responds to training and protects against age-related sarcopenia.
+- **FFMI (Fat-Free Mass Index)**: Total lean mass divided by height in meters squared (kg/m²). A broader measure of overall lean body mass including organs and trunk.
+- **Percentile**: How the user compares to a reference population of their age and sex. The 75th percentile means more muscle mass than 75% of peers. Reference data comes from the LEAD cohort study of healthy European adults.
+- **Z-score**: How many standard deviations above or below the population median. A Z-score of +1.0 is roughly the 84th percentile.
+- **T-score**: Comparison to young adults (ages 20-30) at peak muscle mass, not age-matched peers. Useful for tracking how much buffer remains against age-related decline.
+
+#### Recommended goals
+
+- **Baseline**: 75th percentile ALMI — supported by mortality data showing significant longevity benefits above this threshold.
+- **Aspirational**: 90th-97th percentile ALMI — strong buffer against decades of inevitable muscle loss (1-2% per year after age 50).
+- ALMI is more important than FFMI for longevity planning because it isolates the trainable skeletal muscle in the limbs.
+
+#### DEXA scan measurement noise — important caveats
+
+DEXA scans are the clinical gold standard for body composition, but they have real limitations at the individual level that users need to understand. As the MacroFactor blog explains (https://macrofactor.com/body-composition/): group-level estimates of body composition are generally quite good, but individual-level estimates are too imprecise and inaccurate to be particularly informative or actionable — especially over short timeframes.
+
+You cannot truly "measure" body composition — you can only estimate it. DEXA derives composition estimates of a 3D body from a 2D scan, and about 40% of pixels contain bone, making nearly half the scan reliant on assumption-driven calculations.
+
+**Key numbers:**
+- Body fat percentage can have individual errors of up to 5% at a single point in time
+- Lean mass has a coefficient of variation of about 0.5-1% on back-to-back scans
+- Hydration alone can cause swings of 1-2 lbs in lean mass readings — dehydration inflates fat percentage, over-hydration inflates lean mass
+
+**What this means practically:**
+- A change of less than ~1-2 lbs of lean mass or ~1-2% body fat between two scans may be measurement noise, not a real change
+- A diet showing a 10% decrease in body fat percentage could actually reflect anywhere from a 5% to 15% decrease once you account for measurement error
+- The real value comes from tracking trends over multiple scans spaced months apart. Don't overreact to any single reading.
+
+**For meaningful comparisons between scans:**
+- Use the same DEXA machine/facility each time
+- Scan at the same time of day (morning fasted is ideal)
+- Maintain similar hydration levels (drink normal water, empty bladder before scan)
+- Avoid intense exercise for 12+ hours before the scan
+- Wait at least 3-6 months between scans to see changes that exceed measurement noise
+
+**The bottom line:** DEXA percentile tracking (what RecompTracker does) is most useful for understanding your general position relative to the population and tracking long-term trajectories over years. It is less useful for detecting small changes between two consecutive scans. Frame small changes honestly: "This could reflect real progress or normal scan-to-scan variation. Your next scan will help confirm the trend."
+
 ### If the PDF is unreadable
 
 If you cannot extract the values from the PDF (blurry image, unusual format, password-protected), ask the user to provide the values manually using this template:

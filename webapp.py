@@ -420,14 +420,14 @@ def display_goals_modal():
     """Display Goals explanation in a modal dialog."""
     # TL;DR section
     st.info(
-        "**TL;DR:** Set an ALMI percentile goal (75th-90th recommended). FFMI goals are available if you're curious, but ALMI is the primary metric Attia focuses on for longevity planning."
+        "**TL;DR:** Set an ALMI percentile goal (75th-90th recommended). FFMI goals are available if you're curious, but ALMI is the primary metric for longevity planning."
     )
 
-    # Attia's Recommendations
-    st.markdown("### 🎯 Attia's Recommendations")
+    # Recommended Targets
+    st.markdown("### 🎯 Recommended Targets")
     st.markdown("""
     - **Baseline Goal:** 75th percentile ALMI (supported by mortality data showing significant longevity benefits)
-    - **Aspirational Goal:** 90th-97th percentile ALMI (Attia's personal standard for optimal healthspan)
+    - **Aspirational Goal:** 90th-97th percentile ALMI (optimal healthspan planning)
     """)
 
     # Expandable sections
@@ -461,6 +461,49 @@ def display_goals_modal():
         st.rerun()
 
 
+def _load_agent_prompt():
+    """Load the agent prompt text from the docs file, extracting only the prompt section."""
+    try:
+        prompt_path = os.path.join(
+            os.path.dirname(__file__), "docs", "dexa-pdf-agent-prompt.md"
+        )
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Extract everything after the "---" separator (the actual prompt)
+        separator = "\n---\n"
+        idx = content.find(separator)
+        if idx != -1:
+            return content[idx + len(separator) :].strip()
+        return content.strip()
+    except Exception:
+        return None
+
+
+@st.dialog("🤖 Use AI to Extract DEXA Scan Data", width="large")
+def display_ai_prompt_modal():
+    """Display the AI assistant prompt with a copy button."""
+    st.markdown(
+        "Copy the prompt below and paste it into your AI assistant "
+        "(ChatGPT, Claude, Gemini, etc.) along with your DEXA scan PDF. "
+        "The AI will extract your data and generate a link back to RecompTracker."
+    )
+    st.markdown("")
+
+    prompt_text = _load_agent_prompt()
+    if prompt_text:
+        st.code(prompt_text, language="markdown", wrap_lines=True)
+        st.markdown(
+            "**How to use:** Copy the prompt above (click the copy icon in the "
+            "top-right corner of the code block), then start a new chat with your "
+            "AI assistant and paste it along with your DEXA scan PDF."
+        )
+    else:
+        st.error("Could not load the AI prompt file.")
+
+    if st.button("Close", key="close_ai_prompt_modal"):
+        st.rerun()
+
+
 def extract_philosophy_section():
     """
     Extract the Philosophy section from README.md.
@@ -475,7 +518,7 @@ def extract_philosophy_section():
             content = f.read()
 
         # Find the Philosophy section
-        start_marker = "## Operationalizing Peter Attia's Medicine 3.0 Philosophy"
+        start_marker = "## Why Track Body Composition?"
         end_marker = "## Features"
 
         start_idx = content.find(start_marker)
@@ -1364,15 +1407,15 @@ def display_header():
     """Display the application header with explanations."""
     explanations = get_metric_explanations()
 
-    # Compact three-column header layout
-    col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+    # Compact header layout
+    col1, col2, col3, col4 = st.columns([0.5, 0.2, 0.15, 0.15])
 
     with col1:
         st.title(explanations["header_info"]["title"])
 
         # Philosophy teaser without subtitle
         st.markdown(
-            """**Operationalizing Peter Attia's Medicine 3.0 philosophy** — Build your muscle buffer against inevitable decline."""
+            """**Build your muscle buffer against inevitable decline** — evidence-based body composition tracking for longevity."""
         )
 
     with col2:
@@ -1388,6 +1431,17 @@ def display_header():
             display_philosophy_modal()
 
     with col3:
+        st.markdown("<br><br>", unsafe_allow_html=True)  # Align with title
+        if st.button(
+            "🤖 AI Scan Import",
+            key="show_ai_prompt",
+            help="Get a prompt to use with ChatGPT, Claude, or Gemini to extract data from your DEXA scan PDF",
+            type="secondary",
+            use_container_width=True,
+        ):
+            display_ai_prompt_modal()
+
+    with col4:
         st.markdown("<br><br>", unsafe_allow_html=True)  # Align with title
         display_share_button()
 
